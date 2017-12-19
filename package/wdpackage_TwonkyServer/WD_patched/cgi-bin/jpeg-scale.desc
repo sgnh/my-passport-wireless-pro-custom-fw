@@ -1,0 +1,8 @@
+# rescale jpeg images
+#(c) 2008 by PacketVideo
+exec: cgi-jpegscale $infile $outfile $targetwidth $targetheight $targetrotation
+# capabilities
+from=image/jpeg
+to=image/jpeg
+scale
+synchronous

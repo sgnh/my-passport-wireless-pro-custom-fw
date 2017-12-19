@@ -1,0 +1,31 @@
+From 6e131c33a2cbcc649543f4658ec2882fb9581c61 Mon Sep 17 00:00:00 2001
+From: Yuan-Yi Chang <hank.chang@primax.com.tw>
+Date: Tue, 31 Mar 2015 16:05:03 +0800
+Subject: [PATCH 1/6] busybox-1.21.0-df.patch
+
+---
+ coreutils/df.c |    8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/coreutils/df.c b/coreutils/df.c
+index d79c11a..e78ae9a 100644
+--- a/coreutils/df.c
++++ b/coreutils/df.c
+@@ -119,10 +119,10 @@ int df_main(int argc UNUSED_PARAM, char **argv)
+ 	if (getenv("POSIXLY_CORRECT")) /* TODO - a new libbb function? */
+ 		df_disp_hr = 512;
+ 
+-	if (opt & OPT_HUMAN) {
+-		df_disp_hr = 0;
+-		disp_units_hdr = "     Size";
+-	}
++//	if (opt & OPT_HUMAN) {
++//		df_disp_hr = 0;
++//		disp_units_hdr = "     Size";
++//	}
+ 	if (opt & OPT_INODE)
+ 		disp_units_hdr = "   Inodes";
+ 
+-- 
+1.7.9.5
+

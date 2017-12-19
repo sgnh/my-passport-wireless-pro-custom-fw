@@ -1,0 +1,32 @@
+--- a/etc/afpd/directory.c	2013-03-26 17:34:24.000000000 +0800
++++ b/etc/afpd/directory.c	2014-03-13 14:30:06.566911400 +0800
+@@ -1076,7 +1076,12 @@
+     uint16_t   len16;
+     int         size = 0;
+     int         toUTF8 = 0;
+-
++/*Jeff.Yao, 20140313, rename the illegal name {*/
++    char    *checkadouble = ".AppleDouble";
++    char    *checkParent = ".Parent";
++    char    *renameAdouble = "..AppleDouble";
++    char    *renameParent = "..Parent";
++/*Jeff.Yao, 20140313, rename the illegal name }*/    
+     LOG(log_maxdebug, logtype_afpd, "came('%s'): {start}", cfrombstr(dir->d_fullpath));
+ 
+     data = *cpath;
+@@ -1160,7 +1165,14 @@
+         }
+ 
+         LOG(log_maxdebug, logtype_afpd, "came('%s'): {node: '%s}", cfrombstr(dir->d_fullpath), ret.u_name);
+-
++/*Jeff.Yao, 20140313, rename the illegal name {*/        
++        if (strncmp(ret.u_name,checkadouble,10) == 0) {
++            ret.u_name = renameAdouble;
++        }
++        if (strncmp(ret.u_name,checkParent,7) == 0) {
++            ret.u_name = renameParent;
++        }
++/*Jeff.Yao, 20140313, rename the illegal name }*/
+         /* Prevent access to our special folders like .AppleDouble */
+         if (check_name(vol, ret.u_name)) {
+             /* the name is illegal */

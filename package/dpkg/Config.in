@@ -1,0 +1,7 @@
+config BR2_PACKAGE_DPKG
+	bool "dpkg"
+	help
+	  This package provides the low-level infrastructure for handling
+	  the installation and removal of Debian software packages.
+	  
+	  http://wiki.debian.org/Teams/Dpkg

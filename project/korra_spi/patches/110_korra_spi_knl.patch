@@ -1,0 +1,93 @@
+--- linux-kernel/kernel/sys.c	2015-05-18 15:07:04.000000000 +0800
++++ linux-custom/kernel/sys.c	2016-02-19 03:17:04.784331336 +0800
+@@ -64,6 +64,8 @@
+ #include <asm/io.h>
+ #include <asm/unistd.h>
+ 
++#include <linux/usb.h>
++
+ #ifndef SET_UNALIGN_CTL
+ # define SET_UNALIGN_CTL(a,b)	(-EINVAL)
+ #endif
+@@ -330,6 +332,7 @@
+ 	blocking_notifier_call_chain(&reboot_notifier_list, SYS_RESTART, cmd);
+ 	system_state = SYSTEM_RESTART;
+ 	usermodehelper_disable();
++ 	usb_rootdev_shutdown();
+ 	device_shutdown();
+ }
+ 
+@@ -435,6 +438,8 @@
+ 		(state == SYSTEM_HALT)?SYS_HALT:SYS_POWER_OFF, NULL);
+ 	system_state = state;
+ 	usermodehelper_disable();
++ 	if (state == SYSTEM_HALT || state == SYSTEM_POWER_OFF)
++ 		usb_rootdev_shutdown();
+ 	device_shutdown();
+ }
+ /**
+--- linux-kernel/include/linux/usb.h	2015-05-18 15:07:12.000000000 +0800
++++ linux-custom/include/linux/usb.h	2016-02-18 21:04:32.464448934 +0800
+@@ -1816,6 +1816,8 @@
+ /* debugfs stuff */
+ extern struct dentry *usb_debug_root;
+ 
++extern void usb_rootdev_shutdown(void);
++
+ #endif  /* __KERNEL__ */
+ 
+ #endif
+--- linux-kernel/drivers/scsi/sd.c	2015-05-18 15:07:59.000000000 +0800
++++ linux-custom/drivers/scsi/sd.c	2016-02-19 02:12:58.576351572 +0800
+@@ -3278,6 +3278,21 @@
+ 	return ret;
+ }
+ 
++void shutdown_rootdev_using_disk(struct gendisk *disk)
++{
++	struct scsi_disk *sdkp;
++	sdkp = scsi_disk_get(disk);
++	if (sdkp){
++ 		if (sdkp->WCE) {
++			printk(KERN_EMERG "Synchronizing SCSI cache\n");
++			sd_sync_cache(sdkp);
++		}
++		printk(KERN_EMERG "Spin down disk...");
++ 		sd_start_stop_device(sdkp, 0);
++		msleep(2000);
++	}
++}
++
+ /**
+  *	init_sd - entry point for this driver (both when built in or when
+  *	a module).
+--- linux-kernel/drivers/usb/core/hub.c	2015-05-18 15:08:02.000000000 +0800
++++ linux-custom/drivers/usb/core/hub.c	2016-02-19 02:13:17.656351471 +0800
+@@ -65,6 +65,7 @@
+ static int r_flag = 0;   
+ 
+ extern void *scsi_hostdata_from_disk(struct gendisk *disk);
++extern void shutdown_rootdev_using_disk(struct gendisk *disk);
+ extern wait_queue_head_t       sudev_wait;   
+ extern bool rusb_hook ;
+  
+@@ -5664,3 +5665,19 @@
+ 	return DEVICE_ACPI_HANDLE(&hub->ports[port1 - 1]->dev);
+ }
+ #endif
++
++void usb_rootdev_shutdown(void)
++{
++	if (current->fs){
++		struct path root;
++		struct gendisk *disk;
++		unsigned int major, minor;
++		int part;
++		
++		major = 8;
++		minor = 0;
++		disk = get_gendisk(MKDEV(major, minor), &part);
++		shutdown_rootdev_using_disk(disk);
++	}
++}
++EXPORT_SYMBOL_GPL(usb_rootdev_shutdown);

@@ -1,0 +1,70 @@
+#!/bin/sh
+#
+# Starts lighttpd.
+#
+source /etc/nas/config/wifinetwork-param.conf
+
+MODIFY_LIGHTTPD_CONFIG()
+{
+	sed -i '/.*url.redirect-code = 302/{N;N;N;N;d;}' /etc/lighttpd/lighttpd.conf
+	#if [ ! -f "/etc/.device_configured" ]; then
+	#	echo "url.redirect-code = 302" >> /etc/lighttpd/lighttpd.conf
+	#	echo "" >> /etc/lighttpd/lighttpd.conf
+	#	echo "\$HTTP[\"host\"] !~ \"$AP_IP\" {" >> /etc/lighttpd/lighttpd.conf
+	#	echo "  url.redirect = ( \".*\" => \"http://$AP_IP/\" )" >> /etc/lighttpd/lighttpd.conf
+	#	echo "}" >> /etc/lighttpd/lighttpd.conf
+	#fi
+}
+
+start() {
+	chmod -R 775 "/usr/local/nas/orion"
+	chown -R root:www-data "/usr/local/nas/orion"
+	chown -Rh :www-data "/var/www/rest-api"
+	chown -Rh :www-data "/var/www/htdocs"
+	chown -Rh :www-data "/var/www/htdocs"
+	chmod -R 2775 "/var/www/htdocs"
+	chmod -R g-w "/var/www/rest-api"
+	chmod -R g-w "/var/www/htdocs"
+	rm -Rf /var/www/rest-api/htdocs/mapdrive
+	chmod -R 775 "/var/www/rest-api/config"
+	chown -R root:www-data "/var/www/rest-api/config"
+	echo -n "Starting lighttpd: "
+	MODIFY_LIGHTTPD_CONFIG
+	setsid /usr/sbin/lighttpd-angel -D -f /etc/lighttpd/lighttpd.conf &
+	#start-stop-daemon -S -q -p /var/run/lighttpd.pid --exec /usr/sbin/lighttpd -- -f /etc/lighttpd/lighttpd.conf
+	if [ -f /tmp/KLITE ]; then
+		if [ -f "/usr/local/sbin/removeComponents.sh" ]; then
+			echo -n "run removeComponents "
+			chmod 755 /usr/local/sbin/removeComponents.sh
+			/usr/local/sbin/removeComponents.sh
+		fi
+	fi
+	echo "OK"
+}
+stop() {
+	echo -n "Stopping lighttpd: "
+	start-stop-daemon -K -q -p /var/run/lighttpd.pid
+	echo "OK"
+}
+restart() {
+	stop
+	start
+}
+
+case "$1" in
+  start)
+	start
+	;;
+  stop)
+	stop
+	;;
+  restart|reload)
+	restart
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?
+

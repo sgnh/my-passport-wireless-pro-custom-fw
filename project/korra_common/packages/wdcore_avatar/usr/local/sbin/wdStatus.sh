@@ -1,0 +1,31 @@
+#!/bin/bash
+#
+# (c) 2011 Western Digital Technologies, Inc. All rights reserved.
+#
+# This file contains values of various status codes used by bash scripts
+#
+# NOTE: The values of status must match those under 
+#       WDPerlLib/Common/WDStatus.pm
+
+WDST_OK=0
+WDST_INPROGRESS=1
+WDST_FAILED=2
+WDST_NOTFOUND=3
+WDST_UNAUTHORIZED=4
+WDST_BUSY=5
+WDST_NOSPACE=6
+WDST_INVALID=7
+WDST_INCOMPATIBLE=8
+WDST_UNREACHABLE=9
+WDST_NOTSUPPORTED=10
+WDST_DUPLICATE=11
+WDST_NOTSTARTED=12
+WDST_NOTCREATED=13
+WDST_UNAVAILABLE=14
+WDST_CORRUPTED=15
+WDST_ABORTED=16
+WDST_IGNORE=17
+WDST_NOTALLOWED=18
+WDST_NOTUSABLE=19
+WDST_CLEANUP=20
+WDST_WARN=21

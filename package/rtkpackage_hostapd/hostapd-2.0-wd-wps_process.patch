@@ -1,0 +1,123 @@
+diff -uNr rtkpackage_hostapd-2.0/hostapd/src/ap/wps_hostapd.c rtkpackage_hostapd-2.0/hostapd/src/ap/wps_hostapd.c
+--- rtkpackage_hostapd-2.0/hostapd/src/ap/wps_hostapd.c	2015-06-05 02:05:33.000000000 +0800
++++ rtkpackage_hostapd-2.0/hostapd/src/ap/wps_hostapd.c	2016-02-06 09:27:13.358761990 +0800
+@@ -764,8 +764,21 @@
+ 
+ static void hostapd_wps_event_pbc_timeout(struct hostapd_data *hapd)
+ {
++	char msg[128];
+ 	/* Update WPS PBC Status:PBC Timeout */
+ 	hapd->wps_stats.pbc_status = WPS_PBC_STATUS_TIMEOUT;
++	
++	memset(msg, 0x0, sizeof(msg));
++	snprintf(msg, sizeof(msg), "echo \"22;0;\"  > /tmp/MCU_Cmd\n");
++	if (system(msg) < 0){
++		memset(msg, 0x0, sizeof(msg));
++	}
++	
++	memset(msg, 0x0, sizeof(msg));
++	snprintf(msg, sizeof(msg), "echo NONE > /tmp/WPS_APstatus\n");
++	if (system(msg) < 0){
++		memset(msg, 0x0, sizeof(msg));
++	}
+ }
+ 
+ 
+@@ -842,8 +855,14 @@
+ 		hostapd_wps_event_fail(hapd, &data->fail);
+ 		break;
+ 	case WPS_EV_SUCCESS:
++		if(hapd->iconf->hw_mode == HOSTAPD_MODE_IEEE80211A){
++			system("hostapd_cli -i wlan2 wps_cancel");
++		}else{
++			system("hostapd_cli -i wlan0 wps_cancel");
++		}
+ 		hostapd_wps_event_success(hapd, &data->success);
+ 		wpa_msg(hapd->msg_ctx, MSG_INFO, WPS_EVENT_SUCCESS);
++	
+ 		break;
+ 	case WPS_EV_PWD_AUTH_FAIL:
+ 		hostapd_pwd_auth_fail(hapd, &data->pwd_auth_fail);
+diff -uNr rtkpackage_hostapd-2.0/hostapd/src/drivers/driver_nl80211.c rtkpackage_hostapd-2.0/hostapd/src/drivers/driver_nl80211.c
+--- rtkpackage_hostapd-2.0/hostapd/src/drivers/driver_nl80211.c	2014-08-18 18:13:40.000000000 +0800
++++ rtkpackage_hostapd-2.0/hostapd/src/drivers/driver_nl80211.c	2016-02-14 11:08:50.030773781 +0800
+@@ -38,6 +38,8 @@
+ #include "rfkill.h"
+ #include "driver.h"
+ 
++#define BLOCK_LIST_FILE	"/tmp/block_mac"
++
+ #ifndef SO_WIFI_STATUS
+ # if defined(__sparc__)
+ #  define SO_WIFI_STATUS	0x0025
+@@ -2274,11 +2276,40 @@
+ {
+ 	u8 *addr;
+ 	union wpa_event_data data;
++	char mac_addr[18];
++	FILE *fp=NULL;
++	char buffer[18], blockMAC[18];
++	size_t len = 0;
++	int pp = 0;
++	ssize_t nread;
+ 
+ 	if (tb[NL80211_ATTR_MAC] == NULL)
+ 		return;
+ 	addr = nla_data(tb[NL80211_ATTR_MAC]);
++	//system("/usr/local/sbin/setonboardingcomplete.sh OnboardingCheck");
++	memset(buffer, 0x0, sizeof(buffer));
+ 	wpa_printf(MSG_DEBUG, "nl80211: New station " MACSTR, MAC2STR(addr));
++	memset(mac_addr, 0x0, sizeof(mac_addr));
++	snprintf(mac_addr,sizeof(mac_addr),"%02x:%02x:%02x:%02x:%02x:%02x", MAC2STR(addr));
++	if (access(BLOCK_LIST_FILE, F_OK ) != -1) {
++		fp = fopen(BLOCK_LIST_FILE, "r");
++		if (fp == NULL) {
++			return;
++		}else {
++			while(fgets(buffer, 18, fp) != NULL ) 
++			{	
++				//printf("block: %s, %d\n", buffer, strlen(buffer));
++				//printf("PCmac: %s, %d\n", mac_addr, strlen(mac_addr));
++				if(strncmp(mac_addr, buffer, sizeof(buffer)) == 0){
++					//printf("byebye block: %s\n", buffer);
++					fclose(fp);
++					return;
++				}
++			}	
++		}
++		fclose(fp);
++	}
++	
+ 
+ 	if (is_ap_interface(drv->nlmode) && drv->device_ap_sme) {
+ 		u8 *ies = NULL;
+diff -uNr rtkpackage_hostapd-2.0/hostapd/src/wps/wps_registrar.c rtkpackage_hostapd-2.0/hostapd/src/wps/wps_registrar.c
+--- rtkpackage_hostapd-2.0/hostapd/src/wps/wps_registrar.c	2014-08-18 18:13:41.000000000 +0800
++++ rtkpackage_hostapd-2.0/hostapd/src/wps/wps_registrar.c	2016-02-06 09:27:13.358761990 +0800
+@@ -3288,6 +3288,7 @@
+ static void wps_registrar_set_selected_timeout(void *eloop_ctx,
+ 					       void *timeout_ctx)
+ {
++	char msg[128];
+ 	struct wps_registrar *reg = eloop_ctx;
+ 
+ 	wpa_printf(MSG_DEBUG, "WPS: Selected Registrar timeout - "
+@@ -3295,6 +3296,18 @@
+ 	reg->selected_registrar = 0;
+ 	reg->pbc = 0;
+ 	wps_registrar_selected_registrar_changed(reg, 0);
++	
++	memset(msg, 0x0, sizeof(msg));
++	snprintf(msg, sizeof(msg), "echo TIMEDOUT > /tmp/WPS_APpinMethod\n");
++	if (system(msg) < 0){
++		memset(msg, 0x0, sizeof(msg));
++	}
++	
++	memset(msg, 0x0, sizeof(msg));
++	snprintf(msg, sizeof(msg), "echo \"22;0;\"  > /tmp/MCU_Cmd\n");
++	if (system(msg) < 0){
++		memset(msg, 0x0, sizeof(msg));
++	}
+ }
+ 
+ 

@@ -1,0 +1,10 @@
+[Unit]
+Description=Primax logging RC Script (S02logging)
+DefaultDependencies=no
+After=primax-initsystem.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash -c "/etc/init.d/S02logging start"
+ExecStop=/bin/bash -c "/etc/init.d/S02logging stop"

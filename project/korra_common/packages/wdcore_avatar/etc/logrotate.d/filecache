@@ -1,0 +1,9 @@
+/tmp/PmxLog  {
+	su root root
+	size=200k
+	missingok
+	copytruncate
+	rotate 1
+	compress
+	notifempty
+}

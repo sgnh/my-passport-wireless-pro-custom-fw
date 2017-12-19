@@ -1,0 +1,94 @@
+#!/bin/sh
+#
+# Start fwupf....
+#
+RETVAL=0
+RETVAL1=0
+
+#check factory restore
+if [ -f "/etc/FacRestore" ] ; then
+    facrestore=`cat /etc/FacRestore`
+    if [ ${facrestore} == "compeleted" ] ; then
+        echo "Factory Restore Defaulted"
+        /usr/local/sbin/sendAlert.sh 2005
+        rm /etc/FacRestore
+    fi
+fi
+
+autoupdate_fwupg()
+{
+	if [ -f "/media/sdb1/.wdcache/update/UpdateDone" ]; then
+		echo "Already Updated from auto update server"
+		rm -Rf /media/sdb1/.wdcache/update
+		/usr/local/sbin/clearAlerts.sh 1600
+		return
+	fi	
+	update_images=`ls -r1 /media/sdb1/.wdcache/update/MyPassportWirelessGen2*.bin`
+	for update_image in "$update_images"; do
+		if [ "${update_image}" == "" ]; then
+			echo "FW file is not Found for auto update"
+			break
+		fi
+		echo "24;0;" > /tmp/MCU_Cmd
+		/usr/local/sbin/sendHWCollect.sh 102 AutoUpdate Start `cat /etc/version`
+		/usr/local/sbin/updateFirmwareFromFile.sh $update_image		
+	done
+}
+
+primax_fwupg()
+{
+	for volume_path in /media/*; do
+		echo "Searching $volume_path"
+		if [ -d "$volume_path/update"  ]; then
+			echo "Found update folder in $volume_path"
+			if [ -f "$volume_path/update/UpdateDone" ]; then
+				echo "Already Updated"
+				return
+			fi
+
+			update_images=`ls -r1 $volume_path/update/MyPassportWirelessGen2*.bin`
+			for update_image in "$update_images"; do
+				if [ "${update_image}" == "" ]; then
+					echo "FW file is not Found in $volume_path/update"
+					break
+				fi
+				rm -f /FWupgfromSDCard /FWupgfromHDD /FWupgfromUSB
+				echo "Update from \"$update_image\""
+				FromSDcard=`grep "${volume_path}" /proc/mounts | grep mmcblk | wc -l`
+				if  [ ${FromSDcard} == "1" ]; then
+					echo "" > /FWupgfromSDCard
+					/usr/local/sbin/sendHWCollect.sh 102 ManuallySDCard Start `cat /etc/version`
+				else
+					if [ ${volume_path} == "/media/sdb1" ]; then
+						echo "" > /FWupgfromHDD
+						/usr/local/sbin/sendHWCollect.sh 102 ManuallyHDD Start `cat /etc/version`
+					else
+						echo "" > /FWupgfromUSB
+						/usr/local/sbin/sendHWCollect.sh 102 ManuallyUSB Start `cat /etc/version`
+					fi
+				fi
+				echo "24;0;" > /tmp/MCU_Cmd
+				/usr/local/sbin/updateFirmwareFromFile.sh $update_image
+			done
+		fi
+	done
+
+}
+
+case "$1" in
+  start)
+	echo "Starting fwupg..."
+	echo "1;0;" > /tmp/MCU_Cmd
+	autoupdate_fwupg
+	primax_fwupg
+	;;
+  stop)
+	;;
+  restart|reload)
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?

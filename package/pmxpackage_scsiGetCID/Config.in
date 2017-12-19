@@ -1,0 +1,5 @@
+config BR2_PACKAGE_PMXPACKAGE_SCSIGETCID
+	bool "pmxpackage(scsiGetCID)"
+	help
+	  The primax package(scsiGetCID) SCSI get SD Card CID tool for Avatar device
+

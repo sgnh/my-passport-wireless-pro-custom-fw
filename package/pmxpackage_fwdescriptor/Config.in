@@ -1,0 +1,5 @@
+config BR2_PACKAGE_PMXPACKAGE_FWDESCRIPTOR
+	bool "pmxpackage(fwdescriptor)"
+	help
+	  The primax package(fwdescriptor) SPI flash FW udpate tool for Korra device
+

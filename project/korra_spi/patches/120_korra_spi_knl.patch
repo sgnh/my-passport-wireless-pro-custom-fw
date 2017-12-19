@@ -1,0 +1,16 @@
+--- linux-kernel.orig/fs/namei.c	2015-05-18 15:07:32.000000000 +0800
++++ linux-kernel.mod/fs/namei.c	2016-08-02 09:09:21.453213244 +0800
+@@ -2228,7 +2228,13 @@
+ 	if (!victim->d_inode)
+ 		return -ENOENT;
+ 
++#if 1 // return -ENOENT instead of BUG_ON() - lester.hu@primax.com.tw [20160707]
++	if (victim->d_parent->d_inode != dir)
++		return -ENOENT;
++#else
+ 	BUG_ON(victim->d_parent->d_inode != dir);
++#endif
++
+ 	audit_inode_child(dir, victim, AUDIT_TYPE_CHILD_DELETE);
+ 
+ 	error = inode_permission(dir, MAY_WRITE | MAY_EXEC);

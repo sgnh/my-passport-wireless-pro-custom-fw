@@ -1,0 +1,7 @@
+#!/bin/bash -x
+
+# Define the WD media crawler component locations on which Twonky depends, including the INSTALL_DIR. 
+source /usr/local/twonkymedia-7/cgi-bin/wdmc-defs.sh
+
+#$INSTALL_DIR/bin/ffmpeg "$@"
+$INSTALL_DIR/bin/avconv "$@"

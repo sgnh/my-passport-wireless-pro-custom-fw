@@ -1,0 +1,33 @@
+#!/bin/sh
+#
+# Start the network....
+#
+
+NetworkIfaceCheck(){
+	cp -a /etc/network/interfaces_bak /etc/network/interfaces	
+}
+
+case "$1" in
+  start)
+ 	echo "Starting network..."
+  	NetworkIfaceCheck
+	#/sbin/ifup -a
+	/sbin/ifup lo
+	;;
+  stop)
+	echo -n "Stopping network..."
+	#/sbin/ifdown -a
+	/sbin/ifdown lo
+	;;
+  restart|reload)
+	"$0" stop
+  	NetworkIfaceCheck
+	"$0" start
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?
+

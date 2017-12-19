@@ -1,0 +1,54 @@
+#!/bin/sh
+#
+# avahi-daemon init script
+source /etc/system.conf
+DAEMON=/usr/sbin/avahi-daemon
+SERVICES=/tmp/avahi_service/services
+
+case "$1" in
+    start)
+    if [ ! -d "/tmp/avahi_service" ]; then
+    	mkdir -p  /tmp/avahi_service/
+    	chmod 755 /tmp/avahi_service/
+    	if [ ! -d "/etc/avahi/AvahiService" ]; then
+    		cp -a /etc/avahi/services /tmp/avahi_service/
+    	else
+    		mkdir -p /tmp/avahi_service/services
+    		cp -a /etc/avahi/services/afpd.service ${SERVICES}/
+    	fi
+    fi
+    
+    if [ -f /tmp/KLITE ]; then
+    	sed -i 's/modelName=.*/modelName=My Passport Wireless\<\/txt-record\>/' ${SERVICES}/web.service
+    	sed -i 's/modelName=.*/modelName=My Passport Wireless\<\/txt-record\>/' ${SERVICES}/wd2go.service
+    fi
+    
+    if [ ! -d "/etc/avahi/AvahiService" ]; then
+       	sed -i 's/modelNumber=.*/modelNumber='${modelNumber}'\<\/txt-record\>/' ${SERVICES}/web.service
+       	sed -i 's/modelNumber=.*/modelNumber='${modelNumber}'\<\/txt-record\>/' ${SERVICES}/wd2go.service
+     
+    	SerialNumeber=`/usr/local/sbin/getSerialNumber.sh`
+		if [ "$SerialNumeber" != ""  ]; then
+			sed -i 's/serialNumber=.*/serialNumber='$SerialNumeber'\<\/txt-record\>/' ${SERVICES}/web.service
+			sed -i 's/serialNumber=.*/serialNumber='$SerialNumeber'\<\/txt-record\>/' ${SERVICES}/wd2go.service
+		else
+			echo "Serial Number not ready to read."
+		fi
+    fi
+	$DAEMON -c || $DAEMON -D
+	
+	;;
+    stop)
+	$DAEMON -c && $DAEMON -k
+	;;
+    reload|restart)
+	#$DAEMON -c && $DAEMON -r
+	$DAEMON -c && $DAEMON -k
+	sleep 2
+	$DAEMON -c || $DAEMON -D
+    ;;
+    *)
+	echo "Usage: S50avahi-daemon {start|stop|reload}" >&2
+	exit 1
+	;;
+esac

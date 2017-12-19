@@ -1,0 +1,331 @@
+--- linux-kernel.orig/kernel/power/suspend.c	2015-05-18 15:07:03.000000000 +0800
++++ linux-kernel.mod/kernel/power/suspend.c	2016-08-02 11:15:56.994970230 +0800
+@@ -310,7 +310,7 @@
+ static void suspend_finish(void)
+ {
+ 	suspend_thaw_processes();
+-	wait_event_interruptible(sudev_wait, rusb_hook);     //hcy added
++	// wait_event_interruptible(sudev_wait, rusb_hook);     //hcy added
+ 	pm_notifier_call_chain(PM_POST_SUSPEND);
+ 	pm_restore_console();
+ }
+--- linux-kernel.orig/drivers/usb/core/hub.c	2016-08-02 09:47:38.786870033 +0800
++++ linux-kernel.mod/drivers/usb/core/hub.c	2016-08-02 10:11:27.827854713 +0800
+@@ -35,11 +35,7 @@
+ #include <linux/of_device.h>
+ #include <linux/of_gpio.h>
+ 
+-
+-#include <linux/root_dev.h>
+-#include <linux/fs_struct.h>
+ #include <linux/genhd.h>
+-#include "../storage/usb.h"
+ 
+ #include "hub.h"
+ //#define DEBUG 1 
+@@ -59,15 +55,8 @@
+ #ifdef CONFIG_USB_ERRATA_43576
+ extern void rtk_usb3_phy_trim(u16);
+ #endif
+-extern int usb_probe_device(struct device *dev);
+-extern int usb_unbind_device(struct device *dev);
+-//hcy added
+-static int r_flag = 0;   
+ 
+-extern void *scsi_hostdata_from_disk(struct gendisk *disk);
+ extern void shutdown_rootdev_using_disk(struct gendisk *disk);
+-extern wait_queue_head_t       sudev_wait;   
+-extern bool rusb_hook ;
+  
+ //static int r_flag = 0;   
+ static struct usb_device *sudev = NULL;
+@@ -2380,11 +2369,7 @@
+ 
+ 	/* Tell the world! */
+ 	announce_device(udev);
+-
+-	if (udev == sudev){    //hcy added 
+-		dev_err(&udev->dev ,"%s %d \n", __func__,__LINE__);//hcy test
+-		return 0 ;
+-	}
++	
+ 	if (udev->serial)
+ 		add_device_randomness(udev->serial, strlen(udev->serial));
+ 	if (udev->product)
+@@ -3334,78 +3319,12 @@
+ 		status = wait_for_ss_port_enable(udev, hub, &port1, &portchange,
+ 				&portstatus); //hcy added
+ 
+-
+-
+ 	status = check_port_resume_type(udev,
+ 			hub, port1, status, portchange, portstatus);
+-#ifdef CONFIG_BLOCK
+-	if (current->fs){
+-		struct path root;
+-		struct gendisk *disk;
+-		struct device *ddev;
+-		struct disk_part_iter piter;
+-		struct hd_struct *part;
+-		struct us_data *sus;
+-		get_fs_root(current->fs, &root);
+-		if (root.dentry->d_sb->s_bdev) {
+-			disk = root.dentry->d_sb->s_bdev->bd_disk;
+-			ddev = disk_to_dev(root.dentry->d_sb->s_bdev->bd_disk);
+-			
+-			disk_part_iter_init(&piter, disk, 0);
+-        		while ((part = disk_part_iter_next(&piter))){
+-				if (part_to_dev(part)->devt == ROOT_DEV) {
+-					if ((sus = (struct us_data*)scsi_hostdata_from_disk(disk))!= NULL) {
+-						sudev = sus->pusb_dev;
+-						dev_err(&sudev->dev, "root udev = %s \n", dev_name(&sudev->dev));
+-						break;
+-					}
+-				}
+-			}	
+-	
+-		}
+-	}
+-	dev_err(&udev->dev,"%s dev_name(&udev->dev) =%s \n" ,__func__, dev_name(&udev->dev));//hcy test
+-	dev_err(&udev->dev,"%s dev_name(&sudev->dev) =%s \n" ,__func__, dev_name(&sudev->dev));//hcy test
+-
+-	dev_err(&udev->dev, "%s sudev = 0x%x \n",__func__, sudev);//hcy test
+-	dev_err(&udev->dev, "%s udev = 0x%x \n",__func__,  udev);//hcy test
+-	dev_err(&udev->dev, "%s status = %d \n", __func__, status);
+-#endif
+-
+-
+-
+-
+-	if (!sudev || (sudev && sudev != udev)) {
+-
+-#ifdef CONFIG_USB_HUB_DISCONNECT_AT_RESUME 
+-	if (udev->reset_resume){
+-		int i;
+-		if (udev->descriptor.bDeviceClass ==USB_CLASS_MASS_STORAGE)
+-			status = -1;		
+-		else 
+-			for (i = 0; i < udev->actconfig->desc.bNumInterfaces; i++) {
+-				struct usb_host_config *config = udev->actconfig;
+-				struct usb_interface *intf = config->interface[i];
+-				struct usb_interface_descriptor *desc;
+-				desc = &intf->cur_altsetting->desc;
+-
+-				dev_err(&udev->dev , "bInterfaceClass = %d \n",  desc->bInterfaceClass);//hcy test
+-				if (desc->bInterfaceClass == USB_CLASS_MASS_STORAGE){
+-					status = -1;
+-					break;
+-				}
+-			}
+-
+-	}
+-#endif
+-		;
+-	}
+ 	if (status == 0)
+ 		status = finish_port_resume(udev);
+ 	if (status < 0) {
+ 		dev_dbg(&udev->dev, "can't resume, status %d\n", status);
+-		if (sudev && udev == sudev)    //hcy test
+-			return status;
+ 		hub_port_logical_disconnect(hub, port1);
+ 	} else  {
+ 		/* Try to enable USB2 hardware LPM */
+@@ -3417,6 +3336,7 @@
+ 		usb_unlocked_enable_lpm(udev);
+ 	}
+ 
++	dev_warn(&udev->dev, "usb_port_resume status = 0x%x\n", status);
+ 	return status;
+ }
+ 
+@@ -4135,6 +4055,7 @@
+ 	/* Reset the device; full speed may morph to high speed */
+ 	/* FIXME a USB 2.0 device may morph into SuperSpeed on reset. */
+ 	retval = hub_port_reset(hub, port1, udev, delay, false);
++
+ 	if (retval < 0) {		/* error or disconnect */
+ 		goto fail;
+ 	}
+@@ -4378,6 +4299,32 @@
+ 		goto fail;
+ 	}
+ 
++	if(udev->descriptor.idVendor == 0x0bda && udev->descriptor.idProduct == 0x0411){		
++
++		unsigned temp = 0xa8c0;
++
++		retval = usb_control_msg(udev, usb_rcvctrlpipe(udev, 0),
++			0x2, 0x40,
++			0x1, 0x0bda, &temp, 0,
++			USB_CTRL_GET_TIMEOUT);
++		if(retval < 0)
++			goto fail;
++
++		retval = usb_control_msg(udev, usb_rcvctrlpipe(udev, 0),
++			0xc7, 0x40,
++			0x3, 0x0012, &temp, 0x2,
++			USB_CTRL_GET_TIMEOUT);
++		if(retval < 0)
++			goto fail;
++
++		retval = usb_control_msg(udev, usb_rcvctrlpipe(udev, 0),
++			0x2, 0x40,
++			0x0, 0x0bda, &temp, 0,
++			USB_CTRL_GET_TIMEOUT);
++		if(retval < 0)
++			goto fail;
++		
++	}
+ 
+ 	if (udev->wusb == 0 && le16_to_cpu(udev->descriptor.bcdUSB) >= 0x0201) {
+ 		retval = usb_get_bos_descriptor(udev);
+@@ -4507,9 +4454,6 @@
+ #endif
+ 	/* Try to resuscitate an existing device */
+ 	udev = hub->ports[port1 - 1]->child;
+-	if (sudev && sudev == udev)   //hcy test
+-		goto go_thr;
+-
+ 	if ((portstatus & USB_PORT_STAT_CONNECTION) && udev &&
+ 			udev->state != USB_STATE_NOTATTACHED) {
+ 		usb_lock_device(udev);
+@@ -4535,45 +4479,12 @@
+ 			return;
+ 		}
+ 	}
+-go_thr:
+-
+-#if 0
+-#ifdef CONFIG_BLOCK
+-		if (current->fs){
+-			struct path root;
+-			struct gendisk *disk;
+-			struct device *ddev;
+-			struct disk_part_iter piter;
+-			struct hd_struct *part;
+-			struct us_data *sus;
+-			get_fs_root(current->fs, &root);
+-			if (root.dentry->d_sb->s_bdev) {
+-				disk = root.dentry->d_sb->s_bdev->bd_disk;
+-				ddev = disk_to_dev(root.dentry->d_sb->s_bdev->bd_disk);
+-			
+-				disk_part_iter_init(&piter, disk, 0);
+-        			while ((part = disk_part_iter_next(&piter))){
+-					if (part_to_dev(part)->devt == ROOT_DEV) {
+-						if ((sus = (struct us_data*)scsi_hostdata_from_disk(disk))!= NULL) {
+-							sudev = sus->pusb_dev;
+-							dev_err(hub_dev, "root udev = %s \n", dev_name(&sudev->dev));
+-							break;
+-						}
+-					}
+-				}	
+-	
+-			}
+-		}
+-#endif
+-#endif
+-
+ 
+ 	/* Disconnect any existing devices under this port */
+ 	if (udev) {
+ 		if (hcd->phy && !hdev->parent &&
+ 				!(portstatus & USB_PORT_STAT_CONNECTION))
+ 			usb_phy_notify_disconnect(hcd->phy, udev->speed);
+-		if (sudev != udev)	
+ 		usb_disconnect(&hub->ports[port1 - 1]->child);
+ 	}
+ 	clear_bit(port1, hub->change_bits);
+@@ -4630,14 +4541,6 @@
+ 		 * to the previous one can escape in various ways
+ 		 */
+ 	
+-		if (sudev && sudev->bus == hdev->bus && sudev->portnum == port1){
+-			dev_err (hub_dev,
+-				"hook port %d as sudev\n",
+-				port1);
+-
+-			udev = sudev ;
+-		}
+-		else
+ 			udev = usb_alloc_dev(hdev, hdev->bus, port1);
+ 		if (!udev) {
+ 			dev_err (hub_dev,
+@@ -4656,7 +4559,7 @@
+ 			udev->speed = USB_SPEED_SUPER;
+ 		else
+ 			udev->speed = USB_SPEED_UNKNOWN;
+-		if (sudev != udev)
++
+ 		choose_devnum(udev);
+ 		if (udev->devnum <= 0) {
+ 			status = -ENOTCONN;	/* Don't retry */
+@@ -4731,17 +4634,7 @@
+ 
+ 		/* Run it through the hoops (find a driver, etc) */
+ 		if (!status) {
+-
+-			int	usb_storage = 0;
+ 			status = usb_new_device(udev);
+-			//hcy added for quirk HDD 
+-			if (udev == sudev) {
+-				rusb_hook = true;	
+-				wake_up_interruptible(&sudev_wait);
+-				goto ready_togo;
+-
+-			}
+-
+ 			if (status) {
+ 				spin_lock_irq(&device_state_lock);
+ 				hub->ports[port1 - 1]->child = NULL;
+@@ -4751,7 +4644,7 @@
+ 
+ 		if (status)
+ 			goto loop_disable;
+-ready_togo:
++
+ 		status = hub_power_remaining(hub);
+ 		if (status)
+ 			dev_dbg(hub_dev, "%dmA power budget left\n", status);
+@@ -4920,9 +4813,13 @@
+ 
+ 			ret = hub_port_status(hub, i,
+ 					&portstatus, &portchange);
++
+ 			if (ret < 0)
+ 				continue;
+ 
++			dev_warn (hub_dev,"port %d " "portstatus %02x portchange %02x\n",
++				i, portstatus,portchange);
++
+ 			if (portchange & USB_PORT_STAT_C_CONNECTION) {
+ 				usb_clear_port_feature(hdev, i,
+ 					USB_PORT_FEAT_C_CONNECTION);
+@@ -5032,7 +4929,6 @@
+ 				hub_port_connect_change(hub, i,
+ 						portstatus, portchange);
+ 				
+-			
+ 		} /* end for i */
+ 
+ 		/* deal with hub status changes */
+@@ -5405,11 +5301,6 @@
+ 	return 0;
+ 
+ re_enumerate:
+-
+-	if (sudev && sudev == udev ) {
+-		dev_err(&udev->dev ,"%s %d \n", __func__,__LINE__);//hcy test
+-		return -ENODEV;
+-	}
+ 	/* LPM state doesn't matter when we're about to destroy the device. */
+ 	hub_port_logical_disconnect(parent_hub, port1);
+ 
+@@ -5449,6 +5340,7 @@
+ 		return -EINVAL;
+ 	}
+ 	usb_detect_quirks(udev);
++	
+ 	/*
+ 	 * Don't allocate memory with GFP_KERNEL in current
+ 	 * context to avoid possible deadlock if usb mass

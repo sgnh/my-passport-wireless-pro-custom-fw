@@ -1,0 +1,138 @@
+--- a/libblkid/src/superblocks/exfat.c	2014-10-07 18:38:41.615580169 +0800
++++ b/libblkid/src/superblocks/exfat.c	2016-07-09 05:35:15.763367603 +0800
+@@ -108,6 +108,8 @@
+ 	}
+ }
+ 
++#define EXFAT_STATE_MOUNTED 2
++
+ static int probe_exfat(blkid_probe pr, const struct blkid_idmag *mag)
+ {
+ 	struct exfat_super_block *sb;
+@@ -132,6 +134,9 @@
+ 	blkid_probe_sprintf_version(pr, "%u.%u",
+ 			sb->version.major, sb->version.minor);
+ 
++	if (le16_to_cpu(sb->volume_state) & EXFAT_STATE_MOUNTED)
++		blkid_probe_sprintf_dirtybit(pr, "%s", "1");
++
+ 	return BLKID_PROBE_OK;
+ }
+ 
+--- a/libblkid/src/superblocks/hfs.c	2014-09-16 20:37:06.148551776 +0800
++++ b/libblkid/src/superblocks/hfs.c	2016-07-09 22:56:23.493051548 +0800
+@@ -148,6 +148,8 @@
+ 	return blkid_probe_set_uuid(pr, uuid);
+ }
+ 
++#define HFSPLUS_VOL_UNMNT       (1 << 8)
++
+ static int probe_hfs(blkid_probe pr, const struct blkid_idmag *mag)
+ {
+ 	struct hfs_mdb	*hfs;
+@@ -290,6 +292,10 @@
+ 	blkid_probe_set_utf8label(pr, key->unicode,
+ 			be16_to_cpu(key->unicode_len) * 2,
+ 			BLKID_ENC_UTF16BE);
++	if (!(be16_to_cpu(sbd->atrb) & HFSPLUS_VOL_UNMNT))
++		blkid_probe_sprintf_dirtybit(pr, "%s", "1");
++	if (!(be32_to_cpu(hfsplus->attributes) & HFSPLUS_VOL_UNMNT))
++		blkid_probe_sprintf_dirtybit(pr, "%s", "1");
+ 	return 0;
+ }
+ 
+--- a/libblkid/src/superblocks/ntfs.c	2014-09-16 20:37:06.149551785 +0800
++++ b/libblkid/src/superblocks/ntfs.c	2016-07-09 22:55:47.861050587 +0800
+@@ -71,14 +71,24 @@
+ 	uint16_t	value_offset;
+ } __attribute__((__packed__));
+ 
++struct volume_information {
++	uint64_t reserved;       /* Not used (yet?). */
++	uint8_t major_ver;
++	uint8_t minor_ver; 
++	uint16_t flags;
++} __attribute__((__packed__));
++
+ #define MFT_RECORD_VOLUME	3
+ #define NTFS_MAX_CLUSTER_SIZE	(64 * 1024)
+ 
+ enum {
+ 	MFT_RECORD_ATTR_VOLUME_NAME		= 0x60,
++	MFT_RECORD_ATTR_VOLUME_INFORMATION		= 0x70,
+ 	MFT_RECORD_ATTR_END			= 0xffffffff
+ };
+ 
++#define VOLUME_IS_DIRTY 1
++
+ static int probe_ntfs(blkid_probe pr, const struct blkid_idmag *mag)
+ {
+ 	struct ntfs_super_block *ns;
+@@ -200,6 +210,32 @@
+ 		if (UINT_MAX - attr_len < attr_off)
+ 			break;
+ 		attr_off += attr_len;
++	}
++
++	while (attr_off < mft_record_size &&
++	       attr_off <= le32_to_cpu(mft->bytes_allocated)) {
++
++		uint32_t attr_len;
++		struct file_attribute *attr;
++
++		attr = (struct file_attribute *) (buf_mft + attr_off);
++		attr_len = le32_to_cpu(attr->len);
++		if (!attr_len)
++			break;
++
++		if (le32_to_cpu(attr->type) == MFT_RECORD_ATTR_END)
++			break;
++		if (le32_to_cpu(attr->type) == MFT_RECORD_ATTR_VOLUME_INFORMATION) {
++			unsigned int val_off = le16_to_cpu(attr->value_offset);
++			unsigned int val_len = le32_to_cpu(attr->value_len);
++			struct volume_information *vol_information  = ((uint8_t *) attr) + val_off;
++			if (le16_to_cpu(vol_information->flags) & VOLUME_IS_DIRTY)
++				blkid_probe_sprintf_dirtybit(pr, "%s", "1");
++			break;
++		}
++		if (UINT_MAX - attr_len < attr_off)
++			break;
++		attr_off += attr_len;
+ 	}
+ 
+ 	blkid_probe_sprintf_uuid(pr,
+--- a/libblkid/src/superblocks/superblocks.c	2014-09-16 20:37:06.150551795 +0800
++++ b/libblkid/src/superblocks/superblocks.c	2016-08-03 01:00:41.287991297 +0800
+@@ -539,6 +539,21 @@
+ 	return rc;
+ }
+ 
++int blkid_probe_sprintf_dirtybit(blkid_probe pr, const char *fmt, ...)
++{
++	struct blkid_chain *chn = blkid_probe_get_chain(pr);
++	int rc = 0;
++
++
++		va_list ap;
++
++		va_start(ap, fmt);
++		rc = blkid_probe_vsprintf_value(pr, "DIRTY", fmt, ap);
++		va_end(ap);
++
++	return rc;
++}
++
+ static int blkid_probe_set_usage(blkid_probe pr, int usage)
+ {
+ 	struct blkid_chain *chn = blkid_probe_get_chain(pr);
+--- a/libblkid/src/superblocks/superblocks.h	2014-09-16 20:37:06.151551804 +0800
++++ b/libblkid/src/superblocks/superblocks.h	2016-08-03 00:13:36.407915146 +0800
+@@ -81,6 +81,8 @@
+ extern int blkid_probe_set_version(blkid_probe pr, const char *version);
+ extern int blkid_probe_sprintf_version(blkid_probe pr, const char *fmt, ...)
+ 		__attribute__ ((__format__ (__printf__, 2, 3)));
++extern int blkid_probe_sprintf_dirtybit(blkid_probe pr, const char *fmt, ...)
++		__attribute__ ((__format__ (__printf__, 2, 3)));
+ 
+ extern int blkid_probe_set_label(blkid_probe pr, unsigned char *label, size_t len);
+ extern int blkid_probe_set_utf8label(blkid_probe pr, unsigned char *label,

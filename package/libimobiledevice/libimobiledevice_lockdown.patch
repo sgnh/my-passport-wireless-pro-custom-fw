@@ -1,0 +1,112 @@
+diff -uNr libimobiledevice/common/socket.c libimobiledevice-new/common/socket.c
+--- libimobiledevice/common/socket.c	2015-01-28 09:10:32.000000000 +0800
++++ libimobiledevice-new/common/socket.c	2016-09-21 15:31:14.171237218 +0800
+@@ -172,7 +172,7 @@
+ 
+ 	memset((void *) &saddr, 0, sizeof(saddr));
+ 	saddr.sin_family = AF_INET;
+-	saddr.sin_addr.s_addr = htonl(INADDR_ANY);
++	saddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+ 	saddr.sin_port = htons(port);
+ 
+ 	if (0 > bind(sfd, (struct sockaddr *) &saddr, sizeof(saddr))) {
+@@ -329,7 +329,7 @@
+ 
+ 	memset(&addr, 0, sizeof(addr));
+ 	addr.sin_family = AF_INET;
+-	addr.sin_addr.s_addr = htonl(INADDR_ANY);
++	addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+ 	addr.sin_port = htons(port);
+ 
+ 	addr_len = sizeof(addr);
+diff -uNr libimobiledevice/include/libimobiledevice/lockdown.h libimobiledevice-new/include/libimobiledevice/lockdown.h
+--- libimobiledevice/include/libimobiledevice/lockdown.h	2015-01-28 09:10:32.000000000 +0800
++++ libimobiledevice-new/include/libimobiledevice/lockdown.h	2016-09-21 15:22:11.089964950 +0800
+@@ -73,6 +73,10 @@
+ 	LOCKDOWN_E_MISSING_ACTIVATION_RECORD               = -33,
+ 	LOCKDOWN_E_SERVICE_PROHIBITED                      = -34,
+ 	LOCKDOWN_E_ESCROW_LOCKED                           = -35,
++	LOCKDOWN_E_PAIRING_PROHIBITED_OVER_THIS_CONNECTION = -36,
++	LOCKDOWN_E_FMIP_PROTECTED                          = -37,
++	LOCKDOWN_E_MC_PROTECTED                            = -38,
++	LOCKDOWN_E_MC_CHALLENGE_REQUIRED                   = -39,
+ 	LOCKDOWN_E_UNKNOWN_ERROR                           = -256
+ } lockdownd_error_t;
+ 
+diff -uNr libimobiledevice/src/idevice.c libimobiledevice-new/src/idevice.c
+--- libimobiledevice/src/idevice.c	2015-01-28 09:10:32.000000000 +0800
++++ libimobiledevice-new/src/idevice.c	2016-09-21 15:27:58.645749505 +0800
+@@ -168,7 +168,7 @@
+ 	return IDEVICE_E_SUCCESS;
+ }
+ 
+-LIBIMOBILEDEVICE_API idevice_error_t idevice_event_unsubscribe()
++LIBIMOBILEDEVICE_API idevice_error_t idevice_event_unsubscribe(void)
+ {
+ 	event_cb = NULL;
+ 	int res = usbmuxd_unsubscribe();
+@@ -678,7 +678,7 @@
+ 	}
+ 	BIO_set_fd(ssl_bio, (int)(long)connection->data, BIO_NOCLOSE);
+ 
+-	SSL_CTX *ssl_ctx = SSL_CTX_new(SSLv3_method());
++	SSL_CTX *ssl_ctx = SSL_CTX_new(TLSv1_method());
+ 	if (ssl_ctx == NULL) {
+ 		debug_info("ERROR: Could not create SSL context.");
+ 		BIO_free(ssl_bio);
+@@ -745,7 +745,7 @@
+ 	gnutls_certificate_allocate_credentials(&ssl_data_loc->certificate);
+ 	gnutls_certificate_client_set_retrieve_function(ssl_data_loc->certificate, internal_cert_callback);
+ 	gnutls_init(&ssl_data_loc->session, GNUTLS_CLIENT);
+-	gnutls_priority_set_direct(ssl_data_loc->session, "NONE:+VERS-SSL3.0:+ANON-DH:+RSA:+AES-128-CBC:+AES-256-CBC:+SHA1:+MD5:+COMP-NULL", NULL);
++	gnutls_priority_set_direct(ssl_data_loc->session, "NONE:+VERS-TLS1.0:+ANON-DH:+RSA:+AES-128-CBC:+AES-256-CBC:+SHA1:+MD5:+COMP-NULL", NULL);
+ 	gnutls_credentials_set(ssl_data_loc->session, GNUTLS_CRD_CERTIFICATE, ssl_data_loc->certificate);
+ 	gnutls_session_set_ptr(ssl_data_loc->session, ssl_data_loc);
+ 
+diff -uNr libimobiledevice/src/lockdown.c libimobiledevice-new/src/lockdown.c
+--- libimobiledevice/src/lockdown.c	2015-01-28 09:10:32.000000000 +0800
++++ libimobiledevice-new/src/lockdown.c	2016-09-21 16:03:43.211867544 +0800
+@@ -3,7 +3,7 @@
+  * com.apple.mobile.lockdownd service implementation.
+  *
+  * Copyright (c) 2009-2015 Martin Szulecki All Rights Reserved.
+- * Copyright (c) 2014 Nikias Bassen. All Rights Reserved.
++ * Copyright (c) 2014-2015 Nikias Bassen. All Rights Reserved.
+  * Copyright (c) 2010 Bryan Forbes All Rights Reserved.
+  * Copyright (c) 2008 Zach C. All Rights Reserved.
+  *
+@@ -122,7 +122,15 @@
+ 		err = LOCKDOWN_E_SERVICE_PROHIBITED;
+ 	} else if (strcmp(name, "EscrowLocked") == 0) {
+ 		err = LOCKDOWN_E_ESCROW_LOCKED;
+-	}
++	} else if (strcmp(name, "PairingProhibitedOverThisConnection") == 0) {
++		err = LOCKDOWN_E_PAIRING_PROHIBITED_OVER_THIS_CONNECTION;
++	} else if (strcmp(name, "FMiPProtected") == 0) {
++		err = LOCKDOWN_E_FMIP_PROTECTED;
++	} else if (strcmp(name, "MCProtected") == 0) {
++		err = LOCKDOWN_E_MC_PROTECTED;
++	} else if (strcmp(name, "MCChallengeRequired") == 0) {
++		err = LOCKDOWN_E_MC_CHALLENGE_REQUIRED;
++        }
+ 
+ 	return err;
+ }
+@@ -629,7 +637,7 @@
+ 
+ LIBIMOBILEDEVICE_API lockdownd_error_t lockdownd_client_new(idevice_t device, lockdownd_client_t *client, const char *label)
+ {
+-	if (!client)
++	if (!device || !client)
+ 		return LOCKDOWN_E_INVALID_ARG;
+ 
+ 	static struct lockdownd_service_descriptor service = {
+@@ -886,7 +894,7 @@
+ 			if (userpref_has_pair_record(client->udid)) {
+ 				userpref_read_pair_record(client->udid, &pair_record_plist);
+ 				if (!pair_record_plist) {
+-					return LOCKDOWN_E_INVALID_CONF;
++					return LOCKDOWN_E_INVALID_HOST_ID;
+ 				}
+ 			} else {
+ 				return LOCKDOWN_E_INVALID_HOST_ID;

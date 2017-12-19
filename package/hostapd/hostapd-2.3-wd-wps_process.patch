@@ -1,0 +1,19 @@
+diff -uN hostapd-2.3/src/ap/wps_hostapd.c hostapd-2.3-modify/src/ap/wps_hostapd.c
+--- hostapd-2.3/src/ap/wps_hostapd.c	2014-10-09 22:41:31.000000000 +0800
++++ hostapd-2.3-modify/src/ap/wps_hostapd.c	2015-02-09 14:00:05.785447031 +0800
+@@ -797,8 +797,14 @@
+ 		hostapd_wps_event_fail(hapd, &data->fail);
+ 		break;
+ 	case WPS_EV_SUCCESS:
++		if(hapd->iconf->hw_mode == HOSTAPD_MODE_IEEE80211A){
++			system("hostapd_cli -i wlan3 wps_cancel");
++		}else{
++			system("hostapd_cli -i wlan1 wps_cancel");
++		}
+ 		hostapd_wps_event_success(hapd, &data->success);
+ 		wpa_msg(hapd->msg_ctx, MSG_INFO, WPS_EVENT_SUCCESS);
++	
+ 		break;
+ 	case WPS_EV_PWD_AUTH_FAIL:
+ 		hostapd_pwd_auth_fail(hapd, &data->pwd_auth_fail);
+Binary files hostapd-2.3/src/ap/wps_hostapd.o and hostapd-2.3-modify/src/ap/wps_hostapd.o differ

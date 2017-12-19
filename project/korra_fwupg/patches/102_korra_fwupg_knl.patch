@@ -1,0 +1,12 @@
+diff -Nur linux-kernel/arch/arm/mach-rtk119x/driver/rtk_rtp5901_of.c linux-custom/arch/arm/mach-rtk119x/driver/rtk_rtp5901_of.c
+--- linux-kernel/arch/arm/mach-rtk119x/driver/rtk_rtp5901_of.c	2015-06-09 17:33:11.747648455 +0800
++++ linux-custom/arch/arm/mach-rtk119x/driver/rtk_rtp5901_of.c	2015-06-10 17:31:56.467652792 +0800
+@@ -398,7 +398,7 @@
+ 		return ret;
+ 	}
+ 
+-	ret = rtp5901_update_bits(chip, RTP5901_REG_PWRHOLD, 0xA0, 0xF0);
++	ret = rtp5901_update_bits(chip, RTP5901_REG_PWRHOLD, 0x90, 0xF0);
+         if (ret < 0) {
+                 printk(KERN_ERR "Failed to set RTP5901_REG_PWRHOLD\n");
+                 return ret;

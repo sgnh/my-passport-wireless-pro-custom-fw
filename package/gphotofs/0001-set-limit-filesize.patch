@@ -1,0 +1,39 @@
+--- gphotofs-0.5.org/gphotofs.c	2012-07-10 15:46:32.000000000 +0800
++++ gphotofs-0.5/gphotofs.c	2016-03-25 06:04:15.916369015 +0800
+@@ -211,21 +211,24 @@
+          goto error;
+       }
+ 
+-      stbuf = g_new0(struct stat, 1);
+-      stbuf->st_mode = S_IFREG | 0644;
+-      stbuf->st_nlink = 1;
+-      stbuf->st_uid = getuid();
+-      stbuf->st_gid = getgid();
+-      stbuf->st_size = info.file.size;
+-      stbuf->st_mtime = info.file.mtime;
+-      stbuf->st_blocks = (info.file.size / 512) +
+-                         (info.file.size % 512 > 0 ? 1 : 0);
++      if ( ( info.file.size < 268435456 ) && (strstr (info.file.type, "image") != NULL) )
++      {
++         stbuf = g_new0(struct stat, 1);
++         stbuf->st_mode = S_IFREG | 0644;
++         stbuf->st_nlink = 1;
++         stbuf->st_uid = getuid();
++         stbuf->st_gid = getgid();
++         stbuf->st_size = info.file.size;
++         stbuf->st_mtime = info.file.mtime;
++         stbuf->st_blocks = (info.file.size / 512) +
++                            (info.file.size % 512 > 0 ? 1 : 0);
+ 
+-      filler(buf, name, stbuf, 0);
++         filler(buf, name, stbuf, 0);
+ 
+-      key = g_build_filename(path, name, NULL);
++         key = g_build_filename(path, name, NULL);
+ 
+-      g_hash_table_replace(p->files, key, stbuf);
++         g_hash_table_replace(p->files, key, stbuf);
++      }
+    }
+ 
+ exit:

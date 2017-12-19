@@ -1,0 +1,5 @@
+config BR2_PACKAGE_WDPACKAGE_WEBUI
+	bool "wdpackage(WebUI)"
+	help
+	  The wd package(WebUI) package
+

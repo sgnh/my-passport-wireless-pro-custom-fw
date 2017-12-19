@@ -1,0 +1,122 @@
+#!/bin/sh
+#
+# Stolen from RedHat FC5.
+#
+source /etc/system.conf
+source /etc/nas/config/wifinetwork-param.conf
+
+twointerface=0
+
+if [ "$AP_CHANNEL_LITE" == "0" ]; then
+	apiface=$AP_IFACE
+	if [ "$STA_CHANNEL" == "5" ]; then
+		activeIF=$STA_IFACE
+	else
+		activeIF=$STA2G4_IFACE
+	fi
+elif [ "$AP_CHANNEL_LITE" == "2" ]; then
+	apiface=$AP_IFACE
+	activeIF=$STA2G4_IFACE
+elif [ "$AP_CHANNEL_LITE" == "5" ]; then
+	apiface=$AP5G_IFACE
+	activeIF=$STA_IFACE
+fi
+
+function upnpinfoCreate(){
+
+	SerialNumeber=`cat /tmp/HDSerial`
+   	HostName=`hostname`
+   	mac_addrD=`ifconfig "$apiface" | sed -n -e 's/.*HWaddr \(.*\)/\1/p' | tr -d ":" | sed 's/^[ \t]*//;s/[ \t]*$//' | tr [:upper:] [:lower:]`
+   	uuid_D="73656761-7465-7375-636b-${mac_addrD}"
+  
+   	mac_addrU=`ifconfig "$activeIF" | sed -n -e 's/.*HWaddr \(.*\)/\1/p' | tr -d ":" | sed 's/^[ \t]*//;s/[ \t]*$//' | tr [:upper:] [:lower:]`
+   	uuid_U="73656761-7465-7375-636b-${mac_addrU}"
+  
+   	if [ ! -d "/tmp/upnp/webUplink" ] && [ ! -d "/tmp/upnp/webDownlink" ]; then
+   		mkdir -p /tmp/upnp/webUplink
+   		chmod -R 755 /tmp/upnp/webUplink
+   		mkdir -p /tmp/upnp/webDownlink
+   		chmod -R 755 /tmp/upnp/webDownlink
+   		echo "create /tmp/upnp/web_wlan"
+   		cp -a /usr/local/upnp/web_wlan1/* /tmp/upnp/webUplink/
+   		cp -a /usr/local/upnp/web_wlan1/* /tmp/upnp/webDownlink/
+   	fi
+   
+   	sed -i 's/<UDN>.*/\<UDN\>uuid:'${uuid_U}'\<\/UDN\>/' /tmp/upnp/webUplink/nasdevicedesc.xml
+   	sed -i 's/<UDN>.*/\<UDN\>uuid:'${uuid_D}'\<\/UDN\>/' /tmp/upnp/webDownlink/nasdevicedesc.xml
+   	sed -i 's/<friendlyName>.*/\<friendlyName\>'$HostName'\<\/friendlyName\>/' /tmp/upnp/webUplink/nasdevicedesc.xml
+   	sed -i 's/<friendlyName>.*/\<friendlyName\>'$HostName'\<\/friendlyName\>/' /tmp/upnp/webDownlink/nasdevicedesc.xml
+   	sed -i 's/<serialNumber>.*/\<serialNumber\>'$SerialNumeber'\<\/serialNumber\>/' /tmp/upnp/webUplink/nasdevicedesc.xml
+   	sed -i 's/<serialNumber>.*/\<serialNumber\>'$SerialNumeber'\<\/serialNumber\>/' /tmp/upnp/webDownlink/nasdevicedesc.xml
+   	
+    if [ "$modelNumber" == "" ] || [ "$modelNumber" == "AV1W" ]; then
+    	echo "Unknown modelNumber"
+    	modelNumber=WDBP2P
+   	fi
+   	sed -i 's/<modelNumber>.*/\<modelNumber\>'${modelNumber}'\<\/modelNumber\>/' /tmp/upnp/webUplink/nasdevicedesc.xml
+    sed -i 's/<modelNumber>.*/\<modelNumber\>'${modelNumber}'\<\/modelNumber\>/' /tmp/upnp/webDownlink/nasdevicedesc.xml
+}
+
+start() { 
+	upnpinfoCreate > /dev/null 2>&1 &
+
+   	if [ "$AP_CHANNEL_LITE" != "0" ]; then
+		apif=`ifconfig | grep ^wlan0`
+	else
+		apif=`ifconfig | grep ^$AP_IFACE`
+		if [ "$apif" == "" ]; then
+			apif=`ifconfig | grep ^$AP5G_IFACE`
+		fi
+	fi
+	if [ "$apif" != "" ]; then
+		wlan1num=`ps aux | grep upnp_nas_device | grep $AP_IP | wc -l`
+		if [ "$wlan1num" == "0" ]; then
+			echo -n "Starting Wlan1 UPNP services: "
+			sed -i 's/<presentationURL>.*/\<presentationURL\>http:\/\/'$AP_IP'\<\/presentationURL\>/' /tmp/upnp/webDownlink/nasdevicedesc.xml
+			/usr/local/upnp/upnp_nas_device -ip $AP_IP -webdir /tmp/upnp/webDownlink &	
+		fi
+	fi
+   	
+	if [ -f "/tmp/ifplugd_trust" ]; then
+		bindif=`cat /tmp/ifplugd_trust`
+		if [ "$bindif" == "trusted" ]; then
+			wlan0Ip=`wpa_cli -i "${activeIF}" status | grep -rsw "ip_address" | awk -F= '{print $NF}'`
+			wlan0num=`ps aux | grep upnp_nas_device | grep $wlan0Ip | wc -l`
+			if [ "$wlan0num" == "0" ] && [ "$wlan0Ip" != "" ]; then
+				sleep 10
+				sed -i 's/<presentationURL>.*/\<presentationURL\>http:\/\/'$wlan0Ip'\<\/presentationURL\>/' /tmp/upnp/webUplink/nasdevicedesc.xml
+				echo -n "Starting Wlan0 UPNP services: "
+				/usr/local/upnp/upnp_nas_device -ip $wlan0Ip -webdir /tmp/upnp/webUplink &
+			fi
+		fi
+	fi	
+}	
+
+stop() {
+	killall upnp_nas_device
+}	
+
+restart() {
+	stop
+	sleep 1
+	if [ ! -f "/etc/nas/config/upnp" ]; then
+		start
+	fi
+}	
+
+case "$1" in
+  start)
+  		start
+	;;
+  stop)
+  	stop
+	;;
+  restart)
+  	restart
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?

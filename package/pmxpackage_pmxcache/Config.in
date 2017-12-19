@@ -1,0 +1,5 @@
+config BR2_PACKAGE_PMXPACKAGE_PMXCACHE
+	bool "pmxpackage(pmxcache)"
+	help
+	  The primax package(pmxcache) cache module for Korra
+

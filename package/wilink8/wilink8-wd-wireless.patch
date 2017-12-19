@@ -1,0 +1,2763 @@
+diff -Nur wl18xx-r8.a8.08/drivers/net/wireless/ti/wl18xx/main.c wilink8-r8.a8.08-mod/drivers/net/wireless/ti/wl18xx/main.c
+--- wl18xx-r8.a8.08/drivers/net/wireless/ti/wl18xx/main.c	2014-01-15 11:46:00.000000000 +0800
++++ wilink8-r8.a8.08-mod/drivers/net/wireless/ti/wl18xx/main.c	2014-06-04 10:55:15.000000000 +0800
+@@ -1818,7 +1818,8 @@
+ 	wl->fw_status_priv_len = sizeof(struct wl18xx_fw_status_priv);
+ 	wl->stats.fw_stats_len = sizeof(struct wl18xx_acx_statistics);
+ 	wl->static_data_priv_len = sizeof(struct wl18xx_static_data_priv);
+-
++	wl->ofdm_only_ap = true;
++	
+ 	if (num_rx_desc_param != -1)
+ 		wl->num_rx_desc = num_rx_desc_param;
+ 
+diff -Nur wl18xx-r8.a8.08/drivers/net/wireless/ti/wlcore/init.c wilink8-r8.a8.08-mod/drivers/net/wireless/ti/wlcore/init.c
+--- wl18xx-r8.a8.08/drivers/net/wireless/ti/wlcore/init.c	2014-01-15 11:46:00.000000000 +0800
++++ wilink8-r8.a8.08-mod/drivers/net/wireless/ti/wlcore/init.c	2014-02-10 11:10:39.000000000 +0800
+@@ -544,6 +544,10 @@
+ {
+ 	int ret;
+ 
++    ret = wl1271_acx_group_address_tbl(wl, wlvif, true, NULL, 0);
++    if (ret < 0)
++        return ret;
++
+ 	ret = wl1271_acx_ap_max_tx_retry(wl, wlvif);
+ 	if (ret < 0)
+ 		return ret;
+diff -Nur wl18xx-r8.a8.08/drivers/net/wireless/ti/wlcore/main.c wilink8-r8.a8.08-mod/drivers/net/wireless/ti/wlcore/main.c
+--- wl18xx-r8.a8.08/drivers/net/wireless/ti/wlcore/main.c	2014-01-15 11:46:00.000000000 +0800
++++ wilink8-r8.a8.08-mod/drivers/net/wireless/ti/wlcore/main.c	2014-02-10 11:12:17.000000000 +0800
+@@ -3218,7 +3218,7 @@
+ 		if (wl12xx_wlvif_to_vif(wlvif)->dummy_p2p)
+ 			continue;
+ 
+-		if (wlvif->bss_type != BSS_TYPE_AP_BSS) {
++		//if (wlvif->bss_type != BSS_TYPE_AP_BSS) {
+ 			if (*total & FIF_ALLMULTI)
+ 				ret = wl1271_acx_group_address_tbl(wl, wlvif,
+ 								   false,
+@@ -3230,7 +3230,7 @@
+ 							fp->mc_list_length);
+ 			if (ret < 0)
+ 				goto out_sleep;
+-		}
++		//}
+ 	}
+ 
+ 	/*
+diff -Nur wl18xx-r8.a8.08/drivers/net/wireless/ti/wlcore/scan.c wilink8-r8.a8.08-mod/drivers/net/wireless/ti/wlcore/scan.c
+--- wl18xx-r8.a8.08/drivers/net/wireless/ti/wlcore/scan.c	2014-01-15 11:46:00.000000000 +0800
++++ wilink8-r8.a8.08-mod/drivers/net/wireless/ti/wlcore/scan.c	2014-02-14 21:19:04.000000000 +0800
+@@ -179,6 +179,9 @@
+ 		dwell_time_passive = c->dwell_time_passive;
+ 		dwell_time_dfs = c->dwell_time_dfs;
+ 	}
++	/* TODO: use msec in conf... */
++	min_dwell_time_active = 80000;
++	max_dwell_time_active = 110000;
+ 	min_dwell_time_active = DIV_ROUND_UP(min_dwell_time_active, 1000);
+ 	max_dwell_time_active = DIV_ROUND_UP(max_dwell_time_active, 1000);
+ 	dwell_time_passive = DIV_ROUND_UP(dwell_time_passive, 1000);
+Binary files wl18xx-r8.a8.08/firmware/ti-connectivity/wl18xx-conf.bin and wilink8-r8.a8.08-mod/firmware/ti-connectivity/wl18xx-conf.bin differ
+Binary files wl18xx-r8.a8.08/firmware/ti-connectivity/wl18xx-fw-2.bin and wilink8-r8.a8.08-mod/firmware/ti-connectivity/wl18xx-fw-2.bin differ
+diff -Nur wl18xx-r8.a8.08/net/wireless/ap.c wilink8-r8.a8.08-mod/net/wireless/ap.c
+--- wl18xx-r8.a8.08/net/wireless/ap.c	2014-01-15 11:45:59.000000000 +0800
++++ wilink8-r8.a8.08-mod/net/wireless/ap.c	2014-04-03 15:32:52.000000000 +0800
+@@ -7,7 +7,7 @@
+ 
+ 
+ static int __cfg80211_stop_ap(struct cfg80211_registered_device *rdev,
+-			      struct net_device *dev)
++			      struct net_device *dev, bool notify)
+ {
+ 	struct wireless_dev *wdev = dev->ieee80211_ptr;
+ 	int err;
+@@ -29,19 +29,21 @@
+ 		wdev->beacon_interval = 0;
+ 		wdev->channel = NULL;
+ 		wdev->ssid_len = 0;
++		if (notify)
++			nl80211_send_ap_stopped(wdev);
+ 	}
+ 
+ 	return err;
+ }
+ 
+ int cfg80211_stop_ap(struct cfg80211_registered_device *rdev,
+-		     struct net_device *dev)
++		     struct net_device *dev, bool notify)
+ {
+ 	struct wireless_dev *wdev = dev->ieee80211_ptr;
+ 	int err;
+ 
+ 	wdev_lock(wdev);
+-	err = __cfg80211_stop_ap(rdev, dev);
++	err = __cfg80211_stop_ap(rdev, dev, notify);
+ 	wdev_unlock(wdev);
+ 
+ 	return err;
+diff -Nur wl18xx-r8.a8.08/net/wireless/core.c wilink8-r8.a8.08-mod/net/wireless/core.c
+--- wl18xx-r8.a8.08/net/wireless/core.c	2014-01-15 11:46:00.000000000 +0800
++++ wilink8-r8.a8.08-mod/net/wireless/core.c	2014-04-03 15:32:58.000000000 +0800
+@@ -801,7 +801,7 @@
+ 		break;
+ 	case NL80211_IFTYPE_AP:
+ 	case NL80211_IFTYPE_P2P_GO:
+-		cfg80211_stop_ap(rdev, dev);
++		cfg80211_stop_ap(rdev, dev, true);
+ 		break;
+ 	default:
+ 		break;
+diff -Nur wl18xx-r8.a8.08/net/wireless/core.h wilink8-r8.a8.08-mod/net/wireless/core.h
+--- wl18xx-r8.a8.08/net/wireless/core.h	2014-01-15 11:45:59.000000000 +0800
++++ wilink8-r8.a8.08-mod/net/wireless/core.h	2014-04-03 15:33:03.000000000 +0800
+@@ -282,7 +282,7 @@
+ 
+ /* AP */
+ int cfg80211_stop_ap(struct cfg80211_registered_device *rdev,
+-		     struct net_device *dev);
++		     struct net_device *dev, bool notify);
+ 
+ /* MLME */
+ int cfg80211_mlme_auth(struct cfg80211_registered_device *rdev,
+diff -Nur wl18xx-r8.a8.08/net/wireless/db.txt wilink8-r8.a8.08-mod/net/wireless/db.txt
+--- wl18xx-r8.a8.08/net/wireless/db.txt	2014-01-15 11:46:00.000000000 +0800
++++ wilink8-r8.a8.08-mod/net/wireless/db.txt	2014-02-14 21:19:13.000000000 +0800
+@@ -1,17 +1,799 @@
+-#
+-# This file is a placeholder to prevent accidental build breakage if someone
+-# enables CONFIG_CFG80211_INTERNAL_REGDB.  Almost no one actually needs to
+-# enable that build option.
+-#
+-# You should be using CRDA instead.  It is even better if you use the CRDA
+-# package provided by your distribution, since they will probably keep it
+-# up-to-date on your behalf.
+-#
+-# If you _really_ intend to use CONFIG_CFG80211_INTERNAL_REGDB then you will
+-# need to replace this file with one containing appropriately formatted
+-# regulatory rules that cover the regulatory domains you will be using.  Your
+-# best option is to extract the db.txt file from the wireless-regdb git
+-# repository:
+-#
+-#   git://git.kernel.org/pub/scm/linux/kernel/git/linville/wireless-regdb.git
+-#
++# This is the world regulatory domain
++country 00:
++	(2402 - 2472 @ 40), (3, 20)
++	# Channel 12 - 13.
++	(2457 - 2482 @ 40), (3, 20), PASSIVE-SCAN, NO-IBSS
++	# Channel 14. Only JP enables this and for 802.11b only
++	(2474 - 2494 @ 20), (3, 20), PASSIVE-SCAN, NO-IBSS, NO-OFDM
++	# Channel 36 - 48
++	(5170 - 5250 @ 40), (3, 20), PASSIVE-SCAN, NO-IBSS
++	# NB: 5260 MHz - 5700 MHz requies DFS
++	# Channel 149 - 165
++	(5735 - 5835 @ 40), (3, 20), PASSIVE-SCAN, NO-IBSS
++
++
++country AD:
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++country AE:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++
++country AL:
++	(2402 - 2482 @ 20), (N/A, 20)
++
++country AM:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 20), (N/A, 18)
++	(5250 - 5330 @ 20), (N/A, 18), DFS
++
++country AN:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++
++country AR:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (3, 17)
++	(5250 - 5330 @ 40), (3, 20), DFS
++	(5490 - 5710 @ 40), (3, 20), DFS
++	(5735 - 5835 @ 40), (3, 30)
++
++country AT: DFS-ETSI
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++country AU:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (3, 23)
++	(5250 - 5330 @ 40), (3, 23), DFS
++	(5735 - 5835 @ 40), (3, 30)
++
++country AW:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++
++country AZ:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 18)
++	(5250 - 5330 @ 40), (N/A, 18), DFS
++
++country BA: DFS-ETSI
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++country BB:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (3, 23)
++	(5250 - 5330 @ 40), (3, 23), DFS
++	(5735 - 5835 @ 40), (3, 30)
++
++country BD:
++	(2402 - 2482 @ 40), (N/A, 20)
++
++country BE: DFS-ETSI
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++country BG: DFS-ETSI
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 23)
++	(5250 - 5290 @ 40), (N/A, 23), DFS
++	(5490 - 5710 @ 40), (N/A, 30), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++country BH:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 20), (N/A, 20)
++	(5250 - 5330 @ 20), (N/A, 20), DFS
++	(5735 - 5835 @ 20), (N/A, 20)
++
++country BL:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 18)
++	(5250 - 5330 @ 40), (N/A, 18), DFS
++
++country BN:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5735 - 5835 @ 40), (N/A, 30)
++
++country BO:
++	(2402 - 2482 @ 40), (N/A, 30)
++	(5735 - 5835 @ 40), (N/A, 30)
++
++country BR:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (3, 17)
++	(5250 - 5330 @ 40), (3, 20), DFS
++	(5490 - 5710 @ 40), (3, 20), DFS
++	(5735 - 5835 @ 40), (3, 30)
++
++country BY:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++
++country BZ:
++	(2402 - 2482 @ 40), (N/A, 30)
++	(5735 - 5835 @ 40), (N/A, 30)
++
++country CA:
++	(2402 - 2472 @ 40), (3, 27)
++	(5170 - 5250 @ 40), (3, 17)
++	(5250 - 5330 @ 40), (3, 20), DFS
++	(5490 - 5710 @ 40), (3, 20), DFS
++	(5735 - 5835 @ 40), (3, 30)
++
++country CH: DFS-ETSI
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++country CL:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5735 - 5835 @ 40), (N/A, 20)
++
++country CN:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5735 - 5835 @ 40), (N/A, 30)
++	# 60 gHz band channels 1,4: 28dBm, channels 2,3: 44dBm
++	# ref: http://www.miit.gov.cn/n11293472/n11505629/n11506593/n11960250/n11960606/n11960700/n12330791.files/n12330790.pdf
++	(57240 - 59400 @ 2160), (N/A, 28)
++	(59400 - 63720 @ 2160), (N/A, 44)
++	(63720 - 65880 @ 2160), (N/A, 28)
++
++country CO:
++	(2402 - 2472 @ 40), (3, 27)
++	(5170 - 5250 @ 40), (3, 17)
++	(5250 - 5330 @ 40), (3, 23), DFS
++	(5735 - 5835 @ 40), (3, 30)
++
++country CR:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 20), (3, 17)
++	(5250 - 5330 @ 20), (3, 23), DFS
++	(5735 - 5835 @ 20), (3, 30)
++
++country CS:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++
++country CY: DFS-ETSI
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++# Data from http://www.ctu.eu/164/download/VOR/VOR-12-08-2005-34.pdf
++# and http://www.ctu.eu/164/download/VOR/VOR-12-05-2007-6-AN.pdf
++# Power at 5250 - 5350 MHz and 5470 - 5725 MHz can be doubled if TPC is
++# implemented.
++country CZ: DFS-ETSI
++	(2400 - 2483.5 @ 40), (N/A, 100 mW)
++	(5150 - 5250 @ 40), (N/A, 200 mW), NO-OUTDOOR
++	(5250 - 5350 @ 40), (N/A, 100 mW), NO-OUTDOOR, DFS
++	(5470 - 5725 @ 40), (N/A, 500 mW), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++# Data from "Frequenznutzungsplan" (as published in April 2008), downloaded from
++# http://www.bundesnetzagentur.de/cae/servlet/contentblob/38448/publicationFile/2659/Frequenznutzungsplan2008_Id17448pdf.pdf
++# For the 5GHz range also see
++# http://www.bundesnetzagentur.de/cae/servlet/contentblob/38216/publicationFile/6579/WLAN5GHzVfg7_2010_28042010pdf.pdf
++# The values have been reduced by a factor of 2 (3db) for non TPC devices
++# (in other words: devices with TPC can use twice the tx power of this table).
++# Note that the docs do not require TPC for 5150--5250; the reduction to
++# 100mW thus is not strictly required -- however the conservative 100mW
++# limit is used here as the non-interference with radar and satellite
++# apps relies on the attenuation by the building walls only in the
++# absence of DFS; the neighbour countries have 100mW limit here as well.
++
++country DE: DFS-ETSI
++	# entries 279004 and 280006
++	(2400 - 2483.5 @ 40), (N/A, 100 mW)
++	# entry 303005
++	(5150 - 5250 @ 40), (N/A, 100 mW), NO-OUTDOOR
++	# entries 304002 and 305002
++	(5250 - 5350 @ 40), (N/A, 100 mW), NO-OUTDOOR, DFS
++	# entries 308002, 309001 and 310003
++	(5470 - 5725 @ 40), (N/A, 500 mW), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++country DK: DFS-ETSI
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++country DO:
++	(2402 - 2472 @ 40), (3, 27)
++	(5170 - 5250 @ 40), (3, 17)
++	(5250 - 5330 @ 40), (3, 23), DFS
++	(5735 - 5835 @ 40), (3, 30)
++
++country DZ:
++	(2402 - 2482 @ 40), (N/A, 20)
++
++country EC:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 20), (3, 17)
++	(5250 - 5330 @ 20), (3, 23), DFS
++	(5735 - 5835 @ 20), (3, 30)
++
++country EE: DFS-ETSI
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++country EG:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 20), (N/A, 20)
++	(5250 - 5330 @ 20), (N/A, 20), DFS
++
++country ES: DFS-ETSI
++	(2400 - 2483.5 @ 40), (N/A, 100 mW)
++	(5150 - 5250 @ 40), (N/A, 100 mW), NO-OUTDOOR
++	(5250 - 5350 @ 40), (N/A, 100 mW), NO-OUTDOOR, DFS
++	(5470 - 5725 @ 40), (N/A, 500 mW), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++country FI: DFS-ETSI
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++country FR: DFS-ETSI
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++country GE:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 18)
++	(5250 - 5330 @ 40), (N/A, 18), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++country GB: DFS-ETSI
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++country GD:
++	(2402 - 2472 @ 40), (3, 27)
++	(5170 - 5250 @ 40), (3, 17)
++	(5250 - 5330 @ 40), (3, 20), DFS
++	(5490 - 5710 @ 40), (3, 20), DFS
++	(5735 - 5835 @ 40), (3, 30)
++
++country GR: DFS-ETSI
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++country GL: DFS-ETSI
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 20), (N/A, 20)
++	(5250 - 5330 @ 20), (N/A, 20), DFS
++	(5490 - 5710 @ 20), (N/A, 27), DFS
++
++country GT:
++	(2402 - 2472 @ 40), (3, 27)
++	(5170 - 5250 @ 40), (3, 17)
++	(5250 - 5330 @ 40), (3, 23), DFS
++	(5735 - 5835 @ 40), (3, 30)
++
++country GU:
++	(2402 - 2472 @ 40), (3, 27)
++	(5170 - 5250 @ 20), (3, 17)
++	(5250 - 5330 @ 20), (3, 23), DFS
++	(5735 - 5835 @ 20), (3, 30)
++
++country HN:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (3, 17)
++	(5250 - 5330 @ 40), (3, 20), DFS
++	(5490 - 5710 @ 40), (3, 20), DFS
++	(5735 - 5835 @ 40), (3, 30)
++
++country HK:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (3, 17)
++	(5250 - 5330 @ 40), (3, 20), DFS
++	(5490 - 5710 @ 40), (3, 20), DFS
++	(5735 - 5835 @ 40), (3, 30)
++
++country HR: DFS-ETSI
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++country HT:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++
++country HU: DFS-ETSI
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++country ID:
++	(2402 - 2482 @ 40), (N/A, 20)
++
++country IE: DFS-ETSI
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++country IL:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5150 - 5250 @ 40), (N/A, 200 mW), NO-OUTDOOR
++	(5250 - 5350 @ 40), (N/A, 200 mW), NO-OUTDOOR, DFS
++
++country IN:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5735 - 5835 @ 40), (N/A, 20)
++
++country IS: DFS-ETSI
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++country IR:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5735 - 5835 @ 40), (N/A, 30)
++
++country IT: DFS-ETSI
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++country JM:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (3, 17)
++	(5250 - 5330 @ 40), (3, 20), DFS
++	(5490 - 5710 @ 40), (3, 20), DFS
++	(5735 - 5835 @ 40), (3, 30)
++
++country JP:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(2474 - 2494 @ 20), (N/A, 20), NO-OFDM
++	(4910 - 4990 @ 40), (N/A, 23)
++	(5030 - 5090 @ 40), (N/A, 23)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 23), DFS
++
++country JO:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 18)
++
++country KE:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5735 - 5835 @ 40), (N/A, 30)
++
++country KH:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++
++country KP:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5330 @ 40), (3, 20)
++	(5160 - 5250 @ 40), (3, 20), DFS
++	(5490 - 5630 @ 40), (3, 30), DFS
++	(5735 - 5815 @ 40), (3, 30)
++
++country KR:
++	(2402 - 2482 @ 20), (N/A, 20)
++	(5170 - 5250 @ 20), (3, 20)
++	(5250 - 5330 @ 20), (3, 20), DFS
++	(5490 - 5630 @ 20), (3, 30), DFS
++	(5735 - 5815 @ 20), (3, 30)
++
++country KW:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++
++country KZ:
++	(2402 - 2482 @ 40), (N/A, 20)
++
++country LB:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5735 - 5835 @ 40), (N/A, 30)
++
++country LI: DFS-ETSI
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++
++country LK:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 20), (3, 17)
++	(5250 - 5330 @ 20), (3, 20), DFS
++	(5490 - 5710 @ 20), (3, 20), DFS
++	(5735 - 5835 @ 20), (3, 30)
++
++country LT: DFS-ETSI
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++country LU: DFS-ETSI
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++country LV: DFS-ETSI
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++country MC: DFS-ETSI
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 18)
++	(5250 - 5330 @ 40), (N/A, 18), DFS
++
++country MA:
++	(2402 - 2482 @ 40), (N/A, 20)
++
++country MO:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (3, 23)
++	(5250 - 5330 @ 40), (3, 23), DFS
++	(5735 - 5835 @ 40), (3, 30)
++
++country MK: DFS-ETSI
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++country MT: DFS-ETSI
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++country MY:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 30), DFS
++	(5735 - 5835 @ 40), (N/A, 30)
++
++country MX:
++	(2402 - 2472 @ 40), (3, 27)
++	(5170 - 5250 @ 40), (3, 17)
++	(5250 - 5330 @ 40), (3, 23), DFS
++	(5735 - 5835 @ 40), (3, 30)
++
++country NL: DFS-ETSI
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20), NO-OUTDOOR
++	(5250 - 5330 @ 40), (N/A, 20), NO-OUTDOOR, DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++country NO: DFS-ETSI
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++country NP:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5735 - 5835 @ 40), (N/A, 30)
++
++country NZ:
++	(2402 - 2482 @ 40), (N/A, 30)
++	(5170 - 5250 @ 20), (3, 23)
++	(5250 - 5330 @ 20), (3, 23), DFS
++	(5735 - 5835 @ 20), (3, 30)
++
++country OM:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (3, 17)
++	(5250 - 5330 @ 40), (3, 20), DFS
++	(5490 - 5710 @ 40), (3, 20), DFS
++	(5735 - 5835 @ 40), (3, 30)
++
++country PA:
++	(2402 - 2472 @ 40), (3, 27)
++	(5170 - 5250 @ 40), (3, 17)
++	(5250 - 5330 @ 40), (3, 23), DFS
++	(5735 - 5835 @ 40), (3, 30)
++
++country PE:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5735 - 5835 @ 40), (N/A, 30)
++
++country PG:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (3, 17)
++	(5250 - 5330 @ 40), (3, 23), DFS
++	(5735 - 5835 @ 40), (3, 30)
++
++country PH:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5735 - 5835 @ 40), (N/A, 30)
++
++country PK:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5735 - 5835 @ 40), (N/A, 30)
++
++country PL: DFS-ETSI
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++country PT: DFS-ETSI
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++country PR:
++	(2402 - 2472 @ 40), (3, 27)
++	(5170 - 5250 @ 40), (3, 17)
++	(5250 - 5330 @ 40), (3, 23), DFS
++	(5735 - 5835 @ 40), (3, 30)
++
++country QA:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5735 - 5835 @ 40), (N/A, 30)
++
++country RO: DFS-ETSI
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++
++# Source:
++# http://www.ratel.rs/upload/documents/Plan_namene/Plan_namene-sl_glasnik.pdf
++country RS:
++	(2400 - 2483.5 @ 40), (N/A, 100 mW)
++	(5150 - 5350 @ 40), (N/A, 200 mW), NO-OUTDOOR
++	(5470 - 5725 @ 20), (3, 1000 mW), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++country RU:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5735 - 5835 @ 20), (N/A, 30)
++
++country RW:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5735 - 5835 @ 40), (N/A, 30)
++
++country SA:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 20), (3, 23)
++	(5250 - 5330 @ 20), (3, 23), DFS
++	(5735 - 5835 @ 20), (3, 30)
++
++country SE: DFS-ETSI
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++country SG:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5735 - 5835 @ 40), (N/A, 20)
++
++country SI: DFS-ETSI
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++country SK: DFS-ETSI
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++	(5490 - 5710 @ 40), (N/A, 27), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++country SV:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 20), (3, 17)
++	(5250 - 5330 @ 20), (3, 23), DFS
++	(5735 - 5835 @ 20), (3, 30)
++
++country SY:
++	(2402 - 2482 @ 40), (N/A, 20)
++
++country TW:
++	(2402 - 2472 @ 40), (3, 27)
++	(5270 - 5330 @ 40), (3, 17), DFS
++	(5735 - 5815 @ 40), (3, 30)
++
++country TH:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (3, 17)
++	(5250 - 5330 @ 40), (3, 20), DFS
++	(5490 - 5710 @ 40), (3, 20), DFS
++	(5735 - 5835 @ 40), (3, 30)
++
++country TT:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (3, 17)
++	(5250 - 5330 @ 40), (3, 20), DFS
++	(5490 - 5710 @ 40), (3, 20), DFS
++	(5735 - 5835 @ 40), (3, 30)
++
++country TN:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 20), (N/A, 20)
++	(5250 - 5330 @ 20), (N/A, 20), DFS
++
++country TR: DFS-ETSI
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 20), (N/A, 20)
++	(5250 - 5330 @ 20), (N/A, 20), DFS
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++ 
++# Source:
++# #914 / 06 Sep 2007: http://www.ucrf.gov.ua/uk/doc/nkrz/1196068874
++# #1174 / 23 Oct 2008: http://www.nkrz.gov.ua/uk/activities/ruling/1225269361
++# (appendix 8)
++# Listed 5GHz range is a lowest common denominator for all related
++# rules in the referenced laws. Such a range is used because of
++# disputable definitions there.
++country UA:
++	(2400 - 2483.5 @ 40), (N/A, 20), NO-OUTDOOR
++	(5150 - 5350 @ 40), (N/A, 20), NO-OUTDOOR
++	# 60 gHz band channels 1-4, ref: Etsi En 302 567
++	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
++
++country US: DFS-FCC
++	(2402 - 2472 @ 40), (3, 27)
++	(5170 - 5250 @ 40), (3, 17)
++	(5250 - 5330 @ 40), (3, 20), DFS
++	(5490 - 5600 @ 40), (3, 20), DFS
++	(5650 - 5710 @ 40), (3, 20), DFS
++	(5735 - 5835 @ 40), (3, 30)
++	# 60g band
++	# reference: http://cfr.regstoday.com/47cfr15.aspx#47_CFR_15p255
++	# channels 1,2,3, EIRP=40dBm(43dBm peak)
++	(57240 - 63720 @ 2160), (N/A, 40)
++
++country UY:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (3, 17)
++	(5250 - 5330 @ 40), (3, 20), DFS
++	(5490 - 5710 @ 40), (3, 20), DFS
++	(5735 - 5835 @ 40), (3, 30)
++
++country UZ:
++	(2402 - 2472 @ 40), (3, 27)
++	(5170 - 5250 @ 40), (3, 17)
++	(5250 - 5330 @ 40), (3, 20), DFS
++	(5490 - 5710 @ 40), (3, 20), DFS
++	(5735 - 5835 @ 40), (3, 30)
++
++country VE:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5735 - 5815 @ 40), (N/A, 23)
++
++country VN:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (N/A, 20)
++	(5250 - 5330 @ 40), (N/A, 20), DFS
++
++country YE:
++	(2402 - 2482 @ 40), (N/A, 20)
++
++country ZA:
++	(2402 - 2482 @ 40), (N/A, 20)
++	(5170 - 5250 @ 40), (3, 17)
++	(5250 - 5330 @ 40), (3, 20), DFS
++	(5490 - 5710 @ 40), (3, 20), DFS
++	(5735 - 5835 @ 40), (3, 30)
++
++country ZW:
++	(2402 - 2482 @ 40), (N/A, 20)
++
+diff -Nur wl18xx-r8.a8.08/net/wireless/Makefile wilink8-r8.a8.08-mod/net/wireless/Makefile
+--- wl18xx-r8.a8.08/net/wireless/Makefile	2014-01-15 11:48:59.000000000 +0800
++++ wilink8-r8.a8.08-mod/net/wireless/Makefile	2014-02-14 21:19:19.000000000 +0800
+@@ -10,7 +10,8 @@
+ cfg80211-$(CONFIG_COMPAT_CFG80211_DRIVER_API_TRACER) += trace.o
+ cfg80211-$(CONFIG_CFG80211_DEBUGFS) += debugfs.o
+ cfg80211-$(CONFIG_CFG80211_WEXT) += wext-compat.o wext-sme.o
+-cfg80211-$(CONFIG_CFG80211_INTERNAL_REGDB) += regdb.o
++#cfg80211-$(CONFIG_CFG80211_INTERNAL_REGDB) += regdb.o
++cfg80211-y += regdb.o
+ 
+ CFLAGS_trace.o := -I$(src)
+ 
+diff -Nur wl18xx-r8.a8.08/net/wireless/nl80211.c wilink8-r8.a8.08-mod/net/wireless/nl80211.c
+--- wl18xx-r8.a8.08/net/wireless/nl80211.c	2014-01-15 11:56:04.000000000 +0800
++++ wilink8-r8.a8.08-mod/net/wireless/nl80211.c	2014-04-03 17:15:14.000000000 +0800
+@@ -3265,7 +3265,7 @@
+ 	struct cfg80211_registered_device *rdev = info->user_ptr[0];
+ 	struct net_device *dev = info->user_ptr[1];
+ 
+-	return cfg80211_stop_ap(rdev, dev);
++	return cfg80211_stop_ap(rdev, dev, false);
+ }
+ 
+ static const struct nla_policy sta_flags_policy[NL80211_STA_FLAG_MAX + 1] = {
+@@ -11320,6 +11320,35 @@
+ }
+ EXPORT_SYMBOL(cfg80211_crit_proto_stopped);
+ 
++void nl80211_send_ap_stopped(struct wireless_dev *wdev)
++{
++	struct wiphy *wiphy = wdev->wiphy;
++	struct cfg80211_registered_device *rdev = wiphy_to_dev(wiphy);
++	struct sk_buff *msg;
++	void *hdr;
++
++	msg = nlmsg_new(NLMSG_DEFAULT_SIZE, GFP_KERNEL);
++	if (!msg)
++		return;
++
++	hdr = nl80211hdr_put(msg, 0, 0, 0, NL80211_CMD_STOP_AP);
++	if (!hdr)
++		goto out;
++
++	if (nla_put_u32(msg, NL80211_ATTR_WIPHY, rdev->wiphy_idx) ||
++	    nla_put_u32(msg, NL80211_ATTR_IFINDEX, wdev->netdev->ifindex) ||
++	    nla_put_u64(msg, NL80211_ATTR_WDEV, wdev_id(wdev)))
++		goto out;
++
++	genlmsg_end(msg, hdr);
++
++	genlmsg_multicast_netns(wiphy_net(&rdev->wiphy), msg, 0,
++				nl80211_mlme_mcgrp.id, GFP_KERNEL);
++	return;
++ out:
++	nlmsg_free(msg);
++}
++
+ /* initialisation/exit functions */
+ 
+ int nl80211_init(void)
+diff -Nur wl18xx-r8.a8.08/net/wireless/nl80211.h wilink8-r8.a8.08-mod/net/wireless/nl80211.h
+--- wl18xx-r8.a8.08/net/wireless/nl80211.h	2014-01-15 11:45:59.000000000 +0800
++++ wilink8-r8.a8.08-mod/net/wireless/nl80211.h	2014-04-03 15:33:20.000000000 +0800
+@@ -74,6 +74,8 @@
+ 		     enum nl80211_radar_event event,
+ 		     struct net_device *netdev, gfp_t gfp);
+ 
++void nl80211_send_ap_stopped(struct wireless_dev *wdev);
++
+ void cfg80211_rdev_free_coalesce(struct cfg80211_registered_device *rdev);
+ 
+ #endif /* __NET_WIRELESS_NL80211_H */
+diff -Nur wl18xx-r8.a8.08/net/wireless/reg.c wilink8-r8.a8.08-mod/net/wireless/reg.c
+--- wl18xx-r8.a8.08/net/wireless/reg.c	2014-01-15 11:46:00.000000000 +0800
++++ wilink8-r8.a8.08-mod/net/wireless/reg.c	2014-02-14 21:19:27.000000000 +0800
+@@ -363,7 +363,8 @@
+ 	return regd;
+ }
+ 
+-#ifdef CONFIG_CFG80211_INTERNAL_REGDB
++//#ifdef CONFIG_CFG80211_INTERNAL_REGDB
++#if 1
+ struct reg_regdb_search_request {
+ 	char alpha2[2];
+ 	struct list_head list;
+diff -Nur wl18xx-r8.a8.08/net/wireless/regdb.c wilink8-r8.a8.08-mod/net/wireless/regdb.c
+--- wl18xx-r8.a8.08/net/wireless/regdb.c	1970-01-01 08:00:00.000000000 +0800
++++ wilink8-r8.a8.08-mod/net/wireless/regdb.c	2014-07-10 14:25:34.000000000 +0800
+@@ -0,0 +1,1718 @@
++/*
++ * DO NOT EDIT -- file generated from data in db.txt
++ */
++
++#include <linux/nl80211.h>
++#include <net/cfg80211.h>
++#include "regdb.h"
++
++static const struct ieee80211_regdomain regdom_00 = {
++	.alpha2 = "00",
++	.reg_rules = {
++		REG_RULE(2402, 2472, 40, 3, 20, 0),
++		REG_RULE(2457, 2482, 40, 3, 20, 
++			NL80211_RRF_PASSIVE_SCAN | 
++			NL80211_RRF_NO_IBSS | 0),
++		REG_RULE(2474, 2494, 20, 3, 20, 
++			NL80211_RRF_PASSIVE_SCAN | 
++			NL80211_RRF_NO_IBSS | 
++			NL80211_RRF_NO_OFDM | 0),
++		REG_RULE(5170, 5250, 40, 3, 20, 
++			NL80211_RRF_PASSIVE_SCAN | 
++			NL80211_RRF_NO_IBSS | 0),
++		REG_RULE(5735, 5835, 40, 3, 20, 
++			NL80211_RRF_PASSIVE_SCAN | 
++			NL80211_RRF_NO_IBSS | 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_AD = {
++	.alpha2 = "AD",
++	.reg_rules = {
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 1
++};
++
++static const struct ieee80211_regdomain regdom_AE = {
++	.alpha2 = "AE",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++	},
++	.n_reg_rules = 4
++};
++
++static const struct ieee80211_regdomain regdom_AL = {
++	.alpha2 = "AL",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 20, 0, 20, 0),
++	},
++	.n_reg_rules = 1
++};
++
++static const struct ieee80211_regdomain regdom_AM = {
++	.alpha2 = "AM",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 20, 0, 18, 0),
++		REG_RULE(5250, 5330, 20, 0, 18, 
++			NL80211_RRF_DFS | 0),
++	},
++	.n_reg_rules = 3
++};
++
++static const struct ieee80211_regdomain regdom_AN = {
++	.alpha2 = "AN",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++	},
++	.n_reg_rules = 4
++};
++
++static const struct ieee80211_regdomain regdom_AR = {
++	.alpha2 = "AR",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 3, 17, 0),
++		REG_RULE(5250, 5330, 40, 3, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 3, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 40, 3, 30, 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_AT = {
++	.alpha2 = "AT",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_AU = {
++	.alpha2 = "AU",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 3, 23, 0),
++		REG_RULE(5250, 5330, 40, 3, 23, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 40, 3, 30, 0),
++	},
++	.n_reg_rules = 4
++};
++
++static const struct ieee80211_regdomain regdom_AW = {
++	.alpha2 = "AW",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++	},
++	.n_reg_rules = 4
++};
++
++static const struct ieee80211_regdomain regdom_AZ = {
++	.alpha2 = "AZ",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 18, 0),
++		REG_RULE(5250, 5330, 40, 0, 18, 
++			NL80211_RRF_DFS | 0),
++	},
++	.n_reg_rules = 3
++};
++
++static const struct ieee80211_regdomain regdom_BA = {
++	.alpha2 = "BA",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_BB = {
++	.alpha2 = "BB",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 3, 23, 0),
++		REG_RULE(5250, 5330, 40, 3, 23, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 40, 3, 30, 0),
++	},
++	.n_reg_rules = 4
++};
++
++static const struct ieee80211_regdomain regdom_BD = {
++	.alpha2 = "BD",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++	},
++	.n_reg_rules = 1
++};
++
++static const struct ieee80211_regdomain regdom_BE = {
++	.alpha2 = "BE",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_BG = {
++	.alpha2 = "BG",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 23, 0),
++		REG_RULE(5250, 5290, 40, 0, 23, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 30, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_BH = {
++	.alpha2 = "BH",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 20, 0, 20, 0),
++		REG_RULE(5250, 5330, 20, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 20, 0, 20, 0),
++	},
++	.n_reg_rules = 4
++};
++
++static const struct ieee80211_regdomain regdom_BL = {
++	.alpha2 = "BL",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 18, 0),
++		REG_RULE(5250, 5330, 40, 0, 18, 
++			NL80211_RRF_DFS | 0),
++	},
++	.n_reg_rules = 3
++};
++
++static const struct ieee80211_regdomain regdom_BN = {
++	.alpha2 = "BN",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 40, 0, 30, 0),
++	},
++	.n_reg_rules = 4
++};
++
++static const struct ieee80211_regdomain regdom_BO = {
++	.alpha2 = "BO",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 30, 0),
++		REG_RULE(5735, 5835, 40, 0, 30, 0),
++	},
++	.n_reg_rules = 2
++};
++
++static const struct ieee80211_regdomain regdom_BR = {
++	.alpha2 = "BR",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 3, 17, 0),
++		REG_RULE(5250, 5330, 40, 3, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 3, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 40, 3, 30, 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_BY = {
++	.alpha2 = "BY",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++	},
++	.n_reg_rules = 4
++};
++
++static const struct ieee80211_regdomain regdom_BZ = {
++	.alpha2 = "BZ",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 30, 0),
++		REG_RULE(5735, 5835, 40, 0, 30, 0),
++	},
++	.n_reg_rules = 2
++};
++
++static const struct ieee80211_regdomain regdom_CA = {
++	.alpha2 = "CA",
++	.reg_rules = {
++		REG_RULE(2402, 2472, 40, 3, 27, 0),
++		REG_RULE(5170, 5250, 40, 3, 17, 0),
++		REG_RULE(5250, 5330, 40, 3, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 3, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 40, 3, 30, 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_CH = {
++	.alpha2 = "CH",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_CL = {
++	.alpha2 = "CL",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 40, 0, 20, 0),
++	},
++	.n_reg_rules = 4
++};
++
++static const struct ieee80211_regdomain regdom_CN = {
++	.alpha2 = "CN",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5735, 5835, 40, 0, 30, 0),
++		REG_RULE(57240, 59400, 2160, 0, 28, 0),
++		REG_RULE(59400, 63720, 2160, 0, 44, 0),
++		REG_RULE(63720, 65880, 2160, 0, 28, 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_CO = {
++	.alpha2 = "CO",
++	.reg_rules = {
++		REG_RULE(2402, 2472, 40, 3, 27, 0),
++		REG_RULE(5170, 5250, 40, 3, 17, 0),
++		REG_RULE(5250, 5330, 40, 3, 23, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 40, 3, 30, 0),
++	},
++	.n_reg_rules = 4
++};
++
++static const struct ieee80211_regdomain regdom_CR = {
++	.alpha2 = "CR",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 20, 3, 17, 0),
++		REG_RULE(5250, 5330, 20, 3, 23, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 20, 3, 30, 0),
++	},
++	.n_reg_rules = 4
++};
++
++static const struct ieee80211_regdomain regdom_CS = {
++	.alpha2 = "CS",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++	},
++	.n_reg_rules = 4
++};
++
++static const struct ieee80211_regdomain regdom_CY = {
++	.alpha2 = "CY",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_CZ = {
++	.alpha2 = "CZ",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2400, 2483, 40, 0, 20, 0),
++		REG_RULE(5150, 5250, 40, 0, 23, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++		REG_RULE(5250, 5350, 40, 0, 20, 
++			NL80211_RRF_NO_OUTDOOR | 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5470, 5725, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_DE = {
++	.alpha2 = "DE",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2400, 2483, 40, 0, 20, 0),
++		REG_RULE(5150, 5250, 40, 0, 20, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++		REG_RULE(5250, 5350, 40, 0, 20, 
++			NL80211_RRF_NO_OUTDOOR | 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5470, 5725, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_DK = {
++	.alpha2 = "DK",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_DO = {
++	.alpha2 = "DO",
++	.reg_rules = {
++		REG_RULE(2402, 2472, 40, 3, 27, 0),
++		REG_RULE(5170, 5250, 40, 3, 17, 0),
++		REG_RULE(5250, 5330, 40, 3, 23, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 40, 3, 30, 0),
++	},
++	.n_reg_rules = 4
++};
++
++static const struct ieee80211_regdomain regdom_DZ = {
++	.alpha2 = "DZ",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++	},
++	.n_reg_rules = 1
++};
++
++static const struct ieee80211_regdomain regdom_EC = {
++	.alpha2 = "EC",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 20, 3, 17, 0),
++		REG_RULE(5250, 5330, 20, 3, 23, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 20, 3, 30, 0),
++	},
++	.n_reg_rules = 4
++};
++
++static const struct ieee80211_regdomain regdom_EE = {
++	.alpha2 = "EE",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_EG = {
++	.alpha2 = "EG",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 20, 0, 20, 0),
++		REG_RULE(5250, 5330, 20, 0, 20, 
++			NL80211_RRF_DFS | 0),
++	},
++	.n_reg_rules = 3
++};
++
++static const struct ieee80211_regdomain regdom_ES = {
++	.alpha2 = "ES",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2400, 2483, 40, 0, 20, 0),
++		REG_RULE(5150, 5250, 40, 0, 20, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++		REG_RULE(5250, 5350, 40, 0, 20, 
++			NL80211_RRF_NO_OUTDOOR | 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5470, 5725, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_FI = {
++	.alpha2 = "FI",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_FR = {
++	.alpha2 = "FR",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_GE = {
++	.alpha2 = "GE",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 18, 0),
++		REG_RULE(5250, 5330, 40, 0, 18, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 4
++};
++
++static const struct ieee80211_regdomain regdom_GB = {
++	.alpha2 = "GB",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_GD = {
++	.alpha2 = "GD",
++	.reg_rules = {
++		REG_RULE(2402, 2472, 40, 3, 27, 0),
++		REG_RULE(5170, 5250, 40, 3, 17, 0),
++		REG_RULE(5250, 5330, 40, 3, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 3, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 40, 3, 30, 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_GR = {
++	.alpha2 = "GR",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_GL = {
++	.alpha2 = "GL",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 20, 0, 20, 0),
++		REG_RULE(5250, 5330, 20, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 20, 0, 27, 
++			NL80211_RRF_DFS | 0),
++	},
++	.n_reg_rules = 4
++};
++
++static const struct ieee80211_regdomain regdom_GT = {
++	.alpha2 = "GT",
++	.reg_rules = {
++		REG_RULE(2402, 2472, 40, 3, 27, 0),
++		REG_RULE(5170, 5250, 40, 3, 17, 0),
++		REG_RULE(5250, 5330, 40, 3, 23, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 40, 3, 30, 0),
++	},
++	.n_reg_rules = 4
++};
++
++static const struct ieee80211_regdomain regdom_GU = {
++	.alpha2 = "GU",
++	.reg_rules = {
++		REG_RULE(2402, 2472, 40, 3, 27, 0),
++		REG_RULE(5170, 5250, 20, 3, 17, 0),
++		REG_RULE(5250, 5330, 20, 3, 23, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 20, 3, 30, 0),
++	},
++	.n_reg_rules = 4
++};
++
++static const struct ieee80211_regdomain regdom_HN = {
++	.alpha2 = "HN",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 3, 17, 0),
++		REG_RULE(5250, 5330, 40, 3, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 3, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 40, 3, 30, 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_HK = {
++	.alpha2 = "HK",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 3, 17, 0),
++		REG_RULE(5250, 5330, 40, 3, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 3, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 40, 3, 30, 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_HR = {
++	.alpha2 = "HR",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_HT = {
++	.alpha2 = "HT",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++	},
++	.n_reg_rules = 4
++};
++
++static const struct ieee80211_regdomain regdom_HU = {
++	.alpha2 = "HU",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_ID = {
++	.alpha2 = "ID",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++	},
++	.n_reg_rules = 1
++};
++
++static const struct ieee80211_regdomain regdom_IE = {
++	.alpha2 = "IE",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_IL = {
++	.alpha2 = "IL",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5150, 5250, 40, 0, 23, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++		REG_RULE(5250, 5350, 40, 0, 23, 
++			NL80211_RRF_NO_OUTDOOR | 
++			NL80211_RRF_DFS | 0),
++	},
++	.n_reg_rules = 3
++};
++
++static const struct ieee80211_regdomain regdom_IN = {
++	.alpha2 = "IN",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 40, 0, 20, 0),
++	},
++	.n_reg_rules = 4
++};
++
++static const struct ieee80211_regdomain regdom_IS = {
++	.alpha2 = "IS",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_IR = {
++	.alpha2 = "IR",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5735, 5835, 40, 0, 30, 0),
++	},
++	.n_reg_rules = 2
++};
++
++static const struct ieee80211_regdomain regdom_IT = {
++	.alpha2 = "IT",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_JM = {
++	.alpha2 = "JM",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 3, 17, 0),
++		REG_RULE(5250, 5330, 40, 3, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 3, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 40, 3, 30, 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_JP = {
++	.alpha2 = "JP",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(2474, 2494, 20, 0, 20, 
++			NL80211_RRF_NO_OFDM | 0),
++		REG_RULE(4910, 4990, 40, 0, 23, 0),
++		REG_RULE(5030, 5090, 40, 0, 23, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 23, 
++			NL80211_RRF_DFS | 0),
++	},
++	.n_reg_rules = 7
++};
++
++static const struct ieee80211_regdomain regdom_JO = {
++	.alpha2 = "JO",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 18, 0),
++	},
++	.n_reg_rules = 2
++};
++
++static const struct ieee80211_regdomain regdom_KE = {
++	.alpha2 = "KE",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5735, 5835, 40, 0, 30, 0),
++	},
++	.n_reg_rules = 2
++};
++
++static const struct ieee80211_regdomain regdom_KH = {
++	.alpha2 = "KH",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++	},
++	.n_reg_rules = 4
++};
++
++static const struct ieee80211_regdomain regdom_KP = {
++	.alpha2 = "KP",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5330, 40, 3, 20, 0),
++		REG_RULE(5160, 5250, 40, 3, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5630, 40, 3, 30, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5815, 40, 3, 30, 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_KR = {
++	.alpha2 = "KR",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 20, 0, 20, 0),
++		REG_RULE(5170, 5250, 20, 3, 20, 0),
++		REG_RULE(5250, 5330, 20, 3, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5630, 20, 3, 30, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5815, 20, 3, 30, 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_KW = {
++	.alpha2 = "KW",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++	},
++	.n_reg_rules = 3
++};
++
++static const struct ieee80211_regdomain regdom_KZ = {
++	.alpha2 = "KZ",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++	},
++	.n_reg_rules = 1
++};
++
++static const struct ieee80211_regdomain regdom_LB = {
++	.alpha2 = "LB",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5735, 5835, 40, 0, 30, 0),
++	},
++	.n_reg_rules = 2
++};
++
++static const struct ieee80211_regdomain regdom_LI = {
++	.alpha2 = "LI",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++	},
++	.n_reg_rules = 4
++};
++
++static const struct ieee80211_regdomain regdom_LK = {
++	.alpha2 = "LK",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 20, 3, 17, 0),
++		REG_RULE(5250, 5330, 20, 3, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 20, 3, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 20, 3, 30, 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_LT = {
++	.alpha2 = "LT",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_LU = {
++	.alpha2 = "LU",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_LV = {
++	.alpha2 = "LV",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_MC = {
++	.alpha2 = "MC",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 18, 0),
++		REG_RULE(5250, 5330, 40, 0, 18, 
++			NL80211_RRF_DFS | 0),
++	},
++	.n_reg_rules = 3
++};
++
++static const struct ieee80211_regdomain regdom_MA = {
++	.alpha2 = "MA",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++	},
++	.n_reg_rules = 1
++};
++
++static const struct ieee80211_regdomain regdom_MO = {
++	.alpha2 = "MO",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 3, 23, 0),
++		REG_RULE(5250, 5330, 40, 3, 23, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 40, 3, 30, 0),
++	},
++	.n_reg_rules = 4
++};
++
++static const struct ieee80211_regdomain regdom_MK = {
++	.alpha2 = "MK",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_MT = {
++	.alpha2 = "MT",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_MY = {
++	.alpha2 = "MY",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 30, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 40, 0, 30, 0),
++	},
++	.n_reg_rules = 3
++};
++
++static const struct ieee80211_regdomain regdom_MX = {
++	.alpha2 = "MX",
++	.reg_rules = {
++		REG_RULE(2402, 2472, 40, 3, 27, 0),
++		REG_RULE(5170, 5250, 40, 3, 17, 0),
++		REG_RULE(5250, 5330, 40, 3, 23, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 40, 3, 30, 0),
++	},
++	.n_reg_rules = 4
++};
++
++static const struct ieee80211_regdomain regdom_NL = {
++	.alpha2 = "NL",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_NO_OUTDOOR | 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_NO = {
++	.alpha2 = "NO",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_NP = {
++	.alpha2 = "NP",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5735, 5835, 40, 0, 30, 0),
++	},
++	.n_reg_rules = 2
++};
++
++static const struct ieee80211_regdomain regdom_NZ = {
++	.alpha2 = "NZ",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 30, 0),
++		REG_RULE(5170, 5250, 20, 3, 23, 0),
++		REG_RULE(5250, 5330, 20, 3, 23, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 20, 3, 30, 0),
++	},
++	.n_reg_rules = 4
++};
++
++static const struct ieee80211_regdomain regdom_OM = {
++	.alpha2 = "OM",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 3, 17, 0),
++		REG_RULE(5250, 5330, 40, 3, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 3, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 40, 3, 30, 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_PA = {
++	.alpha2 = "PA",
++	.reg_rules = {
++		REG_RULE(2402, 2472, 40, 3, 27, 0),
++		REG_RULE(5170, 5250, 40, 3, 17, 0),
++		REG_RULE(5250, 5330, 40, 3, 23, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 40, 3, 30, 0),
++	},
++	.n_reg_rules = 4
++};
++
++static const struct ieee80211_regdomain regdom_PE = {
++	.alpha2 = "PE",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5735, 5835, 40, 0, 30, 0),
++	},
++	.n_reg_rules = 2
++};
++
++static const struct ieee80211_regdomain regdom_PG = {
++	.alpha2 = "PG",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 3, 17, 0),
++		REG_RULE(5250, 5330, 40, 3, 23, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 40, 3, 30, 0),
++	},
++	.n_reg_rules = 4
++};
++
++static const struct ieee80211_regdomain regdom_PH = {
++	.alpha2 = "PH",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5735, 5835, 40, 0, 30, 0),
++	},
++	.n_reg_rules = 2
++};
++
++static const struct ieee80211_regdomain regdom_PK = {
++	.alpha2 = "PK",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5735, 5835, 40, 0, 30, 0),
++	},
++	.n_reg_rules = 2
++};
++
++static const struct ieee80211_regdomain regdom_PL = {
++	.alpha2 = "PL",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_PT = {
++	.alpha2 = "PT",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_PR = {
++	.alpha2 = "PR",
++	.reg_rules = {
++		REG_RULE(2402, 2472, 40, 3, 27, 0),
++		REG_RULE(5170, 5250, 40, 3, 17, 0),
++		REG_RULE(5250, 5330, 40, 3, 23, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 40, 3, 30, 0),
++	},
++	.n_reg_rules = 4
++};
++
++static const struct ieee80211_regdomain regdom_QA = {
++	.alpha2 = "QA",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5735, 5835, 40, 0, 30, 0),
++	},
++	.n_reg_rules = 2
++};
++
++static const struct ieee80211_regdomain regdom_RO = {
++	.alpha2 = "RO",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_RS = {
++	.alpha2 = "RS",
++	.reg_rules = {
++		REG_RULE(2400, 2483, 40, 0, 20, 0),
++		REG_RULE(5150, 5350, 40, 0, 23, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++		REG_RULE(5470, 5725, 20, 3, 30, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 4
++};
++
++static const struct ieee80211_regdomain regdom_RU = {
++	.alpha2 = "RU",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5735, 5835, 20, 0, 30, 0),
++	},
++	.n_reg_rules = 2
++};
++
++static const struct ieee80211_regdomain regdom_RW = {
++	.alpha2 = "RW",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5735, 5835, 40, 0, 30, 0),
++	},
++	.n_reg_rules = 2
++};
++
++static const struct ieee80211_regdomain regdom_SA = {
++	.alpha2 = "SA",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 20, 3, 23, 0),
++		REG_RULE(5250, 5330, 20, 3, 23, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 20, 3, 30, 0),
++	},
++	.n_reg_rules = 4
++};
++
++static const struct ieee80211_regdomain regdom_SE = {
++	.alpha2 = "SE",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_SG = {
++	.alpha2 = "SG",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 40, 0, 20, 0),
++	},
++	.n_reg_rules = 4
++};
++
++static const struct ieee80211_regdomain regdom_SI = {
++	.alpha2 = "SI",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_SK = {
++	.alpha2 = "SK",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 0, 27, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_SV = {
++	.alpha2 = "SV",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 20, 3, 17, 0),
++		REG_RULE(5250, 5330, 20, 3, 23, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 20, 3, 30, 0),
++	},
++	.n_reg_rules = 4
++};
++
++static const struct ieee80211_regdomain regdom_SY = {
++	.alpha2 = "SY",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++	},
++	.n_reg_rules = 1
++};
++
++static const struct ieee80211_regdomain regdom_TW = {
++	.alpha2 = "TW",
++	.reg_rules = {
++		REG_RULE(2402, 2472, 40, 3, 27, 0),
++		REG_RULE(5270, 5330, 40, 3, 17, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5815, 40, 3, 30, 0),
++	},
++	.n_reg_rules = 3
++};
++
++static const struct ieee80211_regdomain regdom_TH = {
++	.alpha2 = "TH",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 3, 17, 0),
++		REG_RULE(5250, 5330, 40, 3, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 3, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 40, 3, 30, 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_TT = {
++	.alpha2 = "TT",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 3, 17, 0),
++		REG_RULE(5250, 5330, 40, 3, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 3, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 40, 3, 30, 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_TN = {
++	.alpha2 = "TN",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 20, 0, 20, 0),
++		REG_RULE(5250, 5330, 20, 0, 20, 
++			NL80211_RRF_DFS | 0),
++	},
++	.n_reg_rules = 3
++};
++
++static const struct ieee80211_regdomain regdom_TR = {
++	.alpha2 = "TR",
++	.dfs_region = NL80211_DFS_ETSI,
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 20, 0, 20, 0),
++		REG_RULE(5250, 5330, 20, 0, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 4
++};
++
++static const struct ieee80211_regdomain regdom_UA = {
++	.alpha2 = "UA",
++	.reg_rules = {
++		REG_RULE(2400, 2483, 40, 0, 20, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++		REG_RULE(5150, 5350, 40, 0, 20, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++		REG_RULE(57240, 65880, 2160, 0, 40, 
++			NL80211_RRF_NO_OUTDOOR | 0),
++	},
++	.n_reg_rules = 3
++};
++
++static const struct ieee80211_regdomain regdom_US = {
++	.alpha2 = "US",
++	.dfs_region = NL80211_DFS_FCC,
++	.reg_rules = {
++		REG_RULE(2402, 2472, 40, 3, 27, 0),
++		REG_RULE(5170, 5250, 40, 3, 17, 0),
++		REG_RULE(5250, 5330, 40, 3, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5600, 40, 3, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5650, 5710, 40, 3, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 40, 3, 30, 0),
++		REG_RULE(57240, 63720, 2160, 0, 40, 0),
++	},
++	.n_reg_rules = 7
++};
++
++static const struct ieee80211_regdomain regdom_UY = {
++	.alpha2 = "UY",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 3, 17, 0),
++		REG_RULE(5250, 5330, 40, 3, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 3, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 40, 3, 30, 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_UZ = {
++	.alpha2 = "UZ",
++	.reg_rules = {
++		REG_RULE(2402, 2472, 40, 3, 27, 0),
++		REG_RULE(5170, 5250, 40, 3, 17, 0),
++		REG_RULE(5250, 5330, 40, 3, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 3, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 40, 3, 30, 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_VE = {
++	.alpha2 = "VE",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5735, 5815, 40, 0, 23, 0),
++	},
++	.n_reg_rules = 2
++};
++
++static const struct ieee80211_regdomain regdom_VN = {
++	.alpha2 = "VN",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 0, 20, 0),
++		REG_RULE(5250, 5330, 40, 0, 20, 
++			NL80211_RRF_DFS | 0),
++	},
++	.n_reg_rules = 3
++};
++
++static const struct ieee80211_regdomain regdom_YE = {
++	.alpha2 = "YE",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++	},
++	.n_reg_rules = 1
++};
++
++static const struct ieee80211_regdomain regdom_ZA = {
++	.alpha2 = "ZA",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++		REG_RULE(5170, 5250, 40, 3, 17, 0),
++		REG_RULE(5250, 5330, 40, 3, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5490, 5710, 40, 3, 20, 
++			NL80211_RRF_DFS | 0),
++		REG_RULE(5735, 5835, 40, 3, 30, 0),
++	},
++	.n_reg_rules = 5
++};
++
++static const struct ieee80211_regdomain regdom_ZW = {
++	.alpha2 = "ZW",
++	.reg_rules = {
++		REG_RULE(2402, 2482, 40, 0, 20, 0),
++	},
++	.n_reg_rules = 1
++};
++
++const struct ieee80211_regdomain *reg_regdb[] = {
++	&regdom_00,
++	&regdom_AD,
++	&regdom_AE,
++	&regdom_AL,
++	&regdom_AM,
++	&regdom_AN,
++	&regdom_AR,
++	&regdom_AT,
++	&regdom_AU,
++	&regdom_AW,
++	&regdom_AZ,
++	&regdom_BA,
++	&regdom_BB,
++	&regdom_BD,
++	&regdom_BE,
++	&regdom_BG,
++	&regdom_BH,
++	&regdom_BL,
++	&regdom_BN,
++	&regdom_BO,
++	&regdom_BR,
++	&regdom_BY,
++	&regdom_BZ,
++	&regdom_CA,
++	&regdom_CH,
++	&regdom_CL,
++	&regdom_CN,
++	&regdom_CO,
++	&regdom_CR,
++	&regdom_CS,
++	&regdom_CY,
++	&regdom_CZ,
++	&regdom_DE,
++	&regdom_DK,
++	&regdom_DO,
++	&regdom_DZ,
++	&regdom_EC,
++	&regdom_EE,
++	&regdom_EG,
++	&regdom_ES,
++	&regdom_FI,
++	&regdom_FR,
++	&regdom_GE,
++	&regdom_GB,
++	&regdom_GD,
++	&regdom_GR,
++	&regdom_GL,
++	&regdom_GT,
++	&regdom_GU,
++	&regdom_HN,
++	&regdom_HK,
++	&regdom_HR,
++	&regdom_HT,
++	&regdom_HU,
++	&regdom_ID,
++	&regdom_IE,
++	&regdom_IL,
++	&regdom_IN,
++	&regdom_IS,
++	&regdom_IR,
++	&regdom_IT,
++	&regdom_JM,
++	&regdom_JP,
++	&regdom_JO,
++	&regdom_KE,
++	&regdom_KH,
++	&regdom_KP,
++	&regdom_KR,
++	&regdom_KW,
++	&regdom_KZ,
++	&regdom_LB,
++	&regdom_LI,
++	&regdom_LK,
++	&regdom_LT,
++	&regdom_LU,
++	&regdom_LV,
++	&regdom_MC,
++	&regdom_MA,
++	&regdom_MO,
++	&regdom_MK,
++	&regdom_MT,
++	&regdom_MY,
++	&regdom_MX,
++	&regdom_NL,
++	&regdom_NO,
++	&regdom_NP,
++	&regdom_NZ,
++	&regdom_OM,
++	&regdom_PA,
++	&regdom_PE,
++	&regdom_PG,
++	&regdom_PH,
++	&regdom_PK,
++	&regdom_PL,
++	&regdom_PT,
++	&regdom_PR,
++	&regdom_QA,
++	&regdom_RO,
++	&regdom_RS,
++	&regdom_RU,
++	&regdom_RW,
++	&regdom_SA,
++	&regdom_SE,
++	&regdom_SG,
++	&regdom_SI,
++	&regdom_SK,
++	&regdom_SV,
++	&regdom_SY,
++	&regdom_TW,
++	&regdom_TH,
++	&regdom_TT,
++	&regdom_TN,
++	&regdom_TR,
++	&regdom_UA,
++	&regdom_US,
++	&regdom_UY,
++	&regdom_UZ,
++	&regdom_VE,
++	&regdom_VN,
++	&regdom_YE,
++	&regdom_ZA,
++	&regdom_ZW,
++};
++
++int reg_regdb_size = ARRAY_SIZE(reg_regdb);
+diff -Nur wl18xx-r8.a8.08/net/wireless/util.c wilink8-r8.a8.08-mod/net/wireless/util.c
+--- wl18xx-r8.a8.08/net/wireless/util.c	2014-01-15 11:46:00.000000000 +0800
++++ wilink8-r8.a8.08-mod/net/wireless/util.c	2014-04-03 15:33:25.000000000 +0800
+@@ -858,7 +858,7 @@
+ 
+ 		switch (otype) {
+ 		case NL80211_IFTYPE_AP:
+-			cfg80211_stop_ap(rdev, dev);
++			cfg80211_stop_ap(rdev, dev, true);
+ 			break;
+ 		case NL80211_IFTYPE_ADHOC:
+ 			cfg80211_leave_ibss(rdev, dev, false);

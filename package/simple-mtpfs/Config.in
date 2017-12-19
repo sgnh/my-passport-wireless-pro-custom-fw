@@ -1,0 +1,10 @@
+config BR2_PACKAGE_SIMPLE_MTPFS
+	depends on BR2_PACKAGE_LIBMTP
+    select BR2_PACKAGE_LIBGLIB2
+    bool "simple-mtpfs"
+	help
+	  simple MTPfs is a FUSE filesystem that supports reading and writing from any MTP device (as supported by libmtp)
+
+	  https://github.com/phatina/simple-mtpfs
+
+	

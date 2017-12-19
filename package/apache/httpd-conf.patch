@@ -1,0 +1,132 @@
+diff -uNr httpd-2.4.9/docs/conf/extra/httpd-default.conf.in pa-httpd-2.4.9/docs/conf/extra/httpd-default.conf.in
+--- httpd-2.4.9/docs/conf/extra/httpd-default.conf.in	2012-07-23 20:14:34.000000000 +0800
++++ pa-httpd-2.4.9/docs/conf/extra/httpd-default.conf.in	2016-01-07 20:47:37.006015757 +0800
+@@ -7,7 +7,7 @@
+ #
+ # Timeout: The number of seconds before receives and sends time out.
+ #
+-Timeout 60
++Timeout 300
+ 
+ #
+ # KeepAlive: Whether or not to allow persistent connections (more than
+@@ -26,7 +26,7 @@
+ # KeepAliveTimeout: Number of seconds to wait for the next request from the
+ # same client on the same connection.
+ #
+-KeepAliveTimeout 5
++KeepAliveTimeout 15
+ 
+ #
+ # UseCanonicalName: Determines how Apache constructs self-referencing 
+@@ -72,7 +72,7 @@
+ # each client request will result in AT LEAST one lookup request to the
+ # nameserver.
+ #
+-HostnameLookups Off
++HostnameLookups On
+ 
+ #
+ # Set a timeout for how long the client may take to send the request header
+diff -uNr httpd-2.4.9/docs/conf/extra/httpd-languages.conf.in pa-httpd-2.4.9/docs/conf/extra/httpd-languages.conf.in
+--- httpd-2.4.9/docs/conf/extra/httpd-languages.conf.in	2008-03-07 20:49:39.000000000 +0800
++++ pa-httpd-2.4.9/docs/conf/extra/httpd-languages.conf.in	2016-01-07 20:47:22.407740708 +0800
+@@ -16,7 +16,7 @@
+ # * being a certain language than marking it with the wrong
+ # * language!
+ #
+-# DefaultLanguage nl
++DefaultLanguage en
+ #
+ # Note 1: The suffix does not have to be the same as the language
+ # keyword --- those with documents in Polish (whose net-standard
+@@ -41,31 +41,88 @@
+ # Turkish (tr) - Simplified Chinese (zh-CN) - Spanish (es)
+ # Traditional Chinese (zh-TW)
+ #
++AddLanguage am .amh
++AddLanguage ar .ara
++AddLanguage be .be
++AddLanguage bg .bg
++AddLanguage bn .bn
++AddLanguage br .br
++AddLanguage bs .bs
+ AddLanguage ca .ca
+ AddLanguage cs .cz .cs
++AddLanguage cy .cy
+ AddLanguage da .dk
+ AddLanguage de .de
++AddLanguage dz .dz
+ AddLanguage el .el
+ AddLanguage en .en
+ AddLanguage eo .eo
++# es is ecmascript in /etc/mime.types
++RemoveType  es
+ AddLanguage es .es
+ AddLanguage et .et
++AddLanguage eu .eu
++AddLanguage fa .fa
++AddLanguage fi .fi
+ AddLanguage fr .fr
++AddLanguage ga .ga
++AddLanguage gl .glg
++AddLanguage gu .gu
+ AddLanguage he .he
++AddLanguage hi .hi
+ AddLanguage hr .hr
++AddLanguage hu .hu
++AddLanguage hy .hy
++AddLanguage id .id
++AddLanguage is .is
+ AddLanguage it .it
+ AddLanguage ja .ja
++AddLanguage ka .ka
++AddLanguage kk .kk
++AddLanguage km .km
++AddLanguage kn .kn
+ AddLanguage ko .ko
++AddLanguage ku .ku
++AddLanguage lo .lo
++AddLanguage lt .lt
+ AddLanguage ltz .ltz
++AddLanguage lv .lv
++AddLanguage mg .mg
++AddLanguage mk .mk
++AddLanguage ml .ml
++AddLanguage mr .mr
++AddLanguage ms .msa
++AddLanguage nb .nob
++AddLanguage ne .ne
+ AddLanguage nl .nl
+ AddLanguage nn .nn
+ AddLanguage no .no
++AddLanguage pa .pa
+ AddLanguage pl .po
+-AddLanguage pt .pt
+ AddLanguage pt-BR .pt-br
++AddLanguage pt .pt
++AddLanguage ro .ro
+ AddLanguage ru .ru
++AddLanguage sa .sa
++AddLanguage se .se
++AddLanguage si .si
++AddLanguage sk .sk
++AddLanguage sl .sl
++AddLanguage sq .sq
++AddLanguage sr .sr
+ AddLanguage sv .sv
++AddLanguage ta .ta
++AddLanguage te .te
++AddLanguage th .th
++AddLanguage tl .tl
++RemoveType  tr
++# tr is troff in /etc/mime.types
+ AddLanguage tr .tr
++AddLanguage uk .uk
++AddLanguage ur .ur
++AddLanguage vi .vi
++AddLanguage wo .wo
++AddLanguage xh .xh
+ AddLanguage zh-CN .zh-cn
+ AddLanguage zh-TW .zh-tw
+ 

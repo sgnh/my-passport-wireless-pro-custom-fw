@@ -1,0 +1,64 @@
+#!/bin/sh
+#
+# Start WiLink8 driver....
+#
+isConfigured=`/sbin/fw_printenv | grep MAC_ADDR | wc -l`
+MACA_ADDR=`/sbin/fw_printenv | grep MAC_ADDR | cut -d '=' -f 2`
+lastOneByte=`/sbin/fw_printenv | grep MAC_ADDR | cut -d ':' -f 6`
+aheadByte=`/sbin/fw_printenv | grep MAC_ADDR | cut -d '=' -f 2 | awk -F: '{print $1":"$2":"$3":"$4":"$5}'`
+
+NetworkParamCheck(){
+	if [ ! -f "/etc/nas/config/wifinetwork-param.conf" ]; then
+        cp -a /etc/nas/config/wifinetwork-param.default.conf /etc/nas/config/wifinetwork-param.conf
+	else
+        Apinface=`cat /etc/nas/config/wifinetwork-param.conf | grep -rsw AP_IFACE`
+        Cliinface=`cat /etc/nas/config/wifinetwork-param.conf | grep STA_IFACE`
+
+        if [ "$Apinface" != "AP_IFACE=wlan1" ] || [ "$Cliinface" != "STA_IFACE=wlan0" ]; then
+            cp -a /etc/nas/config/wifinetwork-param.default.conf /etc/nas/config/wifinetwork-param.conf
+        fi
+	fi
+}
+
+
+case "$1" in
+  start)
+	echo "Starting WiLink8 driver ..."
+	insmod /lib/modules/3.2.0/extra/compat/compat.ko
+	insmod /lib/modules/3.2.0/extra/net/wireless/cfg80211.ko
+	insmod /lib/modules/3.2.0/extra/net/mac80211/mac80211.ko
+	insmod /lib/modules/3.2.0/extra/drivers/net/wireless/ti/wlcore/wlcore.ko
+	insmod /lib/modules/3.2.0/extra/drivers/net/wireless/ti/wlcore/wlcore_sdio.ko
+	insmod /lib/modules/3.2.0/extra/drivers/net/wireless/ti/wl18xx/wl18xx.ko
+	NetworkParamCheck
+	source /etc/nas/config/wifinetwork-param.conf
+	if [ $isConfigured == "1" ] ; then
+	    echo 40 > /sys/class/gpio/export
+	    echo 41 > /sys/class/gpio/export
+	    echo 89 > /sys/class/gpio/export
+	    HWID0=`cat /sys/class/gpio/gpio40/value`
+	    HWID1=`cat /sys/class/gpio/gpio41/value`
+	    HWID2=`cat /sys/class/gpio/gpio89/value`
+        	
+	    if [ "$HWID0" == 0 ] && [ "$HWID1" == 1 ] && [ "$HWID2" == 1 ]; then
+		    apmac=$((0X$lastOneByte)) 
+		    client=`expr $apmac + 1`
+		    clientmac=`printf '%02x' $client | tr [:lower:] [:upper:]`
+		    wlan0MAC=$aheadByte":"$clientmac
+		    ifconfig wlan0 down hw ether "${wlan0MAC}"
+		    if [ "$STA_HD_ADDR" == "" ]; then 
+			    echo "STA_HD_ADDR=${wlan0MAC}" >> /etc/nas/config/wifinetwork-param.conf
+		    fi
+	    fi
+    fi
+	;;
+  stop)
+	;;
+  restart|reload)
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?

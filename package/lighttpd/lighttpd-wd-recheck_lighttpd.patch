@@ -1,0 +1,28 @@
+diff -Nur lighttpd-1.4.32/src/lighttpd-angel.c lighttpd-1.4.32-mod/src/lighttpd-angel.c
+--- lighttpd-1.4.32/src/lighttpd-angel.c	2012-08-31 22:11:20.000000000 +0800
++++ lighttpd-1.4.32-mod/src/lighttpd-angel.c	2014-05-20 06:21:50.000000000 +0800
+@@ -18,6 +18,7 @@
+ #include <unistd.h>
+ #include <time.h>
+ #include <signal.h>
++#include <sys/stat.h>
+ 
+ #define BINPATH SBIN_DIR"/lighttpd"
+ 
+@@ -60,6 +61,7 @@
+ 
+ int main(int argc, char **argv) {
+ 	int is_shutdown = 0;
++	int restart_lighttpd = 0;
+ 	struct sigaction act;
+ 
+ 	UNUSED(argc);
+@@ -147,7 +149,7 @@
+ 						__FILE__, __LINE__,
+ 						pid,
+ 						WTERMSIG(exitcode));
+-
++				system("/etc/init.d/S99syschk recheck_lighttpd &");
+ 				start_process = 1;
+ 			}
+ 		}

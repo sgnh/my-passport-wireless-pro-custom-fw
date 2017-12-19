@@ -1,0 +1,33 @@
+diff -Nur linux-kernel/arch/arm/boot/dts/rtd-119x-dvfs-1ghz.dtsi linux-custom/arch/arm/boot/dts/rtd-119x-dvfs-1ghz.dtsi
+--- linux-kernel/arch/arm/boot/dts/rtd-119x-dvfs-1ghz.dtsi	2015-05-18 15:07:27.000000000 +0800
++++ linux-custom/arch/arm/boot/dts/rtd-119x-dvfs-1ghz.dtsi	2015-06-03 15:06:00.667726475 +0800
+@@ -8,6 +8,7 @@
+         frequency-table = <
+             0   290000
+             0   300000
++            0   390000
+             0   400000
+             1   500000
+             1   600000
+diff -Nur linux-kernel/arch/arm/boot/dts/rtd-119x-dvfs-1ghz-gpio.dtsi linux-custom/arch/arm/boot/dts/rtd-119x-dvfs-1ghz-gpio.dtsi
+--- linux-kernel/arch/arm/boot/dts/rtd-119x-dvfs-1ghz-gpio.dtsi	2015-05-18 15:07:27.000000000 +0800
++++ linux-custom/arch/arm/boot/dts/rtd-119x-dvfs-1ghz-gpio.dtsi	2015-06-03 15:05:39.875728403 +0800
+@@ -8,6 +8,7 @@
+             frequency-table = <
+             0   290000
+             0   300000
++            0   390000
+             0   400000
+             1   500000
+             1   600000
+diff -Nur linux-kernel/arch/arm/boot/dts/rtd-119x-dvfs.dtsi output_korra_spi/build/linux-custom/arch/arm/boot/dts/rtd-119x-dvfs.dtsi
+--- linux-kernel/arch/arm/boot/dts/rtd-119x-dvfs.dtsi	2015-05-18 15:07:27.000000000 +0800
++++ linux-custom/arch/arm/boot/dts/rtd-119x-dvfs.dtsi	2015-06-03 15:06:13.995726762 +0800
+@@ -13,6 +13,7 @@
+         frequency-table = <
+             0   290000
+             0   300000
++            0   390000
+             0   400000
+             1   500000
+             1   600000

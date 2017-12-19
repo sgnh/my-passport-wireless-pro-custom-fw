@@ -1,0 +1,14 @@
+--- busybox-1.23.1/coreutils/df.c	2015-04-10 16:15:14.071285170 +0800
++++ busybox-1.23.1-df/coreutils/df.c	2015-04-24 00:44:56.076850018 +0800
+@@ -166,7 +166,10 @@
+ 			mount_point = *argv++;
+ 			if (!mount_point)
+ 				break;
+-			mount_entry = find_mount_point(mount_point, 1);
++            if (strcmp(mount_point, "/shares") == 0)
++                mount_entry = find_mount_point("/shares/Storage", 1);
++            else
++                mount_entry = find_mount_point(mount_point, 1);
+ 			if (!mount_entry) {
+ 				bb_error_msg("%s: can't find mount point", mount_point);
+  set_error:

@@ -1,0 +1,1017 @@
+#!/bin/bash
+##################################################
+### Author: Rance Lin                          ###
+### Update: 2013-10-21                         ###
+##################################################
+: << !Command!
+Restart all wifi service, include STA & AP mode.
+Usage:
+    - Edit "/etc/config/wifi-config" file.
+    - Excute this shell script, "# wifi-#!/bin/bash
+##################################################
+### Author: Rance Lin                          ###
+### Update: 2013-10-21                         ###
+##################################################
+: << !Command!
+Restart all wifi service, include STA & AP mode.
+Usage:
+    - Edit "/etc/config/wifi-config" file.
+    - Excute this shell script, "# wifi-restart".
+
+Notice:
+    - WPA3 is mean "WPA AUTO (1&2)".
+
+ToDo:
+
+!Command!
+
+### Default Setting ###
+serialNum=WX0000000000
+DHCPD_CONF_PATH="/etc/dhcpd.conf"
+HOSTAPD_CONF_2G_PATH="/etc/hostapd/hostapd.conf.2G"
+HOSTAPD_CONF_5G_PATH="/etc/hostapd/hostapd.conf.5G"
+WPA_SUPPLICANT_PATH="/etc/wpa_supplicant.conf"
+WPA_2G4_SUPPLICANT_PATH="/etc/wpa2G4_supplicant.conf"
+
+HOSTPAD_SERVICE="/etc/init.d/S60hostapd"
+DHCP_SERVICE="/etc/init.d/S67dhcp-server"
+MULTI_ROLE_SERVICE="/etc/init.d/S73multi-role"
+IFPLUGD_SERVICE="/etc/init.d/S40ifplugd"
+LIGHTTPD_SERVICE="/etc/init.d/S50lighttpd"
+AVAHI_SERVICE="/etc/init.d/S50avahi-daemon"
+UPNP_SERVICE="/etc/init.d/S77upnp"
+TWONKY_SERVICE="/etc/init.d/S80twonkyserver"
+
+source /etc/nas/config/wifinetwork-param.conf
+#source /etc/nas/config/wifinetwork-remembered.conf
+source /etc/system.conf
+factory_conf=/etc/nas/config/factory.conf
+
+HostName=`hostname`
+ReStartMODE=$1
+ReStartIF=$2
+DelayTime=$3
+
+### Get Wifi Value ###
+GET_WIFI_ENV_VALUE()
+{
+    AP_SUBNET="${AP_IP%.*}.0"
+    AP_DHCP_UPPER_BOUND="${AP_IP%.*}.100"
+    AP_DHCP_LOWER_BOUND="${AP_IP%.*}.200"
+}
+
+
+
+### Change DHCP Config ###
+CHANGE_DHCP_CONFIG()
+{
+    sed -i '111,$d' $DHCPD_CONF_PATH
+
+    echo "option routers $AP_IP;"                                   >> $DHCPD_CONF_PATH
+    echo "option domain-name-servers $AP_IP;"                       >> $DHCPD_CONF_PATH
+    echo " "                                                        >> $DHCPD_CONF_PATH
+    echo "subnet $AP_SUBNET netmask $AP_MASK {"                     >> $DHCPD_CONF_PATH
+    echo "    pool {"                                               >> $DHCPD_CONF_PATH
+    echo "        max-lease-time 86400;"                            >> $DHCPD_CONF_PATH
+    echo "        range $AP_DHCP_UPPER_BOUND $AP_DHCP_LOWER_BOUND;" >> $DHCPD_CONF_PATH
+    echo "        option routers $AP_IP;"                           >> $DHCPD_CONF_PATH
+    echo "        option domain-name-servers $AP_IP, $AP_DNS;"      >> $DHCPD_CONF_PATH
+    echo "        allow unknown-clients;"                           >> $DHCPD_CONF_PATH
+    echo "    }"                                                    >> $DHCPD_CONF_PATH
+    echo "}"                                                        >> $DHCPD_CONF_PATH
+}
+
+### Change Hostapd Config ###
+CHANGE_HOSTAPD_CONFIG()
+{
+	if [ -f "/tmp/HDSerial" ]; then
+		serialNum=`cat /tmp/HDSerial`
+	else
+		serialNum=`/usr/local/sbin/getSerialNumber.sh`
+	fi
+	NumModel=${modelNumber}
+	mac_addrD=`ifconfig "$AP5G_IFACE" | sed -n -e 's/.*HWaddr \(.*\)/\1/p' | tr -d ":" | sed 's/^[ \t]*//;s/[ \t]*$//' | tr [:upper:] [:lower:]`
+	if [ "${ReStartIF}" == "$AP_IFACE" ] || [ "${ReStartIF}" == "all" ]; then
+		sed -i '1,$d' $HOSTAPD_CONF_2G_PATH
+		echo "ctrl_interface=/var/run/hostapd" 							>> $HOSTAPD_CONF_2G_PATH
+		echo "hw_mode=g" 												>> $HOSTAPD_CONF_2G_PATH
+		echo "driver=nl80211" 											>> $HOSTAPD_CONF_2G_PATH
+		echo "ieee80211n=1" 											>> $HOSTAPD_CONF_2G_PATH
+		echo "ht_capab=[HT40+][SHORT-GI-20][SHORT-GI-40][DSSS_CCK-40]" 	>> $HOSTAPD_CONF_2G_PATH
+		echo "max_num_sta=8" 											>> $HOSTAPD_CONF_2G_PATH
+		echo "wme_enabled=1" 											>> $HOSTAPD_CONF_2G_PATH
+		echo "utf8_ssid=1" 												>> $HOSTAPD_CONF_2G_PATH
+		echo "auth_algs=1" 												>> $HOSTAPD_CONF_2G_PATH
+		echo "interface="$AP_IFACE"" 									>> $HOSTAPD_CONF_2G_PATH
+		if [ "$AP_BRIDGE_ENABLED" != "false" ]; then
+			echo "bridge=br0" 											>> $HOSTAPD_CONF_2G_PATH
+		fi
+		echo "channel=6" >> $HOSTAPD_CONF_2G_PATH
+		echo "ignore_broadcast_ssid=0" 									>> $HOSTAPD_CONF_2G_PATH
+		echo "device_name=$HostName" 									>> $HOSTAPD_CONF_2G_PATH
+		echo "manufacturer=Western Digital Corporation" 				>> $HOSTAPD_CONF_2G_PATH
+		echo "model_name=$modelName" 									>> $HOSTAPD_CONF_2G_PATH
+		echo "model_number=$NumModel" 									>> $HOSTAPD_CONF_2G_PATH
+		echo "serial_number=$serialNum" 								>> $HOSTAPD_CONF_2G_PATH
+		echo "uuid=73656761-7465-7375-636b-${mac_addrD}" 				>> $HOSTAPD_CONF_2G_PATH
+		echo "config_methods=physical_push_button" 						>> $HOSTAPD_CONF_2G_PATH
+		echo "device_type=6-0050F204-1" 								>> $HOSTAPD_CONF_2G_PATH
+
+    	if [ -f $factory_conf ] && [ `grep FACTORY_MODE $factory_conf | wc -l` == "1" ] && [ `grep FACTORY_MODE $factory_conf | awk -F= '{print $2}'` == "1" ]; then
+    		echo "ssid=`iw dev "${AP_IFACE}" info | grep "addr" | awk '{print $2}' | tr [:lower:] [:upper:]`" >> $HOSTAPD_CONF_2G_PATH
+    		sed -i 's/^channel=.*/channel=6 /g'   $HOSTAPD_CONF_2G_PATH
+    		echo "eap_server=1" 									>> $HOSTAPD_CONF_2G_PATH
+			echo "wps_state=$AP_WPS_CONFIGURED" 					>> $HOSTAPD_CONF_2G_PATH
+			echo "ap_setup_locked=$AP_WPS_APLOCKED" 				>> $HOSTAPD_CONF_2G_PATH
+    	else
+    		case $AP_ENCRYPTION_TYPE in
+        		NONE )
+            		echo "eap_server=1" 									>> $HOSTAPD_CONF_2G_PATH
+					echo "wps_state=$AP_WPS_CONFIGURED" 					>> $HOSTAPD_CONF_2G_PATH
+					echo "ap_setup_locked=$AP_WPS_APLOCKED" 				>> $HOSTAPD_CONF_2G_PATH
+            		;;
+        		WEP )
+					echo "eap_server=0" 									>> $HOSTAPD_CONF_2G_PATH
+					if [ "$AP_BROADCAST" == "true" ]; then
+						echo "wps_state=$AP_WPS_CONFIGURED" 				>> $HOSTAPD_CONF_2G_PATH
+					else
+						echo "wps_state=0" 									>> $HOSTAPD_CONF_2G_PATH
+					fi
+					echo "ap_setup_locked=$AP_WPS_APLOCKED" 				>> $HOSTAPD_CONF_2G_PATH
+            		echo "wep_default_key=0"                                >> $HOSTAPD_CONF_2G_PATH
+            
+            		if [ `expr $(echo ${AP_ENCRYPTION_KEY} | wc -m) - 1` -eq "5" ] || [ `expr $(echo ${AP_ENCRYPTION_KEY} | wc -m) - 1` -eq "13" ]; then 
+            			echo "wep_key0=\"$AP_ENCRYPTION_KEY\""              >> $HOSTAPD_CONF_2G_PATH
+            		else
+            			echo "wep_key0=${AP_ENCRYPTION_KEY}"				>> $HOSTAPD_CONF_2G_PATH
+            		fi
+            		;;
+        		WPAPSK )
+           			echo "eap_server=0" 									>> $HOSTAPD_CONF_2G_PATH
+					if [ "$AP_BROADCAST" == "true" ]; then
+						echo "wps_state=$AP_WPS_CONFIGURED" 				>> $HOSTAPD_CONF_2G_PATH
+					else
+						echo "wps_state=0" 									>> $HOSTAPD_CONF_2G_PATH
+					fi
+					echo "ap_setup_locked=$AP_WPS_APLOCKED" 				>> $HOSTAPD_CONF_2G_PATH
+						
+            		echo "wpa=1"                                            >> $HOSTAPD_CONF_2G_PATH
+            		echo "wpa_passphrase=$AP_ENCRYPTION_KEY"                >> $HOSTAPD_CONF_2G_PATH
+            		echo "wpa_key_mgmt=WPA-PSK"                             >> $HOSTAPD_CONF_2G_PATH
+            		if [ "$AP_CIPHER_TYPE" == "TKIPAES" ]; then
+            			echo "wpa_pairwise=CCMP TKIP"                       >> $HOSTAPD_CONF_2G_PATH	
+            			echo "rsn_pairwise=CCMP"                       		>> $HOSTAPD_CONF_2G_PATH
+					elif [ "$AP_CIPHER_TYPE" == "TKIP" ]; then
+						echo "wpa_pairwise=TKIP"                           	>> $HOSTAPD_CONF_2G_PATH
+						echo "rsn_pairwise=TKIP"                            >> $HOSTAPD_CONF_2G_PATH
+					elif  [ "$AP_CIPHER_TYPE" == "AES" ]; then
+						echo "wpa_pairwise=CCMP"                           	>> $HOSTAPD_CONF_2G_PATH
+						echo "rsn_pairwise=CCMP"                            >> $HOSTAPD_CONF_2G_PATH
+					fi
+					;;
+        		WPA2PSK )
+					echo "eap_server=1" 									>> $HOSTAPD_CONF_2G_PATH
+					if [ "$AP_BROADCAST" == "true" ]; then
+						echo "wps_state=$AP_WPS_CONFIGURED" 				>> $HOSTAPD_CONF_2G_PATH
+					else
+						echo "wps_state=0" 									>> $HOSTAPD_CONF_2G_PATH
+					fi
+					echo "ap_setup_locked=$AP_WPS_APLOCKED" 				>> $HOSTAPD_CONF_2G_PATH
+		
+            		echo "wpa=2"                                            >> $HOSTAPD_CONF_2G_PATH
+            		echo "wpa_passphrase=$AP_ENCRYPTION_KEY"                >> $HOSTAPD_CONF_2G_PATH
+            		echo "wpa_key_mgmt=WPA-PSK"                             >> $HOSTAPD_CONF_2G_PATH
+            		if [ "$AP_CIPHER_TYPE" == "TKIPAES" ]; then
+            			echo "wpa_pairwise=CCMP TKIP"                       		>> $HOSTAPD_CONF_2G_PATH
+            			echo "rsn_pairwise=CCMP"                       >> $HOSTAPD_CONF_2G_PATH
+					elif [ "$AP_CIPHER_TYPE" == "TKIP" ]; then
+						echo "wpa_pairwise=TKIP"                           	>> $HOSTAPD_CONF_2G_PATH
+						echo "rsn_pairwise=TKIP"                       		>> $HOSTAPD_CONF_2G_PATH
+					elif  [ "$AP_CIPHER_TYPE" == "AES" ]; then
+						echo "wpa_pairwise=CCMP"                           	>> $HOSTAPD_CONF_2G_PATH
+						echo "rsn_pairwise=CCMP"              		        >> $HOSTAPD_CONF_2G_PATH
+					fi
+            		;;
+        		WPAPSK1WPAPSK2 )
+            		echo "eap_server=1" >> $HOSTAPD_CONF_2G_PATH
+					if [ "$AP_BROADCAST" == "true" ]; then
+						echo "wps_state=$AP_WPS_CONFIGURED" 				>> $HOSTAPD_CONF_2G_PATH
+					else
+						echo "wps_state=0" 									>> $HOSTAPD_CONF_2G_PATH
+					fi
+					echo "ap_setup_locked=$AP_WPS_APLOCKED" >> $HOSTAPD_CONF_2G_PATH
+			
+            		echo "wpa=3"                                            >> $HOSTAPD_CONF_2G_PATH
+            		echo "wpa_passphrase=$AP_ENCRYPTION_KEY"                >> $HOSTAPD_CONF_2G_PATH
+            		echo "wpa_key_mgmt=WPA-PSK"                             >> $HOSTAPD_CONF_2G_PATH
+            		if [ "$AP_CIPHER_TYPE" == "TKIPAES" ]; then
+            			echo "wpa_pairwise=CCMP TKIP"                       		>> $HOSTAPD_CONF_2G_PATH
+            			echo "rsn_pairwise=CCMP"                       >> $HOSTAPD_CONF_2G_PATH
+					elif [ "$AP_CIPHER_TYPE" == "TKIP" ]; then
+						echo "wpa_pairwise=TKIP"                           	>> $HOSTAPD_CONF_2G_PATH
+						echo "rsn_pairwise=TKIP"                       		>> $HOSTAPD_CONF_2G_PATH
+					elif  [ "$AP_CIPHER_TYPE" == "AES" ]; then
+						echo "wpa_pairwise=CCMP"                           	>> $HOSTAPD_CONF_2G_PATH
+						echo "rsn_pairwise=CCMP"                       		>> $HOSTAPD_CONF_2G_PATH
+					fi
+            		;;
+        		*)
+            		;;
+    		esac
+    		echo "ssid=${AP_SSID_NAME}"                               >> $HOSTAPD_CONF_2G_PATH
+    		
+    		if [ "$AP_CHANNEL" == "0" ]; then 
+    			/sbin/AutoChan.sh $AP_IFACE
+    		else
+    			sed -i 's/^channel=.*/channel='"${AP_CHANNEL}"'/g' $HOSTAPD_CONF_2G_PATH
+    			if [ "$AP_CHANL_WIDTH" == "20" ]; then
+    				sed -i 's/^ht_capab=.*/ht_capab='[SHORT-GI-20]'/g' $HOSTAPD_CONF_2G_PATH
+    				#echo "$AP_CHANNEL 0 0" > /proc/net/rtl8189es/wlan2/chbw_info
+    			else
+					if [ "$AP_CHANNEL" == "8" ] || [ "$AP_CHANNEL" == "9" ] || [ "$AP_CHANNEL" == "10" ] || [ "$AP_CHANNEL" == "11" ] || [ "$AP_CHANNEL" == "12" ] || [ "$AP_CHANNEL" == "13" ] || [ "$AP_CHANNEL" == "14" ]; then
+						sed -i 's/^ht_capab=.*/ht_capab='[HT40-][SHORT-GI-20][SHORT-GI-40][DSSS_CCK-40]'/g' $HOSTAPD_CONF_2G_PATH
+						#echo "$AP_CHANNEL 1 2" > /proc/net/rtl8189es/wlan2/chbw_info
+					else
+						sed -i 's/^ht_capab=.*/ht_capab='[HT40+][SHORT-GI-20][SHORT-GI-40][DSSS_CCK-40]'/g' $HOSTAPD_CONF_2G_PATH
+						#echo "$AP_CHANNEL 1 1" > /proc/net/rtl8189es/wlan2/chbw_info
+					fi
+				fi
+    		fi
+    	
+    		case $AP_BROADCAST in
+        		true )
+            		sed -i 's/^ignore_broadcast_ssid=.*/ignore_broadcast_ssid=0 /g'   $HOSTAPD_CONF_2G_PATH  
+            		;;
+   	    		false )
+            		sed -i 's/^ignore_broadcast_ssid=.*/ignore_broadcast_ssid=1 /g'   $HOSTAPD_CONF_2G_PATH
+            		;;
+    		esac
+    	 fi
+	fi
+	
+    if [ "${ReStartIF}" == "$AP5G_IFACE" ] || [ "${ReStartIF}" == "all" ]; then
+		sed -i '1,$d' $HOSTAPD_CONF_5G_PATH
+		echo "ctrl_interface=/var/run/hostapd" 							>> $HOSTAPD_CONF_5G_PATH
+		echo "hw_mode=a" 												>> $HOSTAPD_CONF_5G_PATH
+		echo "driver=nl80211" 											>> $HOSTAPD_CONF_5G_PATH
+		echo "ieee80211n=1" 											>> $HOSTAPD_CONF_5G_PATH
+		echo "ht_capab=[HT40+][SHORT-GI-20][SHORT-GI-40][DSSS_CCK-40]" 	>> $HOSTAPD_CONF_5G_PATH
+		echo "max_num_sta=8" 											>> $HOSTAPD_CONF_5G_PATH
+		echo "wme_enabled=1" 											>> $HOSTAPD_CONF_5G_PATH
+		echo "utf8_ssid=1" 												>> $HOSTAPD_CONF_5G_PATH
+		echo "auth_algs=1" 												>> $HOSTAPD_CONF_5G_PATH
+		echo "interface="$AP5G_IFACE"" 									>> $HOSTAPD_CONF_5G_PATH
+		if [ "$AP_BRIDGE_ENABLED" != "false" ]; then
+			echo "bridge=br0" 											>> $HOSTAPD_CONF_5G_PATH
+		fi
+		echo "channel=$AP5G_CHANNEL" 									>> $HOSTAPD_CONF_5G_PATH
+		echo "ignore_broadcast_ssid=0" 									>> $HOSTAPD_CONF_5G_PATH
+		echo "device_name=$HostName" 									>> $HOSTAPD_CONF_5G_PATH
+		echo "manufacturer=Western Digital Corporation" 				>> $HOSTAPD_CONF_5G_PATH
+		echo "model_name=$modelName" 									>> $HOSTAPD_CONF_5G_PATH
+		echo "model_number=$NumModel" 									>> $HOSTAPD_CONF_5G_PATH
+		echo "serial_number=$serialNum" 								>> $HOSTAPD_CONF_5G_PATH
+		echo "uuid=73656761-7465-7375-636b-${mac_addrD}" 				>> $HOSTAPD_CONF_5G_PATH
+		echo "config_methods=physical_push_button" 						>> $HOSTAPD_CONF_5G_PATH
+		echo "device_type=6-0050F204-1" 								>> $HOSTAPD_CONF_5G_PATH
+		
+    	if [ -f $factory_conf ] && [ `grep FACTORY_MODE $factory_conf | wc -l` == "1" ] && [ `grep FACTORY_MODE $factory_conf | awk -F= '{print $2}'` == "1" ]; then
+    		echo "ssid=`iw dev "${AP5G_IFACE}" info | grep "addr" | awk '{print $2}' | tr [:lower:] [:upper:]`" >> $HOSTAPD_CONF_5G_PATH
+    		sed -i 's/^channel=.*/channel=149 /g'   $HOSTAPD_CONF_5G_PATH
+    		echo "eap_server=1" 									>> $HOSTAPD_CONF_5G_PATH
+			echo "wps_state=$AP_WPS_CONFIGURED" 					>> $HOSTAPD_CONF_5G_PATH
+			echo "ap_setup_locked=$AP_WPS_APLOCKED" 				>> $HOSTAPD_CONF_5G_PATH
+    	else
+    		case $AP5G_ENCRYPTION_TYPE in
+        		NONE )
+        			echo "eap_server=1" 									>> $HOSTAPD_CONF_5G_PATH
+					echo "wps_state=$AP_WPS_CONFIGURED" 					>> $HOSTAPD_CONF_5G_PATH
+					echo "ap_setup_locked=$AP_WPS_APLOCKED" 				>> $HOSTAPD_CONF_5G_PATH
+        	    	;;
+        		WEP )
+        	    	echo "eap_server=0" 									>> $HOSTAPD_CONF_5G_PATH
+					if [ "$AP5G_BROADCAST" == "true" ]; then
+						echo "wps_state=0" 									>> $HOSTAPD_CONF_5G_PATH
+					else
+						echo "wps_state=0" 									>> $HOSTAPD_CONF_5G_PATH
+					fi
+					echo "ap_setup_locked=$AP_WPS_APLOCKED" 				>> $HOSTAPD_CONF_5G_PATH
+        	    	echo "wep_default_key=0"                                >> $HOSTAPD_CONF_5G_PATH
+        	    	if [ `expr $(echo ${AP5G_ENCRYPTION_KEY} | wc -m) - 1` -eq "5" ] || [ `expr $(echo ${AP5G_ENCRYPTION_KEY} | wc -m) - 1` -eq "13" ]; then 
+        	    		echo "wep_key0=\"$AP5G_ENCRYPTION_KEY\""            >> $HOSTAPD_CONF_5G_PATH
+        	    	else          	
+        	    		echo "wep_key0=${AP5G_ENCRYPTION_KEY}"				>> $HOSTAPD_CONF_5G_PATH
+        	    	fi
+        	    	;;
+        		WPAPSK )
+        			echo "eap_server=0" 									>> $HOSTAPD_CONF_5G_PATH
+					if [ "$AP5G_BROADCAST" == "true" ]; then
+						echo "wps_state=$AP_WPS_CONFIGURED" 				>> $HOSTAPD_CONF_5G_PATH
+					else
+						echo "wps_state=0" 									>> $HOSTAPD_CONF_5G_PATH
+					fi
+					echo "ap_setup_locked=$AP_WPS_APLOCKED" 				>> $HOSTAPD_CONF_5G_PATH
+					echo "wpa=1"                                            >> $HOSTAPD_CONF_5G_PATH
+        	    	echo "wpa_passphrase=$AP5G_ENCRYPTION_KEY"                >> $HOSTAPD_CONF_5G_PATH
+        	    	echo "wpa_key_mgmt=WPA-PSK"                             >> $HOSTAPD_CONF_5G_PATH
+        	    	if [ "$AP5G_CIPHER_TYPE" == "TKIPAES" ]; then
+        	    		echo "wpa_pairwise=CCMP TKIP"                       		>> $HOSTAPD_CONF_5G_PATH	
+        	    		echo "rsn_pairwise=CCMP"                       >> $HOSTAPD_CONF_5G_PATH
+					elif [ "$AP5G_CIPHER_TYPE" == "TKIP" ]; then
+						echo "wpa_pairwise=TKIP"                           	>> $HOSTAPD_CONF_5G_PATH
+						echo "rsn_pairwise=TKIP"                       		>> $HOSTAPD_CONF_5G_PATH
+					elif  [ "$AP5G_CIPHER_TYPE" == "AES" ]; then
+						echo "wpa_pairwise=CCMP"                           	>> $HOSTAPD_CONF_5G_PATH
+						echo "rsn_pairwise=CCMP"                       		>> $HOSTAPD_CONF_5G_PATH
+					fi
+        	    	;;
+        		WPA2PSK )
+        	    	echo "eap_server=1" 									>> $HOSTAPD_CONF_5G_PATH
+					if [ "$AP5G_BROADCAST" == "true" ]; then
+						echo "wps_state=$AP_WPS_CONFIGURED" 				>> $HOSTAPD_CONF_5G_PATH
+					else
+						echo "wps_state=0" 									>> $HOSTAPD_CONF_5G_PATH
+					fi
+					echo "ap_setup_locked=$AP_WPS_APLOCKED" 				>> $HOSTAPD_CONF_5G_PATH
+        	    	echo "wpa=2"                                            >> $HOSTAPD_CONF_5G_PATH
+        	    	echo "wpa_passphrase=$AP5G_ENCRYPTION_KEY"              >> $HOSTAPD_CONF_5G_PATH
+        	    	echo "wpa_key_mgmt=WPA-PSK"                             >> $HOSTAPD_CONF_5G_PATH
+        	    	if [ "$AP5G_CIPHER_TYPE" == "TKIPAES" ]; then
+        	    		echo "wpa_pairwise=CCMP TKIP"                       	>> $HOSTAPD_CONF_5G_PATH
+        	    		echo "rsn_pairwise=CCMP"                       		>> $HOSTAPD_CONF_5G_PATH
+					elif [ "$AP5G_CIPHER_TYPE" == "TKIP" ]; then
+						echo "wpa_pairwise=TKIP"                           	>> $HOSTAPD_CONF_5G_PATH
+						echo "rsn_pairwise=TKIP"                            >> $HOSTAPD_CONF_5G_PATH
+					elif [ "$AP5G_CIPHER_TYPE" == "AES" ]; then
+						echo "wpa_pairwise=CCMP"                           	>> $HOSTAPD_CONF_5G_PATH
+						echo "rsn_pairwise=CCMP"                            >> $HOSTAPD_CONF_5G_PATH
+					fi
+        	   		;;
+        		WPAPSK1WPAPSK2 )
+        	    	echo "eap_server=1" 									>> $HOSTAPD_CONF_5G_PATH
+					if [ "$AP5G_BROADCAST" == "true" ]; then
+						echo "wps_state=$AP_WPS_CONFIGURED" 				>> $HOSTAPD_CONF_5G_PATH
+					else
+						echo "wps_state=0" 									>> $HOSTAPD_CONF_5G_PATH
+					fi
+					echo "ap_setup_locked=$AP_WPS_APLOCKED" 				>> $HOSTAPD_CONF_5G_PATH
+        	    	echo "wpa=3"                                            >> $HOSTAPD_CONF_5G_PATH
+        	    	echo "wpa_passphrase=$AP5G_ENCRYPTION_KEY"                >> $HOSTAPD_CONF_5G_PATH
+        	    	echo "wpa_key_mgmt=WPA-PSK"                             >> $HOSTAPD_CONF_5G_PATH
+        	    	if [ "$AP5G_CIPHER_TYPE" == "TKIPAES" ]; then
+        	    		echo "wpa_pairwise=CCMP TKIP"                       		>> $HOSTAPD_CONF_5G_PATH
+        	    		echo "rsn_pairwise=CCMP"                       >> $HOSTAPD_CONF_5G_PATH
+					elif [ "$AP5G_CIPHER_TYPE" == "TKIP" ]; then
+						echo "wpa_pairwise=TKIP"                           	>> $HOSTAPD_CONF_5G_PATH
+						echo "rsn_pairwise=TKIP"                            >> $HOSTAPD_CONF_5G_PATH
+					elif [ "$AP5G_CIPHER_TYPE" == "AES" ]; then
+						echo "wpa_pairwise=CCMP"                           	>> $HOSTAPD_CONF_5G_PATH
+						echo "rsn_pairwise=CCMP"                            >> $HOSTAPD_CONF_5G_PATH
+					fi
+        	    	;;
+        		*)
+        	    	;;
+    		esac
+  
+    		#echo "ssid=${AP5G_SSID_NAME}""(5GHz)"                                >> $HOSTAPD_CONF_5G_PATH    
+	    	echo "ssid=${AP5G_SSID_NAME}"                                >> $HOSTAPD_CONF_5G_PATH	
+	    	if [ "$AP5G_CHANNEL" == "0" ]; then 
+    			/sbin/AutoChan.sh $AP5G_IFACE
+    		else
+    			sed -i 's/^channel=.*/channel='"${AP5G_CHANNEL}"'/g' $HOSTAPD_CONF_5G_PATH
+				if [ "${AP5G_CHANL_WIDTH}" == "20" ]; then
+					sed -i 's/^ht_capab=.*/ht_capab='[SHORT-GI-20]'/g' $HOSTAPD_CONF_5G_PATH
+					#echo "$AP5G_CHANNEL" > /proc/net/rtl8821au/wlan0/chbw_info
+					#sleep 1
+					#echo "$AP5G_CHANNEL 0 0" > /proc/net/rtl8821au/wlan0/chbw_info
+				else
+					if [ "$AP5G_CHANNEL" == "216" ] || [ "$AP5G_CHANNEL" == "212" ] || [ "$AP5G_CHANNEL" == "208" ] || [ "$AP5G_CHANNEL" == "204" ] || [ "$AP5G_CHANNEL" == "200" ] || [ "$AP5G_CHANNEL" == "196" ] || [ "$AP5G_CHANNEL" == "192" ] || [ "$AP5G_CHANNEL" == "188" ] || [ "$AP5G_CHANNEL" == "184" ] || [ "$AP5G_CHANNEL" == "140" ] || [ "$AP5G_CHANNEL" == "165" ] || [ "$AP5G_CHANNEL" == "38" ] || [ "$AP5G_CHANNEL" == "42" ] || [ "$AP5G_CHANNEL" == "46" ]; then
+						sed -i 's/^ht_capab=.*/ht_capab='[SHORT-GI-20]'/g' $HOSTAPD_CONF_5G_PATH
+						#echo "$AP5G_CHANNEL 0 0" > /proc/net/rtl8821au/wlan0/chbw_info
+						#sleep 1
+						#echo "$AP5G_CHANNEL 0 0" > /proc/net/rtl8821au/wlan0/chbw_info
+					else
+						if [ "$AP5G_CHANNEL" == "136" ] || [ "$AP5G_CHANNEL" == "128" ] || [ "$AP5G_CHANNEL" == "120" ] || [ "$AP5G_CHANNEL" == "161" ] || [ "$AP5G_CHANNEL" == "153" ] || [ "$AP5G_CHANNEL" == "48" ] || [ "$AP5G_CHANNEL" == "40" ] || [ "$AP5G_CHANNEL" == "56" ] || [ "$AP5G_CHANNEL" == "64" ] || [ "$AP5G_CHANNEL" == "104" ] || [ "$AP5G_CHANNEL" == "112" ]; then
+							sed -i 's/^ht_capab=.*/ht_capab='[HT40-][SHORT-GI-20][SHORT-GI-40][DSSS_CCK-40]'/g' $HOSTAPD_CONF_5G_PATH
+							#echo "$AP5G_CHANNEL 2 2" > /proc/net/rtl8821au/wlan0/chbw_info
+						else
+							sed -i 's/^ht_capab=.*/ht_capab='[HT40+][SHORT-GI-20][SHORT-GI-40][DSSS_CCK-40]'/g' $HOSTAPD_CONF_5G_PATH
+							#echo "$AP5G_CHANNEL 2 1" > /proc/net/rtl8821au/wlan0/chbw_info
+						fi
+					fi
+				fi
+    		fi
+
+			case $AP5G_BROADCAST in
+        		true )
+        			sed -i 's/^ignore_broadcast_ssid=.*/ignore_broadcast_ssid=0 /g'   $HOSTAPD_CONF_5G_PATH  
+            		;;
+   	    		false )
+            		sed -i 's/^ignore_broadcast_ssid=.*/ignore_broadcast_ssid=1 /g'   $HOSTAPD_CONF_5G_PATH  
+            		;;
+        	esac
+    	fi
+	fi
+}
+
+
+### Change WPA Supplicant Config ###
+CHANGE_WPA_SUPPLICANT_CONFIG()
+{
+	#serialNum=`getSerialNumber.sh`
+	serialNum=`cat /tmp/HDSerial`
+	NumModel=${modelNumber}
+	
+	if [ -f "/tmp/opensslbase64" ]; then
+		security_key=`cat "/tmp/opensslbase64" | openssl base64 -d`
+	else
+		echo "${STA_PSK_KEY}" | awk -F: '{print $1}' > /tmp/opensslbase64
+		echo "${STA_PSK_KEY}" | awk -F: '{print $2}' >> /tmp/opensslbase64
+		echo "${STA_PSK_KEY}" | awk -F: '{print $3}' >> /tmp/opensslbase64
+		security_key=`cat "/tmp/opensslbase64" | openssl base64 -d`
+	fi
+	
+	keylength=`expr $(echo "$security_key" | wc -m) - 1`
+	liteChannel="$STA_CHANNEL_LITE"
+	if [ "$liteChannel" == "" ]; then
+		liteChannel=0
+	fi
+	
+    sed -i '1,$d' $WPA_SUPPLICANT_PATH
+    sed -i '1,$d' $WPA_2G4_SUPPLICANT_PATH
+    
+    echo "ctrl_interface=/var/run/wpa_supplicant"			  		>> $WPA_SUPPLICANT_PATH
+    #echo "config_methods=virtual_display virtual_push_button physical_push_button" >> $WPA_SUPPLICANT_PATH
+    echo "manufacturer=Western Digital Corporation"					>> $WPA_SUPPLICANT_PATH
+    echo "model_name=My Passport Wireless"							>> $WPA_SUPPLICANT_PATH
+    echo "model_number=$NumModel"									>> $WPA_SUPPLICANT_PATH
+    echo "device_name=$HostName"									>> $WPA_SUPPLICANT_PATH
+    echo "serial_number=$serialNum"									>> $WPA_SUPPLICANT_PATH
+    echo "liteChannel=$liteChannel"									>> $WPA_SUPPLICANT_PATH
+    echo "disassoc_low_ack=1"										>> $WPA_SUPPLICANT_PATH
+    echo "bss_expiration_age=60"									>> $WPA_SUPPLICANT_PATH
+    echo "bss_expiration_scan_count=5"								>> $WPA_SUPPLICANT_PATH
+    echo "ap_scan=1"			  									>> $WPA_SUPPLICANT_PATH
+    echo "update_config=1"			  								>> $WPA_SUPPLICANT_PATH
+    echo ""			  												>> $WPA_SUPPLICANT_PATH
+ 
+    echo "ctrl_interface=/var/run/wpa_supplicant"			  		>> $WPA_2G4_SUPPLICANT_PATH
+    #echo "config_methods=virtual_display virtual_push_button physical_push_button" >> $WPA_2G4_SUPPLICANT_PATH
+    echo "manufacturer=Western Digital Corporation"					>> $WPA_2G4_SUPPLICANT_PATH
+    echo "model_name=My Passport Wireless"							>> $WPA_2G4_SUPPLICANT_PATH
+    echo "model_number=$NumModel"									>> $WPA_2G4_SUPPLICANT_PATH
+    echo "device_name=$HostName"									>> $WPA_2G4_SUPPLICANT_PATH
+    #echo "country=00"												>> $WPA_2G4_SUPPLICANT_PATH
+    echo "serial_number=$serialNum"									>> $WPA_2G4_SUPPLICANT_PATH
+    echo "disassoc_low_ack=1"										>> $WPA_2G4_SUPPLICANT_PATH
+    echo "liteChannel=$liteChannel"									>> $WPA_2G4_SUPPLICANT_PATH
+    echo "bss_expiration_age=60"									>> $WPA_2G4_SUPPLICANT_PATH
+    echo "bss_expiration_scan_count=5"								>> $WPA_2G4_SUPPLICANT_PATH
+    echo "ap_scan=1"			  									>> $WPA_2G4_SUPPLICANT_PATH
+    echo "update_config=1"			  								>> $WPA_2G4_SUPPLICANT_PATH
+    echo ""			  												>> $WPA_2G4_SUPPLICANT_PATH
+    
+    if [ "$STA_CONF_JOIN" == "1" ]; then
+    	sed -i 's/STA_CONF_JOIN=.*/STA_CONF_JOIN=0/' /etc/nas/config/wifinetwork-param.conf   
+    	if [ "$STA_CHANNEL" == "5" ] || [ "$STA_CHANNEL" == "All" ]; then
+    		echo ""			  												>> $WPA_SUPPLICANT_PATH
+    		echo "network={"										  		>> $WPA_SUPPLICANT_PATH  	
+    		case $STA_SECURITY_MODE in 
+    			"NONE" )
+           	 		echo "	ssid=\"$STA_SSID_NAME\""                  		>> $WPA_SUPPLICANT_PATH
+           	 		echo "	scan_ssid=1"									>> $WPA_SUPPLICANT_PATH
+           	 		echo "  key_mgmt=NONE"                                  >> $WPA_SUPPLICANT_PATH
+           	 		echo "  priority=90"                                  	>> $WPA_SUPPLICANT_PATH
+           	 		echo "}"                                                >> $WPA_SUPPLICANT_PATH
+           	 		echo ""                                                	>> $WPA_SUPPLICANT_PATH
+           	 	   	
+           	 		if [ "$STA_MAC_MAPPING" == "1" ]; then 					
+        				echo "network={"									>> $WPA_SUPPLICANT_PATH
+        				echo "	bssid=$STA_MAC_ADDRESS"						>> $WPA_SUPPLICANT_PATH
+        				echo "  key_mgmt=NONE"                              >> $WPA_SUPPLICANT_PATH
+           	 			echo "  priority=100"                               >> $WPA_SUPPLICANT_PATH
+           	 			echo "}"                                            >> $WPA_SUPPLICANT_PATH
+           	 			echo ""                                             >> $WPA_SUPPLICANT_PATH
+           	 		fi
+    	 			;;
+    	  		"WEP" )
+           	 		echo "	ssid=\"$STA_SSID_NAME\""                  		>> $WPA_SUPPLICANT_PATH
+           	 		echo "	scan_ssid=1"									>> $WPA_SUPPLICANT_PATH
+           	 		echo "  key_mgmt=NONE"                                  >> $WPA_SUPPLICANT_PATH
+           	 		echo "  wep_tx_keyidx=0"                                >> $WPA_SUPPLICANT_PATH
+           	 		echo "  auth_alg=OPEN SHARED"                                >> $WPA_SUPPLICANT_PATH
+           	 		if [ `expr $(echo ${security_key} | wc -m) - 1` == 10 ] || [ `expr $(echo ${security_key} | wc -m) - 1` == 26 ]; then
+           	 			echo "  wep_key0=${security_key}"                    	>> $WPA_SUPPLICANT_PATH
+           	 		else
+           	 			echo "  wep_key0=\"${security_key}\""                  >> $WPA_SUPPLICANT_PATH
+           	 		fi
+           	 		echo "  priority=90"                                  	>> $WPA_SUPPLICANT_PATH
+           	 		echo "}"                                                >> $WPA_SUPPLICANT_PATH
+           	 		echo ""                                                	>> $WPA_SUPPLICANT_PATH
+           	 		if [ "$STA_MAC_MAPPING" == "1" ]; then 					
+        				echo "network={"									>> $WPA_SUPPLICANT_PATH
+        				echo "	bssid=$STA_MAC_ADDRESS"						>> $WPA_SUPPLICANT_PATH
+        				echo "  key_mgmt=NONE"                              >> $WPA_SUPPLICANT_PATH
+           	 			echo "  wep_tx_keyidx=0"                            >> $WPA_SUPPLICANT_PATH
+           	 			echo "  auth_alg=OPEN SHARED"                                >> $WPA_SUPPLICANT_PATH
+           	 			if [ `expr $(echo ${security_key} | wc -m) - 1` == 10 ] || [ `expr $(echo ${security_key} | wc -m) - 1` == 26 ]; then
+           	 				echo "  wep_key0=${security_key}"                  >> $WPA_SUPPLICANT_PATH
+           	 			else
+           	 				echo "  wep_key0=\"${security_key}\""              >> $WPA_SUPPLICANT_PATH
+           	 			fi
+           	 			echo "  priority=100"                             	>> $WPA_SUPPLICANT_PATH
+           	 			echo "}"                                            >> $WPA_SUPPLICANT_PATH
+           	 			echo ""                                            	>> $WPA_SUPPLICANT_PATH
+           	 		fi
+    				;;
+    	   	 "WPAPSK" )
+           	 		echo "	ssid=\"$STA_SSID_NAME\""                  		>> $WPA_SUPPLICANT_PATH
+           			echo "	scan_ssid=1"									>> $WPA_SUPPLICANT_PATH         	
+           	 		echo "	key_mgmt=WPA-PSK"								>> $WPA_SUPPLICANT_PATH
+           	 		echo "	proto=WPA"										>> $WPA_SUPPLICANT_PATH
+           	 		if [ "$STA_CIPHER_TYPE" == "TKIPAES" ]; then
+           	 			echo "	pairwise=CCMP TKIP"							>> $WPA_SUPPLICANT_PATH
+           	 		elif [ "$STA_CIPHER_TYPE" == "TKIP" ]; then
+           	 			echo "	pairwise=TKIP"								>> $WPA_SUPPLICANT_PATH
+           	 		elif [ "$STA_CIPHER_TYPE" == "AES" ]; then
+           	 			echo "	pairwise=CCMP"								>> $WPA_SUPPLICANT_PATH
+           	 		fi
+           	 		
+           	 		if [ "${keylength}" -eq "64" ]; then
+           	 			echo "  psk=${security_key}"                    	>> $WPA_SUPPLICANT_PATH
+           	 		else
+           	 			echo "  psk=\"${security_key}\""                    >> $WPA_SUPPLICANT_PATH
+           	 		fi
+           	 		echo "  priority=90"                                  	>> $WPA_SUPPLICANT_PATH
+           	 		echo "}"                                                >> $WPA_SUPPLICANT_PATH
+           	 		echo ""                                                	>> $WPA_SUPPLICANT_PATH
+           	 	
+           	 		if [ "$STA_MAC_MAPPING" == "1" ]; then 					
+        				echo "network={"									>> $WPA_SUPPLICANT_PATH
+        				echo "	bssid=$STA_MAC_ADDRESS"						>> $WPA_SUPPLICANT_PATH
+        				echo "	key_mgmt=WPA-PSK"							>> $WPA_SUPPLICANT_PATH
+           	 			echo "	proto=WPA"									>> $WPA_SUPPLICANT_PATH
+           	 			if [ "$STA_CIPHER_TYPE" == "TKIPAES" ]; then
+           	 				echo "	pairwise=CCMP TKIP"						>> $WPA_SUPPLICANT_PATH
+           	 			elif [ "$STA_CIPHER_TYPE" == "TKIP" ]; then
+           	 				echo "	pairwise=TKIP"							>> $WPA_SUPPLICANT_PATH
+           	 			elif [ "$STA_CIPHER_TYPE" == "AES" ]; then
+           	 				echo "	pairwise=CCMP"							>> $WPA_SUPPLICANT_PATH
+           	 			fi
+           	 			if [ "${keylength}" -eq "64" ]; then
+           	 				echo "  psk=${security_key}"	                >> $WPA_SUPPLICANT_PATH
+           	 			else
+           	 				echo "  psk=\"${security_key}\""                >> $WPA_SUPPLICANT_PATH
+           	 			fi
+           	 			echo "  priority=100"                               >> $WPA_SUPPLICANT_PATH
+           	 			echo "}"                                            >> $WPA_SUPPLICANT_PATH
+           	 			echo ""                                             >> $WPA_SUPPLICANT_PATH
+           	 		fi
+    				;;
+    		"WPA2PSK" )
+           	 		echo "	ssid=\"$STA_SSID_NAME\""                  		>> $WPA_SUPPLICANT_PATH
+           	 		echo "	scan_ssid=1"									>> $WPA_SUPPLICANT_PATH
+        			echo "	key_mgmt=WPA-PSK"								>> $WPA_SUPPLICANT_PATH
+        			echo "	proto=RSN"										>> $WPA_SUPPLICANT_PATH
+        			if [ "$STA_CIPHER_TYPE" == "TKIPAES" ]; then
+           	 			echo "	pairwise=CCMP TKIP"							>> $WPA_SUPPLICANT_PATH
+           	 		elif [ "$STA_CIPHER_TYPE" == "TKIP" ]; then
+           	 			echo "	pairwise=TKIP"								>> $WPA_SUPPLICANT_PATH
+           	 		elif [ "$STA_CIPHER_TYPE" == "AES" ]; then
+           	 			echo "	pairwise=CCMP"								>> $WPA_SUPPLICANT_PATH
+           	 		fi
+           	 		if [ "${keylength}" -eq "64" ]; then
+           	 			echo "  psk=${security_key}"   		                >> $WPA_SUPPLICANT_PATH
+           	 		else
+           	 			echo "  psk=\"${security_key}\""                    >> $WPA_SUPPLICANT_PATH
+           	 		fi
+           	 		echo "  priority=100"                                  	>> $WPA_SUPPLICANT_PATH
+           	 		echo "}"                                                >> $WPA_SUPPLICANT_PATH
+    				echo ""                                                	>> $WPA_SUPPLICANT_PATH
+    				if [ "$STA_MAC_MAPPING" == "1" ]; then 					
+        				echo "network={"									>> $WPA_SUPPLICANT_PATH
+        				echo "	bssid=$STA_MAC_ADDRESS"						>> $WPA_SUPPLICANT_PATH
+        				echo "	key_mgmt=WPA-PSK"							>> $WPA_SUPPLICANT_PATH
+        				echo "	proto=RSN"									>> $WPA_SUPPLICANT_PATH
+        				if [ "$STA_CIPHER_TYPE" == "TKIPAES" ]; then
+           	 				echo "	pairwise=CCMP TKIP"						>> $WPA_SUPPLICANT_PATH
+           	 			elif [ "$STA_CIPHER_TYPE" == "TKIP" ]; then
+           	 				echo "	pairwise=TKIP"							>> $WPA_SUPPLICANT_PATH
+           	 			elif [ "$STA_CIPHER_TYPE" == "AES" ]; then
+           	 				echo "	pairwise=CCMP"							>> $WPA_SUPPLICANT_PATH
+           			 	fi
+           	 			if [ "${keylength}" -eq "64" ]; then
+           	 				echo "  psk=${security_key}"	                >> $WPA_SUPPLICANT_PATH
+           	 			else
+           	 				echo "  psk=\"${security_key}\""                >> $WPA_SUPPLICANT_PATH
+           	 			fi
+           	 			echo "  priority=90"                              	>> $WPA_SUPPLICANT_PATH
+           	 			echo "}"                                            >> $WPA_SUPPLICANT_PATH
+    					echo ""                                            	>> $WPA_SUPPLICANT_PATH
+           	 		fi
+           	
+    				;;
+    		"WPAPSK1WPAPSK2" )   
+           	 		echo "	ssid=\"$STA_SSID_NAME\""                  		>> $WPA_SUPPLICANT_PATH
+           	 		echo "	scan_ssid=1"									>> $WPA_SUPPLICANT_PATH
+           	 		echo "	key_mgmt=WPA-PSK"								>> $WPA_SUPPLICANT_PATH
+           	 		echo "	proto=WPA RSN"									>> $WPA_SUPPLICANT_PATH
+           	 		if [ "$STA_CIPHER_TYPE" == "TKIPAES" ]; then
+           	 			echo "	pairwise=CCMP TKIP"							>> $WPA_SUPPLICANT_PATH
+           	 		elif [ "$STA_CIPHER_TYPE" == "TKIP" ]; then
+           	 			echo "	pairwise=TKIP"								>> $WPA_SUPPLICANT_PATH
+           	 		elif [ "$STA_CIPHER_TYPE" == "AES" ]; then
+           	 			echo "	pairwise=CCMP"								>> $WPA_SUPPLICANT_PATH
+           	 		fi
+           	 		if [ "${keylength}" -eq "64" ]; then
+           	 				echo "  psk=${security_key}"	                >> $WPA_SUPPLICANT_PATH
+           	 			else
+           	 				echo "  psk=\"${security_key}\""                >> $WPA_SUPPLICANT_PATH
+           	 			fi
+           	 		echo "  priority=100"                                  	>> $WPA_SUPPLICANT_PATH
+           	 		echo "}"                                                >> $WPA_SUPPLICANT_PATH
+           	 		echo ""                                                	>> $WPA_SUPPLICANT_PATH
+           	 	
+           	 		if [ "$STA_MAC_MAPPING" == "1" ]; then 					
+        				echo "network={"									>> $WPA_SUPPLICANT_PATH
+        				echo "	bssid=$STA_MAC_ADDRESS"						>> $WPA_SUPPLICANT_PATH
+        				echo "	key_mgmt=WPA-PSK"							>> $WPA_SUPPLICANT_PATH
+           	 			echo "	proto=WPA RSN"								>> $WPA_SUPPLICANT_PATH
+           	 			if [ "$STA_CIPHER_TYPE" == "TKIPAES" ]; then
+           	 				echo "	pairwise=CCMP TKIP"						>> $WPA_SUPPLICANT_PATH
+           	 			elif [ "$STA_CIPHER_TYPE" == "TKIP" ]; then
+           	 				echo "	pairwise=TKIP"							>> $WPA_SUPPLICANT_PATH
+           	 			elif [ "$STA_CIPHER_TYPE" == "AES" ]; then
+           	 				echo "	pairwise=CCMP"							>> $WPA_SUPPLICANT_PATH
+           	 			fi
+           	 			if [ "${keylength}" -eq "64" ]; then
+           	 				echo "  psk=${security_key}" 	                >> $WPA_SUPPLICANT_PATH
+           	 			else
+           	 				echo "  psk=\"${security_key}\""                >> $WPA_SUPPLICANT_PATH
+           	 			fi
+           	 			echo "  priority=90"                                >> $WPA_SUPPLICANT_PATH
+           	 			echo "}"                                            >> $WPA_SUPPLICANT_PATH
+           	 			echo ""                                             >> $WPA_SUPPLICANT_PATH
+           	 		fi          	
+    				;;
+    			* )
+    				echo "}"                                                >> $WPA_SUPPLICANT_PATH
+           	 		echo ""                                                		>> $WPA_SUPPLICANT_PATH
+           	 	;;
+    		esac	
+    	fi
+    	if [ "$STA_CHANNEL" == "2" ] || [ "$STA_CHANNEL" == "All" ]; then
+    		echo ""			  												>> $WPA_2G4_SUPPLICANT_PATH
+    		echo "network={"										  		>> $WPA_2G4_SUPPLICANT_PATH  	
+    		case $STA_SECURITY_MODE in 
+    			"NONE" )	
+           	 		echo "	ssid=\"$STA_SSID_NAME\""		                  	>> $WPA_2G4_SUPPLICANT_PATH
+           	 		echo "	scan_ssid=1"										>> $WPA_2G4_SUPPLICANT_PATH
+           	 		echo "  key_mgmt=NONE"                                  	>> $WPA_2G4_SUPPLICANT_PATH
+           	 		echo "  priority=90"                                  		>> $WPA_2G4_SUPPLICANT_PATH
+           	 		echo "}"                                               	 	>> $WPA_2G4_SUPPLICANT_PATH
+           	 		echo ""                                                		>> $WPA_2G4_SUPPLICANT_PATH
+           	 		if [ "$STA_MAC_MAPPING" == "1" ]; then 					
+        				echo "network={"									>> $WPA_2G4_SUPPLICANT_PATH
+        				echo "	bssid=$STA_MAC_ADDRESS"						>> $WPA_2G4_SUPPLICANT_PATH
+        				echo "  key_mgmt=NONE"                                  >> $WPA_2G4_SUPPLICANT_PATH
+           	 			echo "  priority=100"                                  	>> $WPA_2G4_SUPPLICANT_PATH
+           	 			echo "}"                                                >> $WPA_2G4_SUPPLICANT_PATH
+           	 			echo ""                                                	>> $WPA_2G4_SUPPLICANT_PATH
+           	 		fi
+    	 		;;
+    	  		"WEP" )
+           	 		echo "	ssid=\"$STA_SSID_NAME\""                  	>> $WPA_2G4_SUPPLICANT_PATH
+           	 		echo "	scan_ssid=1"								>> $WPA_2G4_SUPPLICANT_PATH	
+           	 		echo "  key_mgmt=NONE"                                  >> $WPA_2G4_SUPPLICANT_PATH
+           	 		echo "  wep_tx_keyidx=0"                                >> $WPA_2G4_SUPPLICANT_PATH
+           	 		echo "  auth_alg=OPEN SHARED"                                >> $WPA_2G4_SUPPLICANT_PATH
+           	 		if [ `expr $(echo "${security_key}" | wc -m) - 1` == 10 ] || [ `expr $(echo "${security_key}" | wc -m) - 1` == 26 ]; then
+           	 			echo "  wep_key0=${security_key}"                          >> $WPA_2G4_SUPPLICANT_PATH
+           	 		else
+           	 			echo "  wep_key0=\"${security_key}\""                  >> $WPA_2G4_SUPPLICANT_PATH
+           	 		fi
+           	 		echo "  priority=90"                                  	>> $WPA_2G4_SUPPLICANT_PATH
+           	 		echo "}"                                                >> $WPA_2G4_SUPPLICANT_PATH
+           	 		echo ""                                                	>> $WPA_2G4_SUPPLICANT_PATH
+           	 
+           	 		if [ "$STA_MAC_MAPPING" == "1" ]; then 					
+        				echo "network={"									>> $WPA_2G4_SUPPLICANT_PATH
+        				echo "	bssid=$STA_MAC_ADDRESS"						>> $WPA_2G4_SUPPLICANT_PATH
+        				echo "  key_mgmt=NONE"                                  >> $WPA_2G4_SUPPLICANT_PATH
+           	 			echo "  wep_tx_keyidx=0"                                >> $WPA_2G4_SUPPLICANT_PATH
+           	 			echo "  auth_alg=OPEN SHARED"                                >> $WPA_2G4_SUPPLICANT_PATH
+           	 			if [ `expr $(echo "${security_key}" | wc -m) - 1` == 10 ] || [ `expr $(echo "${security_key}" | wc -m) - 1` == 26 ]; then
+           	 				echo "  wep_key0=${security_key}"                          >> $WPA_2G4_SUPPLICANT_PATH
+           	 			else
+           	 				echo "  wep_key0=\"${security_key}\""                  >> $WPA_2G4_SUPPLICANT_PATH
+           	 			fi
+           	 			echo "  priority=100"                                  	>> $WPA_2G4_SUPPLICANT_PATH
+           	 			echo "}"                                                >> $WPA_2G4_SUPPLICANT_PATH
+           	 			echo ""                                                	>> $WPA_2G4_SUPPLICANT_PATH
+           	 		fi
+    			;;
+    	   	 	"WPAPSK" )
+           	 		echo "	ssid=\"$STA_SSID_NAME\""                  	>> $WPA_2G4_SUPPLICANT_PATH
+           			echo "	scan_ssid=1"								>> $WPA_2G4_SUPPLICANT_PATH         	
+           	 		echo "	key_mgmt=WPA-PSK"								>> $WPA_2G4_SUPPLICANT_PATH
+           	 		echo "	proto=WPA"										>> $WPA_2G4_SUPPLICANT_PATH
+           	 		if [ "$STA_CIPHER_TYPE" == "TKIPAES" ]; then
+           	 			echo "	pairwise=CCMP TKIP"							>> $WPA_2G4_SUPPLICANT_PATH
+           	 		elif [ "$STA_CIPHER_TYPE" == "TKIP" ]; then
+           	 			echo "	pairwise=TKIP"								>> $WPA_2G4_SUPPLICANT_PATH
+           	 		elif [ "$STA_CIPHER_TYPE" == "AES" ]; then
+           	 			echo "	pairwise=CCMP"								>> $WPA_2G4_SUPPLICANT_PATH
+           	 		fi
+           	 		if [ "${keylength}" -eq "64" ]; then
+           	 			echo "  psk=${security_key}"     		           	>> $WPA_2G4_SUPPLICANT_PATH
+           	 		else
+           	 			echo "  psk=\"${security_key}\""                	>> $WPA_2G4_SUPPLICANT_PATH
+           	 		fi
+           	 		echo "  priority=90"                                  	>> $WPA_2G4_SUPPLICANT_PATH
+           	 		echo "}"                                                >> $WPA_2G4_SUPPLICANT_PATH
+           	 		echo ""                                                	>> $WPA_2G4_SUPPLICANT_PATH
+           	 	
+           	 		if [ "$STA_MAC_MAPPING" == "1" ]; then 					
+        				echo "network={"									>> $WPA_2G4_SUPPLICANT_PATH
+        				echo "	bssid=$STA_MAC_ADDRESS"						>> $WPA_2G4_SUPPLICANT_PATH
+        				echo "	key_mgmt=WPA-PSK"								>> $WPA_2G4_SUPPLICANT_PATH
+           	 			echo "	proto=WPA"										>> $WPA_2G4_SUPPLICANT_PATH
+           	 			if [ "$STA_CIPHER_TYPE" == "TKIPAES" ]; then
+           	 				echo "	pairwise=CCMP TKIP"							>> $WPA_2G4_SUPPLICANT_PATH
+           	 			elif [ "$STA_CIPHER_TYPE" == "TKIP" ]; then
+           	 				echo "	pairwise=TKIP"								>> $WPA_2G4_SUPPLICANT_PATH
+           	 			elif [ "$STA_CIPHER_TYPE" == "AES" ]; then
+           	 				echo "	pairwise=CCMP"								>> $WPA_2G4_SUPPLICANT_PATH
+           	 			fi
+           	 			if [ "${keylength}" -eq "64" ]; then
+           	 				echo "  psk=${security_key}"     		           	>> $WPA_2G4_SUPPLICANT_PATH
+           	 			else
+           	 				echo "  psk=\"${security_key}\""                	>> $WPA_2G4_SUPPLICANT_PATH
+           	 			fi
+           	 			echo "  priority=100"                                  	>> $WPA_2G4_SUPPLICANT_PATH
+           	 			echo "}"                                                >> $WPA_2G4_SUPPLICANT_PATH
+           	 			echo ""                                                	>> $WPA_2G4_SUPPLICANT_PATH
+           	 		fi
+    				;;
+    			"WPA2PSK" )
+           	 		echo "	ssid=\"$STA_SSID_NAME\""                  	>> $WPA_2G4_SUPPLICANT_PATH
+           	 		echo "	scan_ssid=1"								>> $WPA_2G4_SUPPLICANT_PATH
+        			echo "	key_mgmt=WPA-PSK"								>> $WPA_2G4_SUPPLICANT_PATH
+        			echo "	proto=RSN"										>> $WPA_2G4_SUPPLICANT_PATH
+        			if [ "$STA_CIPHER_TYPE" == "TKIPAES" ]; then
+           	 			echo "	pairwise=CCMP TKIP"							>> $WPA_2G4_SUPPLICANT_PATH
+           	 		elif [ "$STA_CIPHER_TYPE" == "TKIP" ]; then
+           	 			echo "	pairwise=TKIP"								>> $WPA_2G4_SUPPLICANT_PATH
+           	 		elif [ "$STA_CIPHER_TYPE" == "AES" ]; then
+           	 			echo "	pairwise=CCMP"								>> $WPA_2G4_SUPPLICANT_PATH
+           	 		fi
+           	 		if [ "${keylength}" -eq "64" ]; then
+           	 			echo "  psk=${security_key}"  		              	>> $WPA_2G4_SUPPLICANT_PATH
+           	 		else
+           	 			echo "  psk=\"${security_key}\""                	>> $WPA_2G4_SUPPLICANT_PATH
+           	 		fi
+           	 		echo "  priority=100"                                  	>> $WPA_2G4_SUPPLICANT_PATH
+           	 		echo "}"                                                >> $WPA_2G4_SUPPLICANT_PATH
+    				echo ""                                                	>> $WPA_2G4_SUPPLICANT_PATH
+    				if [ "$STA_MAC_MAPPING" == "1" ]; then 					
+        				echo "network={"									>> $WPA_2G4_SUPPLICANT_PATH
+        				echo "	bssid=$STA_MAC_ADDRESS"						>> $WPA_2G4_SUPPLICANT_PATH
+        				echo "	key_mgmt=WPA-PSK"								>> $WPA_2G4_SUPPLICANT_PATH
+        				echo "	proto=RSN"										>> $WPA_2G4_SUPPLICANT_PATH
+        				if [ "$STA_CIPHER_TYPE" == "TKIPAES" ]; then
+           	 				echo "	pairwise=CCMP TKIP"							>> $WPA_2G4_SUPPLICANT_PATH
+           	 			elif [ "$STA_CIPHER_TYPE" == "TKIP" ]; then
+           	 				echo "	pairwise=TKIP"								>> $WPA_2G4_SUPPLICANT_PATH
+           	 			elif [ "$STA_CIPHER_TYPE" == "AES" ]; then
+           	 				echo "	pairwise=CCMP"								>> $WPA_2G4_SUPPLICANT_PATH
+           			 	fi
+           	 			if [ "${keylength}" -eq "64" ]; then
+           	 				echo "  psk=${security_key}"  		              	>> $WPA_2G4_SUPPLICANT_PATH
+           	 			else
+           	 				echo "  psk=\"${security_key}\""                	>> $WPA_2G4_SUPPLICANT_PATH
+           	 			fi
+           	 			echo "  priority=90"                                  	>> $WPA_2G4_SUPPLICANT_PATH
+           	 			echo "}"                                                >> $WPA_2G4_SUPPLICANT_PATH
+    					echo ""                                                	>> $WPA_2G4_SUPPLICANT_PATH
+           	 		fi  
+    			;;
+    			"WPAPSK1WPAPSK2" )   
+           	 		echo "	ssid=\"$STA_SSID_NAME\""                  	>> $WPA_2G4_SUPPLICANT_PATH
+           	 		echo "	scan_ssid=1"								>> $WPA_2G4_SUPPLICANT_PATH
+           	 		echo "	key_mgmt=WPA-PSK"								>> $WPA_2G4_SUPPLICANT_PATH
+           	 		echo "	proto=WPA RSN"									>> $WPA_2G4_SUPPLICANT_PATH
+           	 		if [ "$STA_CIPHER_TYPE" == "TKIPAES" ]; then
+           	 			echo "	pairwise=CCMP TKIP"							>> $WPA_2G4_SUPPLICANT_PATH
+           	 		elif [ "$STA_CIPHER_TYPE" == "TKIP" ]; then
+           	 			echo "	pairwise=TKIP"								>> $WPA_2G4_SUPPLICANT_PATH
+           	 		elif [ "$STA_CIPHER_TYPE" == "AES" ]; then
+           	 			echo "	pairwise=CCMP"								>> $WPA_2G4_SUPPLICANT_PATH
+           	 		fi
+           	 		if [ "${keylength}" -eq "64" ]; then
+           	 			echo "  psk=${security_key}"                		>> $WPA_2G4_SUPPLICANT_PATH
+           	 		else
+           	 			echo "  psk=\"${security_key}\""                	>> $WPA_2G4_SUPPLICANT_PATH
+           	 		fi
+           	 		echo "  priority=100"                                  	>> $WPA_2G4_SUPPLICANT_PATH
+           	 		echo "}"                                                >> $WPA_2G4_SUPPLICANT_PATH
+           	 		echo ""                                                	>> $WPA_2G4_SUPPLICANT_PATH
+           	 		if [ "$STA_MAC_MAPPING" == "1" ]; then 					
+        				echo "network={"									>> $WPA_2G4_SUPPLICANT_PATH
+        				echo "	bssid=$STA_MAC_ADDRESS"						>> $WPA_2G4_SUPPLICANT_PATH
+        				echo "	key_mgmt=WPA-PSK"								>> $WPA_2G4_SUPPLICANT_PATH
+           	 			echo "	proto=WPA RSN"									>> $WPA_2G4_SUPPLICANT_PATH
+           	 			if [ "$STA_CIPHER_TYPE" == "TKIPAES" ]; then
+           	 				echo "	pairwise=CCMP TKIP"							>> $WPA_2G4_SUPPLICANT_PATH
+           	 			elif [ "$STA_CIPHER_TYPE" == "TKIP" ]; then
+           	 				echo "	pairwise=TKIP"								>> $WPA_2G4_SUPPLICANT_PATH
+           	 			elif [ "$STA_CIPHER_TYPE" == "AES" ]; then
+           	 				echo "	pairwise=CCMP"								>> $WPA_2G4_SUPPLICANT_PATH
+           	 			fi
+           	 			if [ "${keylength}" -eq "64" ]; then
+           	 				echo "  psk=${security_key}"    	            	>> $WPA_2G4_SUPPLICANT_PATH
+           	 			else
+           	 				echo "  psk=\"${security_key}\""                	>> $WPA_2G4_SUPPLICANT_PATH
+           	 			fi
+           	 			echo "  priority=90"                                  	>> $WPA_2G4_SUPPLICANT_PATH
+           	 			echo "}"                                                >> $WPA_2G4_SUPPLICANT_PATH
+           	 			echo ""                                                	>> $WPA_2G4_SUPPLICANT_PATH
+           	 		fi          	
+    			;;
+    			* )
+    				echo "}"                                                >> $WPA_2G4_SUPPLICANT_PATH
+           	 	echo ""                                                	>> $WPA_2G4_SUPPLICANT_PATH
+           	 	;;
+    		esac	
+    	fi
+    elif [ "$STA_CONF_JOIN" == "2" ]; then
+    	sed -i 's/STA_CONF_JOIN=.*/STA_CONF_JOIN=0/' /etc/nas/config/wifinetwork-param.conf
+  		
+		echo "network={"												>> $WPA_SUPPLICANT_PATH  	
+    	echo ""                              							>> $WPA_SUPPLICANT_PATH
+    	echo ""                               							>> $WPA_SUPPLICANT_PATH
+    	echo "}"                                                		>> $WPA_SUPPLICANT_PATH
+    	echo ""                                                			>> $WPA_SUPPLICANT_PATH  
+    	
+		echo "network={"												>> $WPA_2G4_SUPPLICANT_PATH  	
+    	echo ""                              							>> $WPA_2G4_SUPPLICANT_PATH
+    	echo ""                               							>> $WPA_2G4_SUPPLICANT_PATH
+    	echo "}"                                                		>> $WPA_2G4_SUPPLICANT_PATH
+    	echo ""                                                			>> $WPA_2G4_SUPPLICANT_PATH  
+    else
+    	echo ""			  												>> $WPA_SUPPLICANT_PATH
+    	echo ""			  												>> $WPA_2G4_SUPPLICANT_PATH
+    fi
+}
+
+### Change WPA Supplicant Config For WPS ###
+CHANGE_WPA_SUPPLICANT_WPS_CONFIG()
+{
+	serialNum=`cat /tmp/HDSerial`
+	NumModel=${modelNumber}
+	
+	sed -i '1,$d' $WPA_SUPPLICANT_PATH
+
+	echo "ctrl_interface=/var/run/wpa_supplicant"			  		>> $WPA_SUPPLICANT_PATH
+    #echo "config_methods=virtual_display virtual_push_button physical_push_button" >> $WPA_SUPPLICANT_PATH
+    echo "manufacturer=Western Digital Corporation"					>> $WPA_SUPPLICANT_PATH
+    echo "model_name=My Passport Wireless"							>> $WPA_SUPPLICANT_PATH
+    echo "model_number=$NumModel"										>> $WPA_SUPPLICANT_PATH
+    echo "device_name=$HostName"								>> $WPA_SUPPLICANT_PATH
+    echo "serial_number=$serialNum"										>> $WPA_SUPPLICANT_PATH
+    echo "disassoc_low_ack=1"										>> $WPA_SUPPLICANT_PATH
+    echo "bss_expiration_age=60"										>> $WPA_SUPPLICANT_PATH
+    echo "bss_expiration_scan_count=5"										>> $WPA_SUPPLICANT_PATH
+    echo "ap_scan=1"			  									>> $WPA_SUPPLICANT_PATH
+    echo "update_config=1"			  								>> $WPA_SUPPLICANT_PATH
+    
+    sed -i '1,$d' $WPA_2G4_SUPPLICANT_PATH
+
+	echo "ctrl_interface=/var/run/wpa_supplicant"			  		>> $WPA_2G4_SUPPLICANT_PATH
+    #echo "config_methods=virtual_display virtual_push_button physical_push_button" >> $WPA_2G4_SUPPLICANT_PATH
+    echo "manufacturer=Western Digital Corporation"					>> $WPA_2G4_SUPPLICANT_PATH
+    echo "model_name=My Passport Wireless"							>> $WPA_2G4_SUPPLICANT_PATH
+    echo "model_number=$NumModel"										>> $WPA_2G4_SUPPLICANT_PATH
+    echo "device_name=$HostName"								>> $WPA_2G4_SUPPLICANT_PATH
+    echo "serial_number=$serialNum"										>> $WPA_2G4_SUPPLICANT_PATH
+    echo "disassoc_low_ack=1"										>> $WPA_2G4_SUPPLICANT_PATH
+    echo "bss_expiration_age=60"										>> $WPA_2G4_SUPPLICANT_PATH
+    echo "bss_expiration_scan_count=5"										>> $WPA_2G4_SUPPLICANT_PATH
+    echo "ap_scan=1"			  									>> $WPA_2G4_SUPPLICANT_PATH
+    echo "update_config=1"			  								>> $WPA_2G4_SUPPLICANT_PATH
+    
+}
+
+### Restart Wifi Service ###
+RESTART_WIFI_SERVICE()
+{
+  if [ "${ReStartMODE}" == "AP" ]; then
+  	if [ "$AP_CHANNEL_LITE" == "0" ]; then
+  		if [ "${ReStartIF}" == "" ] || [ "${ReStartIF}" == "all" ]; then
+			brctl delif br0 $AP5G_IFACE > /dev/null
+  			brctl delif br0 $AP_IFACE > /dev/null
+  			ifconfig br0 down
+  			brctl delbr br0	
+  		elif [ "${ReStartIF}" == "$AP_IFACE" ] || [ "${ReStartIF}" == "$AP5G_IFACE" ]; then
+  			brctl delif br0 ${ReStartIF}
+  		fi
+  		#sleep 1
+  	fi
+  	
+  	$HOSTPAD_SERVICE stop "${ReStartIF}"
+  	$DHCP_SERVICE stop "${ReStartIF}"
+  
+  	sleep 3
+    $HOSTPAD_SERVICE kill_check "${ReStartIF}"
+  	if [ "$DelayTime" == "LONGDELAY" ]; then
+		sleep 3
+    fi
+    #sleep 2
+   
+    $HOSTPAD_SERVICE start "${ReStartIF}"
+	if [ "$AP_DHCPD_ENABLE" == "true" ]; then
+   	 	$DHCP_SERVICE start "${ReStartIF}"
+   	fi
+   	
+   	if [ "${ReStartIF}" == "" ] || [ "${ReStartIF}" == "all" ]; then
+		$AVAHI_SERVICE restart	
+		$UPNP_SERVICE restart
+	fi
+	#if [ ! -f "/etc/.device_configured" ]; then
+	#	touch /etc/.device_configured
+	#	$LIGHTTPD_SERVICE restart
+	#fi
+	
+	/sbin/AutoChan.sh "${ReStartIF}"
+	
+  fi
+  if [ "$ReStartMODE" == "STA" ]; then
+  	#$IFPLUGD_SERVICE stop
+  	
+  	if [ "$STA_CHANNEL_LITE" == "0" ]; then
+  		if [ "$STA_CHANNEL" == "5" ]; then
+			$MULTI_ROLE_SERVICE restart $STA_IFACE
+        elif [ "$STA_CHANNEL" == "2" ]; then
+			$MULTI_ROLE_SERVICE restart $STA2G4_IFACE
+		else
+			$MULTI_ROLE_SERVICE restart
+		fi
+		#$MULTI_ROLE_SERVICE restart $STA_IFACE
+  	elif [ "$STA_CHANNEL_LITE" == "2" ]; then	
+  		$MULTI_ROLE_SERVICE restart $STA2G4_IFACE
+  	elif [ "$STA_CHANNEL_LITE" == "5" ]; then	
+  		$MULTI_ROLE_SERVICE restart $STA_IFACE
+  	fi
+  
+  	#$IFPLUGD_SERVICE start
+    #if [ ! -f "/etc/.device_configured" ]; then
+	#	touch /etc/.device_configured
+	#	$LIGHTTPD_SERVICE restart
+	#	$DHCP_SERVICE restart
+	#fi
+  fi
+}
+
+
+
+### Finished Message ###
+FINISHED_MESSAGE()
+{
+    echo "==============================="
+    echo "Restart Wifi Service Successed."
+    echo "==============================="
+}
+
+
+
+##################################################
+##################################################
+##################################################
+### Main Script ###
+
+if [ "${ReStartMODE}" == "UPDATE_STA_CONF" ]; then
+	CHANGE_WPA_SUPPLICANT_CONFIG
+	#wpa_cli -i wlan0 reconfigure
+
+elif [ "${ReStartMODE}" == "CLEAR_STA_CONF" ]; then
+	CHANGE_WPA_SUPPLICANT_WPS_CONFIG	 
+ 	 
+elif [ "${ReStartMODE}" == "UPDATE_AP_WPS_CONF" ]; then	 
+         ReStartIF=all
+         CHANGE_HOSTAPD_CONFIG
+         /usr/local/sbin/wifi_ap_get_config.sh updateconfig
+elif [ "${ReStartMODE}" == "AP" ]; then	 
+ 	 
+GET_WIFI_ENV_VALUE	 
+	 
+CHANGE_DHCP_CONFIG	 
+ 	 
+CHANGE_HOSTAPD_CONFIG	 
+ 		 
+#CHANGE_WPA_SUPPLICANT_CONFIG	 
+ 	 
+fi	 
+ 	 
+RESTART_WIFI_SERVICE	 
+ 	 
+FINISHED_MESSAGE

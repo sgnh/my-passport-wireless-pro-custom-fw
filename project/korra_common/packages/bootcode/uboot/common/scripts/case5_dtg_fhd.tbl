@@ -1,0 +1,7 @@
+#include "magellan_crt.tbl"			// CRT
+#include "dpll_297MHz.tbl"			// DPLL setting for fhd
+#include "dtg_fhd_frc.tbl"			// DTG for full hd setting
+#include "mtg_fhd.tbl"				// MTG for 1920x1080 setting
+rtd_outl(0xb8029000, 0x00EF0031);		// D-domain Pattern Gen Setting
+rtd_outl(0xb8029028, 0x07800438);		//Input Size (1920x1080)
+#include "LVDS_FHD_1Pixel_1Seg_2Port.tbl"	// SFG, PIF, TX_PHY

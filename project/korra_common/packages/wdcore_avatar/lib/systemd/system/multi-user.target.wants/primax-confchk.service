@@ -1,0 +1,9 @@
+[Unit]
+Description=Primax confchk RC Script (S99confchk)
+DefaultDependencies=no
+After=primax-rtc.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash -c "/etc/init.d/S99confchk start"

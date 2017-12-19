@@ -1,0 +1,10 @@
+[Unit]
+Description=Primax vsftpd RC Script (S63vsftpd)
+DefaultDependencies=no
+After=primax-dhcp-server.service primax-mdev.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash -c "/etc/init.d/S63vsftpd start"
+ExecStop=/bin/bash -c "/etc/init.d/S63vsftpd stop"

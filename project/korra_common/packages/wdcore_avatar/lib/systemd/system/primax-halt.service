@@ -1,0 +1,14 @@
+[Unit]
+Description=Primax Halt
+Before=shutdown.target halt.target
+DefaultDependencies=no
+
+[Service]
+ExecStart=/bin/sh -c "echo \"25;0\" > /tmp/MCU_Cmd"
+ExecStart=/bin/sh -c "/etc/init.d/rcK"
+Type=oneshot
+RemainAfterExit=yes
+TimeoutSec=120s
+
+[Install]
+WantedBy=halt.target

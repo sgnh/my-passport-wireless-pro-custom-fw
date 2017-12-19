@@ -1,0 +1,5 @@
+config BR2_PACKAGE_PMXPACKAGE_ASMUPDATE
+	bool "pmxpackage(asmupdate)"
+	help
+	  The primax package(asmupdate) ASMedia FW udpate tool for Korra device
+

@@ -1,0 +1,11 @@
+--- dpkg-1.16.16/dpkg-deb/extract.c	2015-05-28 11:32:54.659414907 +0800
++++ dpkg-1.16.16-timestamp/dpkg-deb/extract.c	2015-05-28 11:33:06.995415664 +0800
+@@ -319,7 +319,7 @@
+         }
+       }
+ 
+-      execlp(TAR, "tar", buffer, "-", "--warning=no-timestamp", NULL);
++      execlp(TAR, "tar", buffer, "-", NULL);
+       ohshite(_("unable to execute %s (%s)"), "tar", TAR);
+     }
+     close(p2[0]);

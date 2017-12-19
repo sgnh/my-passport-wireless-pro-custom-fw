@@ -1,0 +1,9 @@
+# generate video thumbs
+#(c) 2010 by PacketVideo
+## Chris Karr, on Legal's behalf, has approved the use of ffmpeg utility.
+exec: ffmpeg_wrapper -loglevel quiet -ss $videothumbtime -i $infile -vframes 1 -y -f mjpeg -s $targetgeometry -aspect 1:1 $outfile
+# capabilities
+from=video/*
+to=image/jpeg
+videothumb
+synchronous

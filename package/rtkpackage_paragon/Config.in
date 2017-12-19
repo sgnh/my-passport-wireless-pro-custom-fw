@@ -1,0 +1,4 @@
+config BR2_PACKAGE_RTKPACKAGE_PARAGON
+	bool "rtkparagon"
+	help
+		RTK Paragon filesystem driver

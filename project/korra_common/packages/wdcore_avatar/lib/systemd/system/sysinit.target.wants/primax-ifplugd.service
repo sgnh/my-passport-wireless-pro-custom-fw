@@ -1,0 +1,11 @@
+[Unit]
+Description=Primax ifplugd RC Script (S40ifplugd)
+DefaultDependencies=no
+After=primax-hostapd.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=/bin/bash -c "cp -a /etc/network/interfaces_bak /etc/network/interfaces"
+ExecStart=/bin/bash -c "/etc/init.d/S40ifplugd start"
+ExecStop=/bin/bash -c "/etc/init.d/S40ifplugd stop"

@@ -1,0 +1,4 @@
+config BR2_PACKAGE_PARAGON_TOOLS
+	bool "Paragon tools"
+	help
+      

@@ -1,0 +1,124 @@
+--- linux-kernel.orig/fs/fs-writeback.c	2016-02-26 14:09:47.912102013 +0800
++++ linux-kernel.mod/fs/fs-writeback.c	2016-03-01 18:11:20.218207534 +0800
+@@ -51,6 +51,16 @@
+ 	struct completion *done;	/* set if the caller waits */
+ };
+ 
++#if 1
++static void bdi_wakeup_thread(struct backing_dev_info *bdi)
++{
++	spin_lock_bh(&bdi->wb_lock);
++	if (test_bit(BDI_registered, &bdi->state))
++		mod_delayed_work(bdi_wq, &bdi->wb.dwork, 0);
++	spin_unlock_bh(&bdi->wb_lock);
++}
++#endif
++
+ /**
+  * writeback_in_progress - determine whether there is writeback in progress
+  * @bdi: the device's backing_dev_info structure.
+@@ -93,10 +103,25 @@
+ 	trace_writeback_queue(bdi, work);
+ 
+ 	spin_lock_bh(&bdi->wb_lock);
++
++#if 1
++	if (!test_bit(BDI_registered, &bdi->state)) {
++		if (work->done)
++			complete(work->done);
++		goto out_unlock;
++	}
++	list_add_tail(&work->list, &bdi->work_list);
++	mod_delayed_work(bdi_wq, &bdi->wb.dwork, 0);
++
++out_unlock:
++	spin_unlock_bh(&bdi->wb_lock);
++#else
+ 	list_add_tail(&work->list, &bdi->work_list);
+ 	spin_unlock_bh(&bdi->wb_lock);
+ 
+ 	mod_delayed_work(bdi_wq, &bdi->wb.dwork, 0);
++#endif
++	
+ }
+ 
+ static void
+@@ -112,7 +137,11 @@
+ 	work = kzalloc(sizeof(*work), GFP_ATOMIC);
+ 	if (!work) {
+ 		trace_writeback_nowork(bdi);
++#if 1
++		bdi_wakeup_thread(bdi);
++#else
+ 		mod_delayed_work(bdi_wq, &bdi->wb.dwork, 0);
++#endif
+ 		return;
+ 	}
+ 
+@@ -159,7 +188,11 @@
+ 	 * writeback as soon as there is no other work to do.
+ 	 */
+ 	trace_writeback_wake_background(bdi);
++#if 1
++	bdi_wakeup_thread(bdi);
++#else
+ 	mod_delayed_work(bdi_wq, &bdi->wb.dwork, 0);
++#endif
+ }
+ 
+ /*
+@@ -1013,7 +1046,11 @@
+ 	current->flags |= PF_SWAPWRITE;
+ 
+ 	if (likely(!current_is_workqueue_rescuer() ||
++#if 1
++		  !test_bit(BDI_registered, &bdi->state))) {
++#else
+ 		   list_empty(&bdi->bdi_list))) {
++#endif
+ 		/*
+ 		 * The normal path.  Keep writing back @bdi until its
+ 		 * work_list is empty.  Note that this path is also taken
+--- linux-kernel.orig/mm/backing-dev.c	2016-02-26 14:10:23.716101825 +0800
++++ linux-kernel.mod/mm/backing-dev.c	2016-03-01 18:11:20.726207531 +0800
+@@ -293,7 +293,15 @@
+ 	unsigned long timeout;
+ 
+ 	timeout = msecs_to_jiffies(dirty_writeback_interval * 10);
++
++#if 1
++	spin_lock_bh(&bdi->wb_lock);
++	if (test_bit(BDI_registered, &bdi->state))
++		queue_delayed_work(bdi_wq, &bdi->wb.dwork, timeout);
++	spin_unlock_bh(&bdi->wb_lock);
++#else
+ 	mod_delayed_work(bdi_wq, &bdi->wb.dwork, timeout);
++#endif
+ }
+ 
+ /*
+@@ -307,8 +315,10 @@
+ 
+ 	synchronize_rcu_expedited();
+ 
++#if 0
+ 	/* bdi_list is now unused, clear it to mark @bdi dying */
+ 	INIT_LIST_HEAD(&bdi->bdi_list);
++#endif
+ }
+ 
+ int bdi_register(struct backing_dev_info *bdi, struct device *parent,
+@@ -359,6 +369,13 @@
+ 	 */
+ 	bdi_remove_from_list(bdi);
+ 
++#if 1
++	/* Make sure nobody queues further work */
++	spin_lock_bh(&bdi->wb_lock);
++	clear_bit(BDI_registered, &bdi->state);
++	spin_unlock_bh(&bdi->wb_lock);
++#endif
++
+ 	/*
+ 	 * Drain work list and shutdown the delayed_work.  At this point,
+ 	 * @bdi->bdi_list is empty telling bdi_Writeback_workfn() that @bdi

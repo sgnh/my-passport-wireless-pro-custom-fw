@@ -1,0 +1,44 @@
+#!/bin/sh
+
+
+# Start all init scripts in /etc/init.d
+# executing them in numerical order.
+#
+
+sysdate=`date +%s`
+if [ $sysdate -lt 1420099210 ]; then
+     date "2015.01.01-00:00:00"
+fi
+
+factory_conf=/etc/nas/config/factory.conf
+
+
+for i in /etc/init.d/S??* ;do
+
+
+     # Ignore dangling symlinks (if any).
+     [ ! -f "$i" ] && continue
+
+     #if [ -f $factory_conf ] && [ `grep FACTORY_MODE $factory_conf | wc -l` == "1" ] && [ `grep FACTORY_MODE $factory_conf | awk -F= '{print $2}'` == "1" ]; then
+     #		[ "$i" == "/etc/init.d/S85wdmcserverd" ] && continue
+     #		[ "$i" == "/etc/init.d/S92twonkyserver" ] && continue
+     #		[ "$i" == "/etc/init.d/S95RestAPI" ] && continue
+     #		[ "$i" == "/etc/init.d/S99syschk" ] && continue
+     #fi
+
+     case "$i" in
+	*.sh)
+	    # Source shell script for speed.
+	    (
+		trap - INT QUIT TSTP
+		set start
+		. $i
+	    )
+	    ;;
+	*)
+	    # No sh extension, so fork subprocess.
+	    $i start
+	    ;;
+    esac
+done
+

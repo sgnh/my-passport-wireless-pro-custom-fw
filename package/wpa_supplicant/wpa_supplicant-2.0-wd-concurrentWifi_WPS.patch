@@ -1,0 +1,137 @@
+diff -uNr wpa_supplicant-2.0/.applied_patches_list wpa_supplicant-2.0_patch/.applied_patches_list
+--- wpa_supplicant-2.0/.applied_patches_list	2015-04-17 14:12:13.646278509 +0800
++++ wpa_supplicant-2.0_patch/.applied_patches_list	2015-04-17 08:16:11.399124030 +0800
+@@ -1,2 +1,3 @@
++wpa_supplicant-2.0-wd-concurrentWifi_WPS.patch
+ wpa_supplicant-2.0-wd-wireless-disconnect-log.patch
+ wpa_supplicant-2.0-wd-wireless.patch
+diff -uNr wpa_supplicant-2.0/wpa_supplicant/config.c wpa_supplicant-2.0_patch/wpa_supplicant/config.c
+--- wpa_supplicant-2.0/wpa_supplicant/config.c	2013-01-12 23:42:53.000000000 +0800
++++ wpa_supplicant-2.0_patch/wpa_supplicant/config.c	2015-04-17 13:37:52.945679921 +0800
+@@ -2627,6 +2627,7 @@
+ 		return NULL;
+ 	config->eapol_version = DEFAULT_EAPOL_VERSION;
+ 	config->ap_scan = DEFAULT_AP_SCAN;
++	config->liteChannel = 0;
+ 	config->fast_reauth = DEFAULT_FAST_REAUTH;
+ 	config->p2p_go_intent = DEFAULT_P2P_GO_INTENT;
+ 	config->p2p_intra_bss = DEFAULT_P2P_INTRA_BSS;
+@@ -3001,6 +3002,7 @@
+ #endif /* CONFIG_CTRL_IFACE */
+ 	{ INT_RANGE(eapol_version, 1, 2), 0 },
+ 	{ INT(ap_scan), 0 },
++	{ INT(liteChannel), 0 },
+ 	{ INT(disable_scan_offload), 0 },
+ 	{ INT(fast_reauth), 0 },
+ 	{ STR(opensc_engine_path), 0 },
+diff -uNr wpa_supplicant-2.0/wpa_supplicant/config_file.c wpa_supplicant-2.0_patch/wpa_supplicant/config_file.c
+--- wpa_supplicant-2.0/wpa_supplicant/config_file.c	2015-04-17 14:12:13.650278509 +0800
++++ wpa_supplicant-2.0_patch/wpa_supplicant/config_file.c	2015-04-17 08:16:11.403124030 +0800
+@@ -994,7 +994,7 @@
+ 	struct wpa_config_blob *blob;
+ #endif /* CONFIG_NO_CONFIG_BLOBS */
+ 	int ret = 0;
+-
++	
+ 	wpa_printf(MSG_DEBUG, "Writing configuration file '%s'", name);
+ 
+ 	f = fopen(name, "w");
+diff -uNr wpa_supplicant-2.0/wpa_supplicant/config.h wpa_supplicant-2.0_patch/wpa_supplicant/config.h
+--- wpa_supplicant-2.0/wpa_supplicant/config.h	2015-04-17 14:27:22.334241231 +0800
++++ wpa_supplicant-2.0_patch/wpa_supplicant/config.h	2015-04-17 09:51:20.983523654 +0800
+@@ -797,6 +797,10 @@
+ 	 * this default behavior.
+ 	 */
+ 	enum mfp_options pmf;
++	
++	unsigned int retry_prio;	
++	
++	int liteChannel;
+ };
+ 
+ 
+
+diff -uNr wpa_supplicant-2.0/wpa_supplicant/events.c wpa_supplicant-2.0_patch/wpa_supplicant/events.c
+--- wpa_supplicant-2.0/wpa_supplicant/events.c	2015-04-17 14:12:13.654278509 +0800
++++ wpa_supplicant-2.0_patch/wpa_supplicant/events.c	2015-04-17 14:06:13.400275112 +0800
+@@ -512,7 +512,7 @@
+ static int freq_allowed(int *freqs, int freq)
+ {
+ 	int i;
+-
++	
+ 	if (freqs == NULL)
+ 		return 1;
+ 
+@@ -641,6 +641,9 @@
+ 	struct wpa_blacklist *e;
+ 	const u8 *ie;
+ 	struct wpa_ssid *ssid;
++	const int freq5G[21]={5180,5200,5220,5240,5260,5280,5300,5320,5500,5520,5540,5560,5580,5660,5680,5700,5745,5765,5785,5805,5825};
++	const int freq2G[14]={2412,2417,2422,2427,2432,2437,2442,2447,2452,2457,2462,2467,2472,2484};
++	int freq_i, freq_i2;
+ 
+ 	ie = wpa_bss_get_vendor_ie(bss, WPA_IE_VENDOR_TYPE);
+ 	wpa_ie_len = ie ? ie[1] : 0;
+@@ -648,12 +651,36 @@
+ 	ie = wpa_bss_get_ie(bss, WLAN_EID_RSN);
+ 	rsn_ie_len = ie ? ie[1] : 0;
+ 
++	if(strncmp(wpa_s->ifname, "wlan0", strlen("wlan0"))==0){
++		if(wpa_s->conf->liteChannel == 2){
++			for(freq_i2=0;freq_i2<=14;freq_i2++){
++				if(freq2G[freq_i2] == bss->freq){
++					wpa_dbg(wpa_s, MSG_DEBUG, "Match Working freq %d", bss->freq);
++					break;
++				}
++			}
++			if(freq_i2 >= 15)
++				return NULL;
++		}
++		else{
++			for(freq_i=0;freq_i<=21;freq_i++){
++				if(freq5G[freq_i] == bss->freq){
++					wpa_dbg(wpa_s, MSG_DEBUG, "Match Working freq %d", bss->freq);
++					break;
++				}
++			}
++			if(freq_i >= 22)
++				return NULL;
++		}
++	}
++	
++
+ 	wpa_dbg(wpa_s, MSG_DEBUG, "%d: " MACSTR " ssid='%s' "
+-		"wpa_ie_len=%u rsn_ie_len=%u caps=0x%x level=%d%s",
++		"wpa_ie_len=%u rsn_ie_len=%u caps=0x%x level=%d, freq=%d%s",
+ 		i, MAC2STR(bss->bssid), wpa_ssid_txt(bss->ssid, bss->ssid_len),
+-		wpa_ie_len, rsn_ie_len, bss->caps, bss->level,
++		wpa_ie_len, rsn_ie_len, bss->caps, bss->level, bss->freq,
+ 		wpa_bss_get_vendor_ie(bss, WPS_IE_VENDOR_TYPE) ? " wps" : "");
+-
++			
+ 	e = wpa_blacklist_get(wpa_s, bss->bssid);
+ 	if (e) {
+ 		int limit = 1;
+
+
+diff -uNr wpa_supplicant-2.0/wpa_supplicant/wps_supplicant.c wpa_supplicant-2.0_patch/wpa_supplicant/wps_supplicant.c
+--- wpa_supplicant-2.0/wpa_supplicant/wps_supplicant.c	2015-04-17 14:12:13.654278509 +0800
++++ wpa_supplicant-2.0_patch/wpa_supplicant/wps_supplicant.c	2015-04-17 14:16:09.067461431 +0800
+@@ -547,6 +547,15 @@
+ static void wpa_supplicant_wps_event_success(struct wpa_supplicant *wpa_s)
+ {
+ 	wpa_msg(wpa_s, MSG_INFO, WPS_EVENT_SUCCESS);
++	
++	if(strncmp(wpa_s->ifname, "wlan0", strlen("wlan0"))==0){
++		if(wpa_s->conf->liteChannel == 0){
++			system("wpa_cli -i wlan2 wps_cancel > /dev/null 2>&1 &");
++		}
++	}else{
++		system("wpa_cli -i wlan0 wps_cancel > /dev/null 2>&1 &");
++	}
++	
+ 	wpa_s->wps_success = 1;
+ 	wpas_notify_wps_event_success(wpa_s);
+ 
+

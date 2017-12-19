@@ -1,0 +1,63 @@
+#!/bin/sh
+#
+# cron service.
+#
+
+# Check that /var/spool/cron exists.
+[ -d /var/spool/cron ] || mkdir -p /var/spool/cron
+
+RETVAL=0
+
+start() {
+	echo -n "Starting crond services: "
+	rm -f /var/spool/cron/root
+	for cron_entry in /etc/cron.d/*; do
+		awk '{$6=""; print}' $cron_entry >> /var/spool/cron/root
+	done
+	#crond -fS -l 0 -L /var/log/cron.log -c /var/spool/cron
+	start-stop-daemon -S -b -q -n crond  -a /usr/sbin/crond -- -L /var/log/cron.log -c /var/spool/cron
+	echo "done"
+}	
+
+stop() {
+	echo -n "Shutting down crond services: "
+	#killall crond
+	start-stop-daemon -K -q -n crond
+	echo "done"
+	return $RETVAL
+}	
+
+restart() {
+	stop
+	start
+}	
+
+reload() {
+	echo -n "Reloading cron services: "
+	rm -f /var/spool/cron/root
+	for cron_entry in /etc/cron.d/*; do
+		awk '{$6=""; print}' $cron_entry >> /var/spool/cron/root
+	done
+	echo "done"
+	return $RETVAL
+}	
+
+case "$1" in
+  start)
+  	start
+	;;
+  stop)
+  	stop
+	;;
+  restart)
+  	restart
+	;;
+  reload)
+  	reload
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart|reload}"
+	exit 1
+esac
+
+exit $?

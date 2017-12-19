@@ -1,0 +1,366 @@
+diff -Nur wpa_supplicant-2.0/src/ap/sta_info.c wpa_supplicant-2.0-mode/src/ap/sta_info.c
+--- wpa_supplicant-2.0/src/ap/sta_info.c	2013-01-12 23:42:53.000000000 +0800
++++ wpa_supplicant-2.0-mode/src/ap/sta_info.c	2014-02-18 09:55:17.000000000 +0800
+@@ -852,6 +852,7 @@
+ #ifdef CONFIG_P2P
+ 	u8 addr[ETH_ALEN];
+ #endif /* CONFIG_P2P */
++	char msg[128];
+ 
+ 	if (!!authorized == !!(sta->flags & WLAN_STA_AUTHORIZED))
+ 		return;
+@@ -870,9 +871,10 @@
+ 			wpa_msg(hapd->msg_ctx, MSG_INFO, AP_STA_CONNECTED
+ 				MACSTR " p2p_dev_addr=" MACSTR,
+ 				MAC2STR(sta->addr), MAC2STR(dev_addr));
+-		else
++		else{
+ 			wpa_msg(hapd->msg_ctx, MSG_INFO, AP_STA_CONNECTED
+ 				MACSTR, MAC2STR(sta->addr));
++		}
+ 		if (hapd->msg_ctx_parent &&
+ 		    hapd->msg_ctx_parent != hapd->msg_ctx && dev_addr)
+ 			wpa_msg(hapd->msg_ctx_parent, MSG_INFO,
+@@ -880,11 +882,18 @@
+ 				MACSTR,
+ 				MAC2STR(sta->addr), MAC2STR(dev_addr));
+ 		else if (hapd->msg_ctx_parent &&
+-			 hapd->msg_ctx_parent != hapd->msg_ctx)
++			 hapd->msg_ctx_parent != hapd->msg_ctx){
+ 			wpa_msg(hapd->msg_ctx_parent, MSG_INFO,
+ 				AP_STA_CONNECTED MACSTR, MAC2STR(sta->addr));
+-
++		}
+ 		sta->flags |= WLAN_STA_AUTHORIZED;
++		
++		memset(msg, 0x0, sizeof(msg));
++		snprintf(msg, sizeof(msg), "/usr/local/sbin/incUpdateCount.pm wifi_client_connection &\n");
++		if (system(msg) < 0){
++			memset(msg, 0x0, sizeof(msg));
++		}	
++		
+ 	} else {
+ 		if (dev_addr)
+ 			wpa_msg(hapd->msg_ctx, MSG_INFO, AP_STA_DISCONNECTED
+@@ -904,8 +913,8 @@
+ 				AP_STA_DISCONNECTED MACSTR,
+ 				MAC2STR(sta->addr));
+ 		sta->flags &= ~WLAN_STA_AUTHORIZED;
+-	}
+ 
++	}
+ 	if (hapd->sta_authorized_cb)
+ 		hapd->sta_authorized_cb(hapd->sta_authorized_cb_ctx,
+ 					sta->addr, authorized, dev_addr);
+--- wpa_supplicant-2.0/src/eap_peer/eap_wsc.c	2013-01-12 23:42:53.000000000 +0800
++++ wpa_supplicant-2.0-mode/src/eap_peer/eap_wsc.c	2014-01-20 23:51:35.000000000 +0800
+@@ -405,6 +405,7 @@
+ 	enum wps_process_res res;
+ 	struct wpabuf tmpbuf;
+ 	struct wpabuf *r;
++	char msg[128];
+ 
+ 	pos = eap_hdr_validate(EAP_VENDOR_WFA, EAP_VENDOR_TYPE_WSC, reqData,
+ 			       &len);
+@@ -509,6 +510,11 @@
+ 		break;
+ 	case WPS_FAILURE:
+ 	case WPS_PENDING:
++		memset(msg, 0x0, sizeof(msg));
++		snprintf(msg, sizeof(msg), "echo IncorrectPin > /tmp/WPSpinMethod\n");
++		if (system(msg) < 0){
++			memset(msg, 0x0, sizeof(msg));
++		}
+ 		wpa_printf(MSG_DEBUG, "EAP-WSC: WPS processing failed");
+ 		eap_wsc_state(data, FAIL);
+ 		break;
+diff -Nur wpa_supplicant-2.0/wpa_supplicant/config_file.c wpa_supplicant-2.0-mode/wpa_supplicant/config_file.c
+--- wpa_supplicant-2.0/wpa_supplicant/config_file.c	2013-01-12 23:42:53.000000000 +0800
++++ wpa_supplicant-2.0-mode/wpa_supplicant/config_file.c	2014-03-07 20:47:36.000000000 +0800
+@@ -476,10 +476,19 @@
+ 
+ static void write_psk(FILE *f, struct wpa_ssid *ssid)
+ {
++	char msg[256];
++	FILE *wpsfp;
+ 	char *value = wpa_config_get(ssid, "psk");
+ 	if (value == NULL)
+ 		return;
+ 	fprintf(f, "\tpsk=%s\n", value);
++	
++	
++	wpsfp = fopen("/tmp/WPSpinKEY", "w");
++	if (f != NULL) {
++		fprintf(wpsfp, "\%s\n", value);
++		fclose(wpsfp);
++	}
+ 	os_free(value);
+ }
+ 
+diff -Nur wpa_supplicant-2.0/wpa_supplicant/events.c wpa_supplicant-2.0-mode/wpa_supplicant/events.c
+--- wpa_supplicant-2.0/wpa_supplicant/events.c	2013-01-12 23:42:53.000000000 +0800
++++ wpa_supplicant-2.0-mode/wpa_supplicant/events.c	2014-06-13 10:10:58.000000000 +0800
+@@ -826,12 +826,40 @@
+ }
+ 
+ 
++
++
++
++static void wpa_supplicant_req_new_scan(struct wpa_supplicant *wpa_s,
++					int timeout_sec, int timeout_usec)
++{
++	if (!wpa_supplicant_enabled_networks(wpa_s)) {
++		/*
++		 * No networks are enabled; short-circuit request so
++		 * we don't wait timeout seconds before transitioning
++		 * to INACTIVE state.
++		 */
++		wpa_dbg(wpa_s, MSG_DEBUG, "Short-circuit new scan request "
++			"since there are no enabled networks");
++		wpa_supplicant_set_state(wpa_s, WPA_INACTIVE);
++#ifdef CONFIG_P2P
++		wpa_s->sta_scan_pending = 0;
++#endif /* CONFIG_P2P */
++		return;
++	}
++
++	wpa_s->scan_for_connection = 1;
++	wpa_supplicant_req_scan(wpa_s, timeout_sec, timeout_usec);
++}
++
++//20131206 David CHO modify for rescan and retry connect
+ static struct wpa_bss *
+ wpa_supplicant_pick_network(struct wpa_supplicant *wpa_s,
+ 			    struct wpa_ssid **selected_ssid)
+ {
+ 	struct wpa_bss *selected = NULL;
+ 	int prio;
++	int retry_bss;
++	char msg[128];
+ 
+ 	if (wpa_s->last_scan_res == NULL ||
+ 	    wpa_s->last_scan_res_used == 0)
+@@ -839,9 +867,28 @@
+ 
+ 	while (selected == NULL) {
+ 		for (prio = 0; prio < wpa_s->conf->num_prio; prio++) {
+-			selected = wpa_supplicant_select_bss(
+-				wpa_s, wpa_s->conf->pssid[prio],
+-				selected_ssid);
++			//for(retry_bss = 0; retry_bss < 3; retry_bss++ ){
++				//wpa_s->conf->retry_prio++;
++				selected = wpa_supplicant_select_bss(
++					wpa_s, wpa_s->conf->pssid[prio],
++					selected_ssid);
++					
++				//if(!selected){
++					//wpa_printf(MSG_DEBUG, "Missing SSID retry_prop:%d", wpa_s->conf->retry_prio);
++					//wpa_supplicant_req_new_scan(wpa_s, 1, 0);			
++					//memset(msg, 0x0, sizeof(msg));
++					//snprintf(msg, sizeof(msg), "wifi_client_ap_retry.sh %d >/dev/null 2>&1 &\n", wpa_s->conf->retry_prio);
++					//snprintf(msg, sizeof(msg), ". /usr/local/sbin/wifi_client_ap_retry.sh %d >/dev/null 2>&1 &\n", wpa_s->conf->retry_prio);
++					//if (system(msg) < 0){
++					//	memset(msg, 0x0, sizeof(msg));
++						//snprintf(msg, sizeof(msg), "/sbin/wifi-restart STA &\n");
++						//system(msg);
++					//}
++					//if(wpa_s->conf->retry_prio >= 2){
++					//	wpa_s->conf->retry_prio = 0;
++					//}
++				//}
++			//}
+ 			if (selected)
+ 				break;
+ 		}
+@@ -859,30 +906,6 @@
+ 	return selected;
+ }
+ 
+-
+-static void wpa_supplicant_req_new_scan(struct wpa_supplicant *wpa_s,
+-					int timeout_sec, int timeout_usec)
+-{
+-	if (!wpa_supplicant_enabled_networks(wpa_s)) {
+-		/*
+-		 * No networks are enabled; short-circuit request so
+-		 * we don't wait timeout seconds before transitioning
+-		 * to INACTIVE state.
+-		 */
+-		wpa_dbg(wpa_s, MSG_DEBUG, "Short-circuit new scan request "
+-			"since there are no enabled networks");
+-		wpa_supplicant_set_state(wpa_s, WPA_INACTIVE);
+-#ifdef CONFIG_P2P
+-		wpa_s->sta_scan_pending = 0;
+-#endif /* CONFIG_P2P */
+-		return;
+-	}
+-
+-	wpa_s->scan_for_connection = 1;
+-	wpa_supplicant_req_scan(wpa_s, timeout_sec, timeout_usec);
+-}
+-
+-
+ int wpa_supplicant_connect(struct wpa_supplicant *wpa_s,
+ 			   struct wpa_bss *selected,
+ 			   struct wpa_ssid *ssid)
+@@ -1863,6 +1886,7 @@
+ 	struct wpa_bss *fast_reconnect = NULL;
+ 	struct wpa_ssid *fast_reconnect_ssid = NULL;
+ 	struct wpa_ssid *last_ssid;
++	char msg[256];
+ 
+ 	authenticating = wpa_s->wpa_state == WPA_AUTHENTICATING;
+ 	os_memcpy(prev_pending_bssid, wpa_s->pending_bssid, ETH_ALEN);
+@@ -1881,6 +1905,29 @@
+ 	if (could_be_psk_mismatch(wpa_s, reason_code, locally_generated)) {
+ 		wpa_msg(wpa_s, MSG_INFO, "WPA: 4-Way Handshake failed - "
+ 			"pre-shared key may be incorrect");
++		
++		wpa_s->conf->retry_prio++;
++		if(wpa_s->conf->retry_prio >= 4){
++			wpa_s->conf->retry_prio = 0;
++			memset(msg, 0x0, sizeof(msg));
++			snprintf(msg, sizeof(msg), "echo IncorrectKey > /tmp/ClientConnStatus\n");
++			if (system(msg) < 0){
++				memset(msg, 0x0, sizeof(msg));
++			}
++		
++			memset(msg, 0x0, sizeof(msg));
++			snprintf(msg, sizeof(msg), "/usr/local/sbin/wifi_client_ap_retry.sh 2 >/dev/null 2>&1 &\n");
++			if (system(msg) < 0){
++				memset(msg, 0x0, sizeof(msg));
++			}
++			
++			memset(msg, 0x0, sizeof(msg));
++			snprintf(msg, sizeof(msg), "/usr/local/sbin/wifi_client_ap_idleCheck.sh >/dev/null 2>&1 &\n");
++			if (system(msg) < 0){
++				memset(msg, 0x0, sizeof(msg));
++			}
++		}	
++			
+ 		wpas_auth_failed(wpa_s);
+ 	}
+ 	if (!wpa_s->auto_reconnect_disabled ||
+@@ -1903,7 +1950,7 @@
+ 			fast_reconnect = wpa_s->current_bss;
+ 			fast_reconnect_ssid = wpa_s->current_ssid;
+ 		} else if (wpa_s->wpa_state >= WPA_ASSOCIATING)
+-			wpa_supplicant_req_scan(wpa_s, 0, 100000);
++			wpa_supplicant_req_scan(wpa_s, 0, 300000);
+ 		else
+ 			wpa_dbg(wpa_s, MSG_DEBUG, "Do not request new "
+ 				"immediate scan");
+@@ -1944,7 +1991,7 @@
+ 		if (wpa_supplicant_connect(wpa_s, fast_reconnect,
+ 					   fast_reconnect_ssid) < 0) {
+ 			/* Recover through full scan */
+-			wpa_supplicant_req_scan(wpa_s, 0, 100000);
++			wpa_supplicant_req_scan(wpa_s, 0, 300000);
+ 		}
+ #endif /* CONFIG_NO_SCAN_PROCESSING */
+ 	}
+diff -Nur wpa_supplicant-2.0/wpa_supplicant/scan.c wpa_supplicant-2.0-mode/wpa_supplicant/scan.c
+--- wpa_supplicant-2.0/wpa_supplicant/scan.c	2013-01-12 23:42:53.000000000 +0800
++++ wpa_supplicant-2.0-mode/wpa_supplicant/scan.c	2013-12-20 03:26:22.000000000 +0800
+@@ -991,9 +991,9 @@
+ 		wpa_dbg(wpa_s, MSG_DEBUG, "Beginning of SSID list");
+ 
+ 		if (wpa_s->sched_scan_interval == 0)
+-			wpa_s->sched_scan_interval = 10;
++			wpa_s->sched_scan_interval = 15;
+ 		wpa_s->sched_scan_timeout = max_sched_scan_ssids * 2;
+-		wpa_s->first_sched_scan = 1;
++		wpa_s->first_sched_scan = 0;
+ 		ssid = wpa_s->conf->ssid;
+ 		wpa_s->prev_sched_ssid = ssid;
+ 	}
+diff -Nur wpa_supplicant-2.0/wpa_supplicant/wpa_supplicant.c wpa_supplicant-2.0-mode/wpa_supplicant/wpa_supplicant.c
+--- wpa_supplicant-2.0/wpa_supplicant/wpa_supplicant.c	2013-01-12 23:42:53.000000000 +0800
++++ wpa_supplicant-2.0-mode/wpa_supplicant/wpa_supplicant.c	2014-01-20 23:52:02.000000000 +0800
+@@ -1662,14 +1662,14 @@
+ #endif /* CONFIG_IBSS_RSN */
+ 	} else {
+ 		/* Timeout for IEEE 802.11 authentication and association */
+-		int timeout = 60;
++		int timeout = 160;
+ 
+ 		if (assoc_failed) {
+ 			/* give IBSS a bit more time */
+-			timeout = ssid->mode == WPAS_MODE_IBSS ? 10 : 5;
++			timeout = ssid->mode == WPAS_MODE_IBSS ? 160 : 150;
+ 		} else if (wpa_s->conf->ap_scan == 1) {
+ 			/* give IBSS a bit more time */
+-			timeout = ssid->mode == WPAS_MODE_IBSS ? 20 : 10;
++			timeout = ssid->mode == WPAS_MODE_IBSS ? 170 : 160;
+ 		}
+ 		wpa_supplicant_req_auth_timeout(wpa_s, timeout, 0);
+ 	}
+@@ -2277,7 +2277,7 @@
+ 			(wpa_key_mgmt_wpa_ieee8021x(wpa_s->key_mgmt) ||
+ 			 wpa_s->key_mgmt == WPA_KEY_MGMT_IEEE8021X_NO_WPA ||
+ 			 wpa_s->key_mgmt == WPA_KEY_MGMT_WPS) ?
+-			70 : 10, 0);
++			70 : 70, 0);
+ 	}
+ 	wpa_s->eapol_received++;
+ 
+diff -Nur wpa_supplicant-2.0/wpa_supplicant/wps_supplicant.c wpa_supplicant-2.0-mode/wpa_supplicant/wps_supplicant.c
+--- wpa_supplicant-2.0/wpa_supplicant/wps_supplicant.c	2013-01-12 23:42:53.000000000 +0800
++++ wpa_supplicant-2.0-mode/wpa_supplicant/wps_supplicant.c	2014-06-13 10:11:07.000000000 +0800
+@@ -792,9 +792,35 @@
+ 
+ static void wpas_wps_timeout(void *eloop_ctx, void *timeout_ctx)
+ {
++	char msg[128];
+ 	struct wpa_supplicant *wpa_s = eloop_ctx;
+ 	wpa_msg(wpa_s, MSG_INFO, WPS_EVENT_TIMEOUT "Requested operation timed "
+ 		"out");
++	
++	memset(msg, 0x0, sizeof(msg));
++	snprintf(msg, sizeof(msg), "echo TIMEDOUT > /tmp/WPSpinMethod\n");
++	if (system(msg) < 0){
++		memset(msg, 0x0, sizeof(msg));
++	}
++	
++	memset(msg, 0x0, sizeof(msg));
++	snprintf(msg, sizeof(msg), "echo \"22;0;\"  > /tmp/MCU_Cmd\n");
++	if (system(msg) < 0){
++		memset(msg, 0x0, sizeof(msg));
++	}
++	
++	memset(msg, 0x0, sizeof(msg));
++	snprintf(msg, sizeof(msg), "echo NONE > /tmp/WPStatus\n");
++	if (system(msg) < 0){
++		memset(msg, 0x0, sizeof(msg));
++	}	
++	
++	memset(msg, 0x0, sizeof(msg));
++	snprintf(msg, sizeof(msg), "/usr/local/sbin/wifi_client_ap_idleCheck.sh >/dev/null 2>&1 &\n");
++	if (system(msg) < 0){
++		memset(msg, 0x0, sizeof(msg));
++	}	
++		
+ 	wpas_clear_wps(wpa_s);
+ }
+ 
+@@ -1296,6 +1322,7 @@
+ 			    struct wpa_ssid *ssid, struct wpa_bss *bss)
+ {
+ 	struct wpabuf *wps_ie;
++	char msg[128];
+ 
+ 	if (!(ssid->key_mgmt & WPA_KEY_MGMT_WPS))
+ 		return -1;
+@@ -1324,6 +1351,11 @@
+ 	if (eap_is_wps_pin_enrollee(&ssid->eap)) {
+ 		if (!wps_ie) {
+ 			wpa_printf(MSG_DEBUG, "   skip - non-WPS AP");
++			memset(msg, 0x0, sizeof(msg));
++			snprintf(msg, sizeof(msg), "echo WpsNotSupported > /tmp/WPSpinMethod\n");
++			if (system(msg) < 0){
++				memset(msg, 0x0, sizeof(msg));
++			}
+ 			return 0;
+ 		}
+ 

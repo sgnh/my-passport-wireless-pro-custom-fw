@@ -1,0 +1,10 @@
+rtd_outl(0xb8028000, 0x11000000);	// free run mode
+rtd_outl(0xb8028004, 0xC0000000);	// SR Bypass
+rtd_outl(0xb8028008, 0x0000000F);	// Hsync width
+rtd_outl(0xb802800C, 0x08970897);	// DHtotal=2200
+rtd_outl(0xb8028010, 0x00000003);	// Vsync width
+rtd_outl(0xb8028014, 0x00000464);	// DVtotal=1125
+rtd_outl(0xb8028018, 0x008c080c);	// DH_den_sta,DH_den_end
+rtd_outl(0xb802801C, 0x0016044E);	// DV_den_sta,DV_den_end		
+rtd_outl(0xb8028028, 0x00000004);	// Double Buffer Control
+rtd_outl(0xb8028294, 0x00000000);	// dclk = dpll / 1 = 297MHz

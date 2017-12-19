@@ -1,0 +1,9 @@
+config BR2_PACKAGE_LIBUSBMUXD
+	depends on BR2_PACKAGE_LIBUSB_COMPAT
+	depends on BR2_PACKAGE_LIBUSB
+	depends on BR2_PACKAGE_LIBPLIST
+	bool "libusbmuxd"
+	help
+	  A client library to multiplex connections from and to iOS devices by connecting to a socket provided by a usbmuxd daemon.
+
+	  https://github.com/libimobiledevice/libusbmuxd.git

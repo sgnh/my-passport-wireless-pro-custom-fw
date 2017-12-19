@@ -1,0 +1,12 @@
+#!/bin/bash -x
+
+#This wrapper script invokes ImageMagick's convert with five input parameters: $infile -sample $targetgeometry -auto-orient $outfile
+#The script is invoked when we require conversion from PNG, BMP, and TIF formatted files to JPG.
+#GIF and animated GIF is handled by a separate wrapper script.
+
+# The following code is used for debugging.
+#echo "convert-any-to-jpeg-wrapper input parameters: $@" >> /var/log/twonky.log
+
+# Define the WD media crawler component locations on which Twonky depends, including the INSTALL_DIR.
+source /usr/local/twonkymedia-7/cgi-bin/wdmc-defs.sh
+$INSTALL_DIR/bin/convert "$@"

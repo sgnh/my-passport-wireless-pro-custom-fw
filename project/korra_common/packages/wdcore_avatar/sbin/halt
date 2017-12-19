@@ -1,0 +1,5 @@
+#!/bin/sh
+/usr/local/sbin/sendHWCollect.sh 101 Halt
+nohup /sbin/queueHalt.sh&
+exit 0
+

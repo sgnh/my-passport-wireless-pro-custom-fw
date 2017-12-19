@@ -1,0 +1,200 @@
+diff -uNr rsync-3.1.1/delete.c new-rsync-3.1.1/delete.c
+--- rsync-3.1.1/delete.c	2014-01-27 01:29:15.000000000 +0800
++++ new-rsync-3.1.1/delete.c	2015-09-10 11:54:14.442020106 +0800
+@@ -137,6 +137,11 @@
+ 		rprintf(FINFO, "delete_item(%s) mode=%o flags=%d\n",
+ 			fbuf, (int)mode, (int)flags);
+ 	}
++	if (S_ISDIR(mode)) {
++		rprintf(FCLIENT, "RSYNC_delete_DIR %s \n", fbuf);
++	}else{
++		rprintf(FCLIENT, "RSYNC_delete_ITEM %s \n", fbuf);
++	}
+ 
+ 	if (flags & DEL_NO_UID_WRITE)
+ 		do_chmod(fbuf, mode | S_IWUSR);
+diff -uNr rsync-3.1.1/generator.c new-rsync-3.1.1/generator.c
+--- rsync-3.1.1/generator.c	2014-06-14 07:05:08.000000000 +0800
++++ new-rsync-3.1.1/generator.c	2015-09-10 11:57:40.450216906 +0800
+@@ -66,6 +66,7 @@
+ extern int size_only;
+ extern OFF_T max_size;
+ extern OFF_T min_size;
++extern OFF_T exist_size;
+ extern int io_error;
+ extern int flist_eof;
+ extern int allowed_lull;
+@@ -1197,6 +1198,7 @@
+ 	int is_dir = !S_ISDIR(file->mode) ? 0
+ 		   : inc_recurse && ndx != cur_flist->ndx_start - 1 ? -1
+ 		   : 1;
++	int64 lenfile;	   	
+ 
+ 	if (DEBUG_GTE(GENR, 1))
+ 		rprintf(FINFO, "recv_generator(%s,%d)\n", fname, ndx);
+@@ -1660,16 +1662,39 @@
+ 		goto cleanup;
+ 	}
+ 
+-	if (update_only > 0 && statret == 0
+-	    && cmp_time(sx.st.st_mtime, file->modtime) > 0) {
+-		if (INFO_GTE(SKIP, 1))
+-			rprintf(FINFO, "%s is newer\n", fname);
++	
++	//rprintf(FINFO, "MDOE(%d,%d)\n", ignore_non_existing, delete_mode);
++	if(ignore_non_existing > 0 && delete_mode == 0){
++		lenfile = F_LENGTH(file);
++		exist_size += lenfile;
++		
++		FILE *fp1 = NULL; 
++		fp1 = fopen("/tmp/transferExistSize", "wb+");
++		fprintf(fp1,"%lld\n",exist_size);
++		fclose(fp1);
++		
++		rprintf(FINFO, "filesize %lld, transferred_size_in_bytes %lld\n", lenfile, exist_size);
++	}
++	
++	if (update_only > 0 && statret == 0){
++		if(cmp_time(sx.st.st_mtime, file->modtime) != 0 || (sx.st.st_size != F_LENGTH(file)) )
++		{
++			//if (INFO_GTE(SKIP, 1))
++			//	rprintf(FINFO, "%s is newer\n", fname);
++			//rprintf(FINFO, "fname %s, gen mapped size %s, F_LENGTH size %d\n",
++			//	fname, big_num(sx.st.st_size), F_LENGTH(file));
++			
++			//rprintf(FINFO, "fname %s, time_differs %d\n",fname, cmp_time(file->modtime, sx.st.st_mtime));
++			//rprintf(FINFO, "update_only %d, statret %d\n",update_only, statret);
++		
++			rprintf(FINFO, "RSYNC_delete_ITEM %s\n", fname);
+ #ifdef SUPPORT_HARD_LINKS
+ 		if (F_IS_HLINKED(file))
+ 			handle_skipped_hlink(file, itemizing, code, f_out);
+ #endif
+ 		goto cleanup;
+ 	}
++	}
+ 
+ 	fnamecmp_type = FNAMECMP_FNAME;
+ 
+diff -uNr rsync-3.1.1/log.c new-rsync-3.1.1/log.c
+--- rsync-3.1.1/log.c	2014-01-27 01:29:15.000000000 +0800
++++ new-rsync-3.1.1/log.c	2015-09-10 11:59:14.790095492 +0800
+@@ -853,14 +853,14 @@
+ 	} else if (!INFO_GTE(DEL, 1) && !stdout_format)
+ 		;
+ 	else {
+-		fmt = stdout_format_has_o_or_i ? stdout_format : "deleting %n";
++		fmt = stdout_format_has_o_or_i ? stdout_format : "log_delete %n";
+ 		log_formatted(FCLIENT, fmt, "del.", &x.file, fname, ITEM_DELETED, NULL);
+ 	}
+ 
+ 	if (!logfile_name || dry_run || !logfile_format)
+ 		return;
+ 
+-	fmt = logfile_format_has_o_or_i ? logfile_format : "deleting %n";
++	fmt = logfile_format_has_o_or_i ? logfile_format : "log_delete %n";
+ 	log_formatted(FLOG, fmt, "del.", &x.file, fname, ITEM_DELETED, NULL);
+ }
+ 
+diff -uNr rsync-3.1.1/main.c new-rsync-3.1.1/main.c
+--- rsync-3.1.1/main.c	2014-01-27 01:29:15.000000000 +0800
++++ new-rsync-3.1.1/main.c	2015-09-10 11:59:44.010406516 +0800
+@@ -104,6 +104,8 @@
+ int batch_gen_fd = -1;
+ int sender_keeps_checksum = 0;
+ 
++char *backup_path;
++
+ /* There's probably never more than at most 2 outstanding child processes,
+  * but set it higher, just in case. */
+ #define MAXCHILDPROCS 7
+@@ -1530,6 +1532,7 @@
+ 	our_uid = MY_UID();
+ 	our_gid = MY_GID();
+ 	am_root = our_uid == 0;
++	backup_path = orig_argv[orig_argc-1];
+ 
+ 	memset(&stats, 0, sizeof(stats));
+ 
+diff -uNr rsync-3.1.1/options.c new-rsync-3.1.1/options.c
+--- rsync-3.1.1/options.c	2014-06-15 00:55:37.000000000 +0800
++++ new-rsync-3.1.1/options.c	2015-09-10 12:01:13.390381193 +0800
+@@ -118,6 +118,7 @@
+ int max_delete = INT_MIN;
+ OFF_T max_size = -1;
+ OFF_T min_size = -1;
++OFF_T exist_size = -1;
+ int ignore_errors = 0;
+ int modify_window = 0;
+ int blocking_io = -1;
+diff -uNr rsync-3.1.1/progress.c new-rsync-3.1.1/progress.c
+--- rsync-3.1.1/progress.c	2014-02-25 02:07:18.000000000 +0800
++++ new-rsync-3.1.1/progress.c	2015-09-10 13:26:26.319534758 +0800
+@@ -70,7 +70,12 @@
+ 	unsigned long diff;
+ 	double rate, remain;
+ 	int pct;
+-
++	/*Jeff.Yao 2014,07,01 echo size {*/
++	//FILE *fp1 = NULL; 
++	//fp1 = fopen("/tmp/transfer_size", "w+");
++	//fprintf(fp1,"transferred_size_in_bytes=%lld\n",ofs);
++	//fclose(fp1);
++	/*} Jeff.Yao 2014,07,01 echo echo size */
+ 	if (is_last) {
+ 		int len = snprintf(eol, sizeof eol,
+ 			" (xfr#%d, %s-chk=%d/%d)\n",
+diff -uNr rsync-3.1.1/sender.c new-rsync-3.1.1/sender.c
+--- rsync-3.1.1/sender.c	2014-06-09 01:42:14.000000000 +0800
++++ new-rsync-3.1.1/sender.c	2015-09-10 13:26:01.406381431 +0800
+@@ -21,6 +21,7 @@
+ 
+ #include "rsync.h"
+ #include "inums.h"
++#include <io.h>
+ 
+ extern int do_xfers;
+ extern int am_server;
+@@ -46,6 +47,7 @@
+ extern int file_old_total;
+ extern struct stats stats;
+ extern struct file_list *cur_flist, *first_flist, *dir_flist;
++extern char *backup_path;
+ 
+ BOOL extra_flist_sending_enabled;
+ 
+@@ -201,6 +203,8 @@
+ 	int f_xfer = write_batch < 0 ? batch_fd : f_out;
+ 	int save_io_error = io_error;
+ 	int ndx, j;
++	int des_path = -1;
++	int source_path = -1;
+ 
+ 	if (DEBUG_GTE(SEND, 1))
+ 		rprintf(FINFO, "send_files starting\n");
+@@ -210,7 +214,11 @@
+ 			send_extra_file_list(f_out, MIN_FILECNT_LOOKAHEAD);
+ 			extra_flist_sending_enabled = !flist_eof;
+ 		}
+-
++		/*Jeff.Yao, 20140716, add error handle for destination path {*/
++		des_path	= access(backup_path, F_OK);
++		if (des_path < 0)
++			exit_cleanup(RERR_PARTIAL);
++		/*Jeff.Yao, 20140716, add error handle for destination path }*/
+ 		/* This call also sets cur_flist. */
+ 		ndx = read_ndx_and_attrs(f_in, f_out, &iflags, &fnamecmp_type,
+ 					 xname, &xlen);
+@@ -258,7 +266,11 @@
+ 
+ 		if (DEBUG_GTE(SEND, 1))
+ 			rprintf(FINFO, "send_files(%d, %s%s%s)\n", ndx, path,slash,fname);
+-
++		/*Jeff.Yao, 20140721, add error handle for destination path {*/
++		source_path = access(path, F_OK);
++		if (source_path < 0)
++			exit_cleanup(RERR_PARTIAL);
++		/*Jeff.Yao, 20140721, add error handle for destination path {*/
+ #ifdef SUPPORT_XATTRS
+ 		if (preserve_xattrs && iflags & ITEM_REPORT_XATTR && do_xfers
+ 		 && !(want_xattr_optim && BITS_SET(iflags, ITEM_XNAME_FOLLOWS|ITEM_LOCAL_CHANGE)))

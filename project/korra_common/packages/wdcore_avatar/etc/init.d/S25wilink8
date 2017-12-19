@@ -1,0 +1,43 @@
+#!/bin/sh
+#
+# Start RTL8811au driver....
+#
+
+source /etc/nas/config/wifinetwork-param.conf
+
+case "$1" in
+  start)
+	echo "Starting rtl8811au driver ..."
+	
+	if [ "$AP_ADAPTIVITY" == "" ] || [ "$AP5G_ADAPTIVITY" == "" ]; then
+		AP5G_ADAPTIVITY=0
+		AP_ADAPTIVITY=0
+	fi
+	
+	echo "5G rtw_adaptivity_en set to $AP5G_ADAPTIVITY" >> /tmp/wifi_adaptivity.log
+	echo "2G rtw_adaptivity_en set to $AP_ADAPTIVITY" >> /tmp/wifi_adaptivity.log
+	
+	insmod /lib/modules/3.10.24-rtk-nas/kernel/drivers/net/wireless/8811au.ko rtw_adaptivity_en=$AP5G_ADAPTIVITY rtw_vht_enable=2
+	insmod /lib/modules/3.10.24-rtk-nas/kernel/drivers/net/wireless/8189es.ko rtw_adaptivity_en=$AP_ADAPTIVITY
+	
+	#insmod /lib/modules/3.10.24-rtk-nas/kernel/drivers/net/wireless/8811au.ko rtw_channel_plan=127 rtw_vht_enable=2
+	#insmod /lib/modules/3.10.24-rtk-nas/kernel/drivers/net/wireless/8811au.ko rtw_vht_enable=2
+	#insmod /lib/modules/3.10.24-rtk-nas/kernel/drivers/net/wireless/8189es.ko
+	#echo 9 > /proc/sys/kernel/printk	
+	#/sbin/wifi_scanning_pdate.sh ACS > /dev/null 2>&1 &
+
+    #move 11ac driver irq to core 2, 11n driver irq to core 1 for performance tuning 
+    echo 2 > /proc/irq/53/smp_affinity
+    echo 1 > /proc/irq/77/smp_affinity
+
+	;;
+  stop)
+	;;
+  restart|reload)
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?

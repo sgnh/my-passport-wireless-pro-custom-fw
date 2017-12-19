@@ -1,0 +1,187 @@
+#!/bin/bash
+#
+# Starts hostapd.
+#
+
+HOSTAPD_EXE=/usr/sbin/hostapd
+HOSTAPD_2G4_CONF=/etc/hostapd/hostapd.conf.2G
+HOSTAPD_5G_CONF=/etc/hostapd/hostapd.conf.5G
+
+source /etc/nas/config/wifinetwork-param.conf
+
+cmd=$1
+cmd2=$2
+
+if [ "$cmd2" == "" ] || [ "$cmd2" == "all" ]; then
+	iface=all
+elif [ "$cmd2" == "wlan1" ]; then
+	iface=wlan1
+elif [ "$cmd2" == "wlan3" ]; then
+	iface=wlan3
+fi
+
+
+NetworkParamCheck(){
+	if [ ! -f "/etc/nas/config/wifinetwork-param.conf" ]; then
+        cp -a /etc/nas/config/wifinetwork-param.default.conf /etc/nas/config/wifinetwork-param.conf
+        . /etc/nas/config/wifinetwork-param.conf 2>/dev/null
+	else
+        Apinface=`cat /etc/nas/config/wifinetwork-param.conf | grep -rsw AP_IFACE`
+        Cliinface=`cat /etc/nas/config/wifinetwork-param.conf | grep STA_IFACE`
+
+        if [ "$Apinface" != "AP_IFACE=wlan3" ] || [ "$Cliinface" != "STA_IFACE=wlan0" ]; then
+            cp -a /etc/nas/config/wifinetwork-param.default.conf /etc/nas/config/wifinetwork-param.conf
+            . /etc/nas/config/wifinetwork-param.conf 2>/dev/null
+        fi
+	fi
+}
+
+NetworkIfaceCheck(){
+	if [ ! -f "/etc/network/interfaces" ]; then
+		cp -a /etc/network/interfaces_bak /etc/network/interfaces	
+	else
+		DHCP=`cat /etc/network/interfaces | grep dhcp`
+		Static=`cat /etc/network/interfaces | grep static`
+		if [ "$DHCP" == "" ] && [ "$Static" == "" ]; then
+			cp -a /etc/network/interfaces_bak /etc/network/interfaces
+		fi
+	fi
+}
+
+NetworkDhcpdCheck(){
+	if [ ! -f "/etc/dhcpd.conf" ]; then
+		cp -a /etc/dhcpd.conf.bak /etc/dhcpd.conf	
+	else
+		maxlease=`cat /etc/dhcpd.conf | grep "604800"`
+		defaultlease=`cat /etc/dhcpd.conf | grep "86400" | head -1`
+		if [ "$maxlease" != "max-lease-time 604800;" ] && [ "$defaultlease" != "default-lease-time 86400;" ]; then	
+			cp -a /etc/dhcpd.conf.bak /etc/dhcpd.conf	
+		fi
+	fi
+}
+
+function hostapdConf_check(){
+	#if [ ! -f "/etc/hostapd/hostapd.conf" ]; then
+	#		cp -a /etc/hostapd/hostapd.default.conf /etc/hostapd/hostapd.conf
+	#		wifi-restart AP
+	#	else
+	#		interface=`cat /etc/hostapd/hostapd.conf | grep -rsw interface`
+	#		driver=`cat /etc/hostapd/hostapd.conf | grep driver`
+	#		preamble=`cat /etc/hostapd/hostapd.conf | grep preamble`
+	#		dtim_period=`cat /etc/hostapd/hostapd.conf | grep dtim_period`
+	#		if [ "$interface" != "interface=wlan1" ] || [ "$driver" != "driver=nl80211" ] || [ "$preamble" != "preamble=1" ] || [ "$dtim_period" != "dtim_period=2"  ]; then
+	#			cp -a /etc/hostapd/hostapd.default.conf /etc/hostapd/hostapd.conf
+	#			wifi-restart AP
+	#		else
+	#			if [ ! -f "/tmp/CurrentChannel" ]; then
+	#				if [ "$AP_CHANNEL" == "0" ]; then 
+	#					sed -i 's/channel=.*/channel='${AP_CHANNEL}'/' /etc/hostapd/hostapd.conf
+	#				fi
+	#			fi
+	#			/usr/sbin/hostapd /etc/hostapd/hostapd.conf &
+	#		fi
+	#	fi
+	
+	echo "OK"
+}
+
+start() {
+	if [ "$AP_HOTSPOT" == "false" ] && [ "$AP5G_HOTSPOT" == "false" ]; then
+	 	exit 0
+	else
+		echo "Starting hostapd: " "$iface"
+		touch /tmp/WiFiApDebugModeEnabledLog
+		if [ ! -f "/tmp/ConnectionMode" ]; then
+			#ifconfig $AP_IFACE $AP_IP netmask $AP_MASK up
+			mv /dev/random /dev/random.orig
+			ln -s /dev/urandom /dev/random
+			echo "ApMode" > /tmp/ConnectionMode
+		fi
+		
+		isBr=`brctl show | grep br0 | wc -l`
+		if [ "${isBr}" == "0" ]; then
+			brctl addbr br0
+			ifconfig br0 $AP_IP netmask $AP_MASK up
+		fi
+		if [ "$iface" == "all" ]; then
+			if [ "$AP_HOTSPOT" == "true" ]; then
+				ifconfig wlan3 0.0.0.0 up
+				${HOSTAPD_EXE} /etc/hostapd/hostapd.conf.2G &
+				#start-stop-daemon -S -q -p /var/run/hostapd.pid --exec $HOSTAPD_EXE $HOSTAPD_2G4_CONF -b //formpuse
+			fi
+			if [ "$AP5G_HOTSPOT" == "true" ]; then
+				ifconfig wlan1 0.0.0.0 up
+				${HOSTAPD_EXE} /etc/hostapd/hostapd.conf.5G &
+				#start-stop-daemon -S -q -p /var/run/hostapd.pid --exec $HOSTAPD_EXE $HOSTAPD_5G_CONF -b
+			fi
+		elif [ "$iface" == "wlan3" ]; then
+			if [ "$AP_HOTSPOT" == "true" ]; then
+				ifconfig wlan3 0.0.0.0 up
+				${HOSTAPD_EXE} /etc/hostapd/hostapd.conf.2G &
+				#start-stop-daemon -S -q -p /var/run/hostapd.pid --exec $HOSTAPD_EXE $HOSTAPD_2G4_CONF -b //formpuse
+			fi
+		elif [ "$iface" == "wlan1" ]; then
+			if [ "$AP5G_HOTSPOT" == "true" ]; then
+				ifconfig wlan1 0.0.0.0 up
+				${HOSTAPD_EXE} /etc/hostapd/hostapd.conf.5G &
+				#start-stop-daemon -S -q -p /var/run/hostapd.pid --exec $HOSTAPD_EXE $HOSTAPD_5G_CONF -b
+			fi
+		fi
+		
+	fi
+	
+    ifconfig $AP_IFACE promisc
+    ifconfig $AP5G_IFACE promisc
+	echo "OK"
+	
+}
+stop() {
+	echo -n "Stopping hostapd: " "$iface"
+	if [ "$iface" == "all" ]; then
+		killall hostapd
+		ifconfig wlan3 down
+		ifconfig wlan1 down
+	elif [ "$iface" == "wlan3" ]; then
+		hostapd_wlan3=`ps aux | grep "/etc/hostapd/hostapd.conf.2G" | awk '{print $1}' | head -n 1`
+		kill -15 "$hostapd_wlan3"
+		ifconfig wlan3 down
+	elif [ "$iface" == "wlan1" ]; then
+		hostapd_wlan1=`ps aux | grep "/etc/hostapd/hostapd.conf.5G" | awk '{print $1}' | head -n 1`
+		kill -15 "$hostapd_wlan1"
+		ifconfig wlan1 down
+	fi
+	#start-stop-daemon -K -q -p /var/run/hostapd.pid
+	echo "OK"
+}
+restart() {
+	stop
+	NetworkParamCheck
+  	NetworkIfaceCheck
+  	NetworkDhcpdCheck
+	start
+    #/usr/local/sbin/hostapd /etc/hostapd/hostapd.conf.5G &
+    #/usr/local/sbin/hostapd /etc/hostapd/hostapd.conf.2G &
+}
+
+case "$1" in
+  start)
+  	NetworkParamCheck
+  	NetworkIfaceCheck
+  	NetworkDhcpdCheck
+	start
+	#/usr/local/sbin/hostapd /etc/hostapd/hostapd.conf.5G &
+	#/usr/local/sbin/hostapd /etc/hostapd/hostapd.conf.2G &
+	;;
+  stop)
+	stop
+	;;
+  restart|reload)
+	restart
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?
+

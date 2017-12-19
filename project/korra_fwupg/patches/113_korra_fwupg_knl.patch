@@ -1,0 +1,13 @@
+--- linux-orig/arch/arm/boot/dts/rtd-119x-nas-rescue.dts	2016-01-15 02:30:15.100255665 +0800
++++ linux-custom/arch/arm/boot/dts/rtd-119x-nas-rescue.dts	2016-01-23 20:11:16.328284269 +0800
+@@ -128,5 +128,10 @@
+     crsd@18010400 {
+ 	gpios = <&rtk_misc_gpio 41 1 0>; 		/*sd power , output, default high  (poweroff) */
+     };
++       rtc {
+ 
++                compatible = "Realtek,rtk119x-rtc";
++                reg = <0x1801b600 0x34>, <0x18007000 0xdc>;
++                rtc-base-year = <2016>;
++        };
+ };

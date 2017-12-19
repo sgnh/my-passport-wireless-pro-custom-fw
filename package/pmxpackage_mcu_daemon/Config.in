@@ -1,0 +1,5 @@
+config BR2_PACKAGE_PMXPACKAGE_MCU_DAEMON
+	bool "pmxpackage(mcu_deamon)"
+	help
+	  The primax package(mcu_deamon) MCU communication for Avatar device
+

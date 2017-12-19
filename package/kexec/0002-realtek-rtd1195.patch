@@ -1,0 +1,11 @@
+--- kexec-2.0.8.orig/kexec/arch/arm/kexec-zImage-arm.c	2016-01-21 18:37:30.438332509 +0800
++++ kexec-2.0.8/kexec/arch/arm/kexec-zImage-arm.c	2014-07-24 16:11:22.000000000 +0800
+@@ -511,7 +511,8 @@
+ 		 */
+ 		dtb_offset = initrd_base + initrd_size + getpagesize();
+ 		dtb_offset = _ALIGN_DOWN(dtb_offset, getpagesize());
++		dtb_offset = 0x01ff2000;
+ 
+ 		add_segment(info, dtb_buf, dtb_length,
+ 		            dtb_offset, dtb_length);
+

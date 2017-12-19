@@ -1,0 +1,11 @@
+[Unit]
+Description=Primax wilink8 RC Script (S25wilink8)
+DefaultDependencies=no
+After=systemd-remount-fs.service systemd-modules-load.service
+Before=sysinit.target shutdown.target primax-mdev.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash -c "/etc/init.d/S25wilink8 start"
+ExecStop=/bin/bash -c "/etc/init.d/S25wilink8 stop"

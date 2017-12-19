@@ -1,0 +1,20 @@
+kernel/fs/isofs/isofs.ko:
+kernel/fs/udf/udf.ko:
+kernel/crypto/sha1_generic.ko:
+kernel/drivers/net/usb/cdc_ether.ko: kernel/drivers/net/usb/usbnet.ko
+kernel/drivers/net/usb/r815x.ko: kernel/drivers/net/usb/cdc_ether.ko kernel/drivers/net/usb/usbnet.ko
+kernel/drivers/net/usb/cdc_subset.ko: kernel/drivers/net/usb/usbnet.ko
+kernel/drivers/net/usb/usbnet.ko:
+kernel/drivers/usb/host/ehci-hcd.ko:
+kernel/drivers/usb/host/ehci-platform.ko: kernel/drivers/usb/host/ehci-hcd.ko
+kernel/drivers/usb/host/ehci-rtk.ko: kernel/drivers/usb/host/ehci-hcd.ko
+kernel/drivers/usb/host/ohci-hcd.ko:
+kernel/drivers/mmc/host/rtksd_mod.ko:
+kernel/drivers/gator/gator.ko:
+kernel/net/netfilter/xt_hashlimit.ko:
+kernel/net/ipv6/netfilter/nf_conntrack_ipv6.ko:
+kernel/lib/crc-ccitt.ko:
+pmxcache/pmxfs/pmxfs.ko: pmxcache/pmxcache/pmxcache.ko
+pmxcache/pmxcache/pmxcache.ko:
+kernel/external/ufsd/ufsd.ko: kernel/external/ufsd/jnl.ko
+kernel/external/ufsd/jnl.ko:

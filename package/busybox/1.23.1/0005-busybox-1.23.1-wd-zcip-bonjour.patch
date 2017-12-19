@@ -1,0 +1,48 @@
+diff -uNr busybox-1.23.1/networking/zcip.c new-busybox-1.23.1/networking/zcip.c
+--- busybox-1.23.1/networking/zcip.c	2015-01-27 16:48:58.000000000 +0800
++++ new-busybox-1.23.1/networking/zcip.c	2016-02-15 19:37:14.058319515 +0800
+@@ -60,7 +60,7 @@
+ 	LINKLOCAL_ADDR = 0xa9fe0000,
+ 
+ /* protocol timeout parameters, specified in seconds */
+-	PROBE_WAIT = 1,
++	PROBE_WAIT = 2,
+ 	PROBE_MIN = 1,
+ 	PROBE_MAX = 2,
+ 	PROBE_NUM = 3,
+@@ -404,7 +404,7 @@
+ 			case RATE_LIMIT_PROBE:
+ 				// timeouts in the RATE_LIMIT_PROBE state mean no conflicting ARP packets
+ 				// have been received, so we can move immediately to the announce state
+-				state = ANNOUNCE;
++				state = PROBE;
+ 				nclaims = 0;
+ 				VDBG("announce/%u %s@%s\n",
+ 						nclaims, argv_intf, inet_ntoa(ip));
+@@ -420,7 +420,7 @@
+ 					nclaims++;
+ 					VDBG("announce/%u %s@%s\n",
+ 							nclaims, argv_intf, inet_ntoa(ip));
+-					timeout_ms = ANNOUNCE_INTERVAL * 1000;
++					//timeout_ms = ANNOUNCE_INTERVAL * 1000;
+ 					arp(/* ARPOP_REQUEST, */
+ 							/* &eth_addr, */ ip,
+ 							&eth_addr, ip);
+@@ -547,13 +547,15 @@
+ 					conflicts++;
+ 					if (conflicts >= MAX_CONFLICTS) {
+ 						VDBG("%s ratelimit\n", argv_intf);
+-						timeout_ms = RATE_LIMIT_INTERVAL * 1000;
++						timeout_ms = RATE_LIMIT_INTERVAL * 1000 + 30000;
+ 						state = RATE_LIMIT_PROBE;
++					}else{
++						 timeout_ms = 0;
+ 					}
+ 
+ 					// restart the whole protocol
+ 					ip.s_addr = pick_nip();
+-					timeout_ms = 0;
++					//timeout_ms = 0;
+ 					nprobes = 0;
+ 					nclaims = 0;
+ 				}

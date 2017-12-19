@@ -1,0 +1,5 @@
+config BR2_PACKAGE_PMXPACKAGE_HIDDENFILE
+	bool "pmxpackage(hiddenFile)"
+	help
+	  The primax package(hiddenFile) hidden folder and files for Avatar device
+

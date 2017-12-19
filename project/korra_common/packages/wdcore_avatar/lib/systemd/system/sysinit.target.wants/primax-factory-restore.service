@@ -1,0 +1,10 @@
+[Unit]
+Description=Primax factory-restore RC Script (S47factory-restore)
+DefaultDependencies=no
+After=systemd-remount-fs.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash -c "/etc/init.d/S47factory-restore start"
+ExecStop=/bin/bash -c "/etc/init.d/S47factory-restore stop"

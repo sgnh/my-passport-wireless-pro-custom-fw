@@ -1,0 +1,83 @@
+#!/bin/sh
+#
+# Start initialize
+#
+
+case "$1" in
+  start)
+    #set mcu reset pin low
+    echo 39 > /sys/class/gpio/export
+    echo out > /sys/class/gpio/gpio39/direction
+    echo 0 > /sys/class/gpio/gpio39/value
+    #set ACT LED1234
+    echo 40 > /sys/class/gpio/export
+    echo 42 > /sys/class/gpio/export
+    echo 43 > /sys/class/gpio/export
+    echo 47 > /sys/class/gpio/export
+    echo out > /sys/class/gpio/gpio40/direction
+    echo out > /sys/class/gpio/gpio42/direction
+    echo out > /sys/class/gpio/gpio43/direction
+    echo out > /sys/class/gpio/gpio47/direction
+    echo 0 > /sys/class/gpio/gpio40/value
+    echo 0 > /sys/class/gpio/gpio42/value
+    echo 0 > /sys/class/gpio/gpio43/value
+    echo 0 > /sys/class/gpio/gpio47/value
+    
+    [ ! -f /etc/nas/config/wifinetwork-param.conf ] && cp -a /etc/nas/config/wifinetwork-param.conf.korra /etc/nas/config/wifinetwork-param.conf
+      ln -s /etc/nas/config/wifinetwork-param.default.conf.korra /etc/nas/config/wifinetwork-param.default.conf
+    /bin/mcu_daemon & > /dev/null 2>&1
+    setserial /dev/ttyS1 low_latency
+    ln -sf /tmp /var/tmp
+    rm -f /var/lock
+    mkdir -p /tmp/lock
+    ln -sf /tmp/lock /var/lock
+    echo "192.168.60.1" > /tmp/resolv.conf
+    if [ ! -f /tmp/cleanupShare ]; then
+       rm -Rf /shares/*
+       touch /tmp/cleanupShare
+    fi
+    if [ ! -f "/var/lock/addDevice" ]; then
+       touch /var/lock/addDevice
+    fi
+    if [ ! -f "/var/lock/dhcpServer" ]; then
+       touch /var/lock/dhcpServer
+    fi
+    cp -a /etc/samba/smb-shares.conf.default /etc/samba/smb-shares.conf
+    cp -a /etc/afp.conf.default /etc/afp.conf
+    if [ -L "/shares/Storage" ]; then
+        echo "Share Storage is in link, setup Storage as folder"
+        rm /shares/Storage
+        mkdir -p /shares/Storage
+    fi
+    if [ ! -d "/shares/Storage" ]; then
+        mkdir -p /shares/Storage
+    fi
+
+    #Clean up FTP folder
+    rm -Rf /var/ftp/*&
+
+    if [ ! -f "/etc/.eula_accepted" ]; then
+    	touch /tmp/notacepteula
+    fi
+    touch /tmp/HybridEnabled
+    if [ ! -f /etc/HDSerial ]; then
+        HDSerial=`hdparm -I /dev/sda | sed -n -e 's/.*Serial Number:\(.*\)/\1/p' | sed -e 's/^[ \t]*//' | awk '{gsub("WD-","",$0); print $0}'`
+        echo "$HDSerial" > /etc/HDSerial
+    fi
+    cp /etc/HDSerial /tmp/HDSerial
+    echo "OK"
+	;;
+  stop)
+    echo -n "Stopping initialize system: "
+    umount /sys/kernel/debug/
+    sync
+    echo "OK"
+	;;
+  restart|reload)
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?

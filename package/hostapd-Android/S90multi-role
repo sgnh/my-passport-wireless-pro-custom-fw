@@ -1,0 +1,106 @@
+#!/bin/sh
+#
+# Starts multi-role.
+#
+
+source /etc/nas/config/wifinetwork-param.conf
+restart=0
+start() {
+	
+	if [ ! -f "/tmp/ApCliRetry" ]; then
+		echo 0 > /tmp/ApCliRetry
+	fi
+
+	if [ ${STA_CLIENT} == "true" ]; then
+		if [ -f "/tmp/clientStatus" ]; then
+			rm /tmp/clientStatus
+		fi
+		/sbin/ifconfig wlan0 up
+		echo "Regenerate wpa supplicant conf"		
+		echo -n "Starting multi-role: "    
+		/etc/init.d/S45ifplugd restart	
+	
+		echo 30 > /proc/sys/net/ipv4/netfilter/ip_conntrack_udp_timeout
+		echo 16384 > /proc/sys/net/ipv4/netfilter/ip_conntrack_max
+		echo 3600 >  /proc/sys/net/netfilter/nf_conntrack_tcp_timeout_established
+
+		echo 8192 > /proc/sys/net/nf_conntrack_max
+		echo 16384 > /proc/sys/net/ipv4/netfilter/ip_conntrack_max
+		echo 1 > /proc/sys/net/ipv4/ip_forward
+		/sbin/wifi-restart UPDATE_STA_CONF
+		/usr/sbin/wpa_supplicant -d -Dnl80211 -c/etc/wpa_supplicant.conf -i$STA_IFACE -B
+		/usr/sbin/iptables -F INPUT
+		/usr/sbin/iptables -F OUTPUT
+		/usr/sbin/iptables -t nat -A POSTROUTING -o $STA_IFACE -j MASQUERADE
+		#/usr/sbin/iptables -A INPUT -i wlan0 -p icmp --icmp-type echo-request -j DROP
+		#if [ -f "/tmp/ifplugd_trust" ]; then
+		#	rm /tmp/ifplugd_trust
+		#fi
+		
+		#wpa_cli -i wlan0 reconfigure
+   		#zcip wlan0 /etc/zcip.script
+   		
+   		/usr/sbin/iptables -A INPUT -i wlan0 -p tcp --dport 80 -j DROP
+		/usr/sbin/iptables -A INPUT -i wlan0 -p tcp --dport 5353 -j DROP
+		/usr/sbin/iptables -A INPUT -i wlan0 -p tcp --dport 9000 -j DROP
+		/usr/sbin/iptables -A INPUT -i wlan0 -p udp --dport 1900 -j DROP
+		/usr/sbin/iptables -A INPUT -i wlan0 -p udp --dport 137:138 -j DROP
+		/usr/sbin/iptables -A INPUT -i wlan0 -p tcp --dport 139 -j DROP
+		/usr/sbin/iptables -A INPUT -i wlan0 -p tcp --dport 445 -j DROP
+		/usr/sbin/iptables -A INPUT -i wlan0 -p tcp --dport 22 -j DROP
+		/usr/sbin/iptables -A INPUT -i wlan0 -p udp --dport 5353 -j DROP
+		/usr/sbin/iptables -A INPUT -i wlan0 -p tcp --dport 548 -j DROP
+		/usr/sbin/iptables -A INPUT -i wlan0 -p tcp --dport 21 -j DROP
+   		
+		echo "OK"
+	fi
+	if [ ! -f "/tmp/WPStatus" ]; then
+		echo NONE  > /tmp/WPStatus
+	fi
+	
+	if [ ! -f "/tmp/wifinetwork-remembered.conf" ]; then
+		ConnNum=`cat /etc/nas/config/wifinetwork-remembered.conf | wc -l`
+		if [ "$ConnNum" != "0" ]; then
+			/usr/local/sbin/wifi_client_ap_scan.sh --remembered signalConnect > /tmp/RememberNetwork1
+			/usr/local/sbin/wifi_client_ap_retry.sh 2 >/dev/null 2>&1 &
+		fi
+		#cat /etc/nas/config/wifinetwork-remembered.conf | head -1  > /tmp/wifinetwork-remembered.conf
+	fi
+}
+stop() {
+    echo -n "Stopping multi-role: "
+    wpa_cli -i wlan0 disconnect
+    #start-stop-daemon -K -q -p /var/run/wpa_supplicant.pid
+    iptables -t nat -D POSTROUTING -o $STA_IFACE -j MASQUERADE
+    #if [ -f "/tmp/ifplugd_trust" ]; then
+    #    rm /tmp/ifplugd_trust
+    #fi
+    killall wpa_supplicant
+    killall zcip
+    /etc/init.d/S45ifplugd stop
+    /sbin/ifdown wlan0
+    /sbin/ifconfig wlan0 down
+    echo "OK"
+}
+restart() {
+    stop
+    start
+}
+
+case "$1" in
+    start)
+        start
+        ;;
+    stop)
+        stop
+        ;;
+    restart|reload)
+    	restart=1
+        restart
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart}"
+        exit 1
+esac
+
+exit $?

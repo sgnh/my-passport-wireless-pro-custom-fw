@@ -1,0 +1,9 @@
+config BR2_PACKAGE_HOST_DPKG
+	bool "host dpkg"
+	help
+	  This package provides the low-level infrastructure for handling
+	  the installation and removal of Debian software packages.
+	  You could use it from a post-build script, or from project-specific
+	  packages, to create .deb files for use on target.
+
+	  http://wiki.debian.org/Teams/Dpkg

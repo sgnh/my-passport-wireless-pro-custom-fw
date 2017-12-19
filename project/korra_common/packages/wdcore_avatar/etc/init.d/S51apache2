@@ -1,0 +1,55 @@
+#!/bin/bash
+#
+# Start apache2
+#
+
+APACHE_BIN=/usr/local/apache2/bin/httpd
+APACHE_PID=/var/run/httpd.pid
+APACHE_CONF=/etc/apache2/httpd.conf
+
+source /etc/nas/config/wifinetwork-param.conf
+CONF_REGENERATE()
+{	
+	cp -a /etc/apache2/httpd.conf.bak /etc/apache2/httpd.conf
+	if [ -f "/etc/.device_Unconfigured" ]; then
+		#cp -a /var/www/indexOrigin.php /var/www/index.php
+		cat /etc/apache2/extra/httpd-captiveportal.conf >> /etc/apache2/httpd.conf
+	fi
+}
+
+Apache_start()
+{
+	CONF_REGENERATE
+	#rm /var/logs/authdigest_shm*
+	umask 0000
+	start-stop-daemon -S -q -p $APACHE_PID --exec $APACHE_BIN -- -f $APACHE_CONF -k graceful
+	#$APACHE_BIN -k graceful -f $APACHE_CONF
+}
+
+
+Apache_stop()
+{
+	start-stop-daemon -K -x $APACHE_BIN -- -k graceful
+	#$APACHE_BIN -k graceful-stop
+}
+
+case "$1" in
+  start)
+	echo "Starting apache2 ..."
+	Apache_start
+	;;
+  stop)
+  	Apache_stop
+	;;
+  restart|reload)
+  	Apache_stop
+  	sleep 1
+  	Apache_start
+  	#$APACHE_BIN -k restart
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?

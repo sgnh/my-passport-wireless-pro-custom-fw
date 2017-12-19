@@ -1,0 +1,204 @@
+#!/bin/sh
+#
+#
+
+RETVAL=0
+
+start() {
+
+	if [ -f /etc/group ]; then
+		cloudholders_existed=`cat /etc/group | grep "cloudholders" | wc -l`
+		if [ $cloudholders_existed == "0" ]; then
+			echo "cloudholders:x:2000:admin,root,www-data,daapd" >> /etc/group
+		fi
+	fi
+	if [ ! -f /tmp/HDSerial ]; then
+		HDSerial=`hdparm -I \`cat /tmp/HDDDevNode\` | sed -n -e 's/.*Serial Number:\(.*\)/\1/p' | sed -e 's/^[ \t]*//' | awk '{gsub("WD-","",$0); print $0}'`
+		echo "$HDSerial" > /tmp/HDSerial
+	else
+		HDSerial=`cat /tmp/HDSerial`
+	fi
+	
+	volumes_orion_db=`sqlite3 /usr/local/nas/orion/orion.db 'select drive_path from Volumes'`
+	for volume in ${volumes_orion_db}; do
+		volume_exist=`cat /proc/mounts | grep "${volume}" | wc -l`
+		if [ ${volume_exist} -eq 0 ]; then
+			volume_id=`sqlite3 /usr/local/nas/orion/orion.db "select volume_id from Volumes where drive_path == \"${volume}\""`
+			/usr/local/sbin/volume_mount.sh unmount ${volume_id}
+		fi
+	done
+	
+	FStype=`cat /proc/mounts | grep "/media/sdb1 " | cut -d " " -f 3`
+
+	echo -n "Starting volume_mount.sh: "
+	result=`sqlite3 /usr/local/nas/orion/orion.db 'select * from Volumes' | grep "${HDSerial}"_1  | wc -l`
+	if [ ${result} == "0" ]; then
+		/usr/local/sbin/volume_mount.sh mount "${HDSerial}"_1 "" `cat /tmp/MountedDevNode` ${FStype}
+		result=`sqlite3 /usr/local/nas/orion/orion.db 'select * from Volumes' | grep "${HDSerial}"_1  | wc -l`
+		if [ ${result} == "0" ]; then
+			sleep 1
+			/usr/local/sbin/volume_mount.sh mount "${HDSerial}"_1 "" `cat /tmp/MountedDevNode` ${FStype}
+		fi
+		result=`sqlite3 /usr/local/nas/orion/orion.db 'select * from Volumes' | grep "${HDSerial}"_1  | wc -l`
+	fi
+	if [ ${result} == "1" ]; then
+		RETVAL=0
+	else
+		RETVAL=1
+	fi
+	mountdevices=`find /tmp/ -name "*-info"`
+	for device in ${mountdevices} ; do
+		VolumeUUID=`cat ${device} | cut -f 2 -d ':'`
+		result=`sqlite3 /usr/local/nas/orion/orion.db 'select * from Volumes' | grep "${VolumeUUID}"  | wc -l`
+		if [ ${result} == "0" ]; then 
+			ShareName=`cat ${device} | cut -f 1 -d ':'`
+			DeviceMountPath=`cat ${device} | cut -f 3 -d ':'`
+			DevicePartitionNode=`cat ${device} | cut -f 4 -d ':'`
+			DeviceFSType=`cat ${device} | cut -f 5 -d ':'`
+			DeviceUUID=`cat ${device} | cut -f 6 -d ':'`
+			StorageType=`cat ${device} | cut -f 12 -d ':'`
+			DeviceReadOnly=`cat ${device} | cut -f 13 -d ':'`
+			/usr/local/sbin/volume_mount.sh mount "${VolumeUUID}" "${DeviceMountPath}" ${DevicePartitionNode} ${DeviceFSType} "${DeviceUUID}" ${StorageType} ${DeviceReadOnly}
+		fi
+	done
+	echo "done"
+
+	echo -n "Starting crud_share_db.sh: "
+	/usr/local/sbin/crud_share_db.sh create Storage /etc/samba/smb-shares.conf true
+	result=$?
+	if [ $result == "0" ]; then
+		sleep 1
+		/usr/local/sbin/crud_share_db.sh create Storage /etc/samba/smb-shares.conf true
+		result=$?
+		if [  $result == "0" ]; then
+			sleep 1
+			/usr/local/sbin/crud_share_db.sh create Storage /etc/samba/smb-shares.conf true
+			result=$?
+		fi
+	fi
+
+	if [ $result == "1" ]; then 
+		RETVAL2=0
+	else
+		RETVAL2=1
+	fi
+	echo "done"
+
+	/usr/local/sbin/middleware_startup.sh
+
+	if [ -f /tmp/HDDDevNode ]; then
+		smartctl -d sat -s on -S on `cat /tmp/HDDDevNode` > /dev/null 2>/dev/null
+	else
+		echo "No HDD presented!"
+	fi
+	
+	if [ -f /tmp/KLITE ]; then
+		/bin/monitor lite &
+	else
+		/bin/monitor &
+	fi
+	# check firmware upgrade
+	if [ -f "/fwupg"  ]; then
+		fwupg=`cat /fwupg`
+		if [ "${fwupg}" == "success" ]; then
+			/usr/local/sbin/sendAlert.sh 2003
+			if [ -d /media/sdb1_fuse/.wdcache/fwupg_images ]; then
+				rm -Rf /media/sdb1_fuse/.wdcache/fwupg_images
+			else
+				rm -Rf /media/sdb1/.wdcache/fwupg_images
+			fi
+			#source /etc/device_security.conf
+			#if [ "${device_security}" == "true" ]; then
+			#	echo "29;0" > /tmp/MCU_Cmd 2>/dev/null
+			#fi
+			if [ -f /FWupgfromSDCard ]; then
+				rm -f /FWupgfromSDCard
+				echo "" > /media/SDcard/update/UpdateDone
+			fi
+			if [ -f /FWupgfromHDD ]; then
+				rm -f /FWupgfromHDD
+				echo "" > /media/sdb1/update/UpdateDone
+			fi
+            if [ -f /FWupgfromInternet ]; then
+                rm -f /FWupgfromInternet
+                rm -f /media/sdb1/.wdcache/updateFile.deb
+                /usr/local/sbin/clearAlerts.sh 2002
+            fi
+		fi
+		rm /fwupg
+	fi
+
+	if [ -d /media/sdb1_fuse ]; then
+		/sbin/hiddenFile /media/sdb1_fuse/.wdmc
+		/sbin/hiddenFile /media/sdb1_fuse/.wdcache
+		/sbin/hiddenFile /media/sdb1_fuse/.USB
+	else
+		/sbin/hiddenFile /media/sdb1/.wdmc
+		/sbin/hiddenFile /media/sdb1/.wdcache
+		/sbin/hiddenFile /media/sdb1/.USB
+	fi
+	/sbin/refresh_contentdirs.sh
+	#[ $RETVAL -eq 0 -a $RETVAL2 -eq 0 ] && touch /tmp/RestAPIReady || \
+	[ $RETVAL -eq 0 ] && touch /tmp/RestAPIReady || \
+	   RETVAL=1
+
+	return $RETVAL
+}	
+
+stop() {
+	killall monitor
+#	if [ ! -f /tmp/HDSerial ]; then
+#		HDSerial=`hdparm -I \`cat /tmp/HDDDevNode\` | sed -n -e 's/.*Serial Number:\(.*\)/\1/p' | sed -e 's/^[ \t]*//' | awk '{gsub("WD-","",$0); print $0}'`
+#		echo "$HDSerial" > /tmp/HDSerial
+#	else
+#		HDSerial=`cat /tmp/HDSerial`
+#	fi
+	mountdevices=`find /tmp/ -name "*-info"`
+	for device in ${mountdevices} ; do
+		VolumeUUID=`cat ${device} | cut -f 2 -d ':'`
+		result=`sqlite3 /usr/local/nas/orion/orion.db 'select * from Volumes' | grep "${VolumeUUID}"  | wc -l`
+		if [ ${result} == "1" ]; then 
+			ShareName=`cat ${device} | cut -f 1 -d ':'`
+			DeviceMountPath=`cat ${device} | cut -f 3 -d ':'`
+			DevicePartitionNode=`cat ${device} | cut -f 4 -d ':'`
+			DeviceFSType=`cat ${device} | cut -f 5 -d ':'`
+			DeviceUUID=`cat ${device} | cut -f 6 -d ':'`
+			sed -i "/Begin DeviceUUID = ${DeviceUUID}/,/End DeviceUUID = ${DeviceUUID}/d" /etc/samba/smb-shares.conf
+			/usr/local/sbin/volume_mount.sh unmount "${VolumeUUID}"
+		fi
+	done	
+	echo -n "Shutting down crud_share_db.sh: "
+	RETVAL2=0
+	echo "done"
+
+	echo -n "Shutting down volume_mount.sh: "
+	RETVAL=0
+	echo "done"
+
+	/usr/local/sbin/middleware_shutdown.sh
+
+	[ $RETVAL -eq 0 -a $RETVAL2 -eq 0 ] && rm -f /tmp/RestAPIReady || \
+	return $RETVAL
+}	
+
+restart() {
+	stop
+	start
+}	
+
+case "$1" in
+  start)
+  	start
+	;;
+  stop)
+  	stop
+	;;
+  restart)
+  	restart
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?

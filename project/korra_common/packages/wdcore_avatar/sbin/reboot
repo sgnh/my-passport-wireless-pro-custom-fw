@@ -1,0 +1,5 @@
+#!/bin/sh
+/usr/local/sbin/sendHWCollect.sh 101 Reboot
+nohup /sbin/queueReboot.sh&
+exit 0
+

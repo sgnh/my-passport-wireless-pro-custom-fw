@@ -1,0 +1,170 @@
+#!/bin/sh
+# This script is used to replace hotplug for NAS
+
+PATH=/sbin:/usr/sbin:/bin:/usr/bin
+
+FNAME="[nas-loader_a]"
+
+DIRP="/tmp/usbmounts"
+DIRH="/tmp/hddmounts"
+HiddenV1=none
+HiddenV2=none
+HiddenV3=none
+#RecoveryFWversion
+RecoveryFWversion=none
+
+upgrade(){
+    tar xvf $1 updatefw -C /tmp
+    tar xvf $1 fw.version -C /tmp
+    
+    updateVersion=`cat /tmp/fw.version`
+    echo "updateVersion" $updateVersion
+    updateMinorVersion=`echo $updateVersion | awk -F. '{print $2}'`
+    echo "updateMinorVersion" $updateMinorVersion
+    RecoverMinorVersion=`echo $RecoveryFWversion | awk -F. '{print $2}'`
+    echo "RecoverMinorVersion" $RecoverMinorVersion
+    
+    if [ "${updateMinorVersion}" -ge "${RecoverMinorVersion}" ]; then
+		/tmp/updatefw $1 \
+    	&& return 0
+	fi
+    
+    return 1
+}
+
+check_recoveryFW_version()
+{
+	mount -t ext4 /dev/${HiddenV1}1 /mnt
+	if [ ! -f "/etc/FactoryFwVer" ]; then
+		RecoveryFWversion=`ls /mnt/MyPassport* | awk -F\/ '{print $NF}'`
+		uplog "RecoveryFWversion: "$RecoveryFWversion" "
+	else
+		tmpRFWV=`cat /etc/FactoryFwVer`
+		if [ "$tmpRFWV" == "none" ]; then
+			RecoveryFWversion=`ls /mnt/MyPassport* | awk -F\/ '{print $NF}'`
+			uplog "get RecoveryFWversion again: "$RecoveryFWversion" "
+		else
+			uplog "Recovery fw version exist "$tmpRFWV" "
+			RecoveryFWversion="$tmpRFWV"
+		fi
+	fi
+	umount /mnt
+}
+
+probe_hdd()
+{
+    vol=0
+    if [ -f /tmp/KLITE ]; then
+        #HDD_MODEL="My Passport 25BE" # Since we don't have Asmedia for Lite
+        HDD_MODEL="My Passport 25AF"
+    else
+        HDD_MODEL="My Passport 25AF"
+    fi
+    for diskV in /sys/block/sd*; do
+        vendor=`cat $diskV/device/vendor | awk '{print $1}'`
+        model=`cat $diskV/device/model`
+        #Temp for Korra and Korra Lite
+        [ "$model" == "My Passport 25AF" ] && HDD_MODEL="My Passport 25AF"
+        [ "$model" == "My Passport 25BE" ] && HDD_MODEL="My Passport 25BE"
+        if [ "$vendor" == "WD" ] && [ "$model" == "$HDD_MODEL" ]; then
+            size=`cat $diskV/size`
+            if [ $size -gt 4194304 ]; then
+                UserV=$diskV
+                echo "$diskV is user space"
+                #echo "/dev/${UserV}" > /tmp/HDDDevNode
+            else
+                #[ $minor -eq 0 ] && UserV=$diskV && echo "$diskV is user space"
+                vol=`expr $vol + 1`
+                [ $vol -eq 1 ] && HiddenV1=`echo $diskV | cut -d "/" -f 4`
+                [ $vol -eq 2 ] && HiddenV2=`echo $diskV | cut -d "/" -f 4`
+                [ $vol -eq 3 ] && HiddenV3=`echo $diskV | cut -d "/" -f 4`
+            fi
+        fi
+    done
+}
+
+[ ! -d "$DIRP" ] && mkdir "$DIRP"
+[ ! -d "$DIRH" ] && mkdir "$DIRH"
+
+probe_hdd
+check_recoveryFW_version
+mount /dev/${HiddenV2}1 /mnt
+mkdir -p /hwcollect
+mount /dev/${HiddenV1}2 /hwcollect
+/usr/local/sbin/sendHWCollect.sh 107 `cat /proc/uptime | cut -d " " -f 1`
+
+[ -f /mnt/saveconfigfiles.tar ] && cp /mnt/saveconfigfiles.tar /etc/
+if [ -f /mnt/rescuetotalfw.bin ]; then
+    echo "rescuetotalfw.bin found"
+    mcu_version2x=`cat /tmp/MCU_Version | grep "2." | wc -l`
+    mcu_version301=`cat /tmp/MCU_Version | grep "3.01" | wc -l`
+    if [ ${mcu_version2x} -eq 1 ] || [ ${mcu_version301} ]; then
+        echo "24;0;" > /tmp/MCU_Cmd
+        echo "17;1;" > /tmp/MCU_Cmd
+    fi
+    UserDisk=`cat /tmp/HDDDevNode`
+    md5sum /mnt/rescuetotalfw.bin
+    upgrade /mnt/rescuetotalfw.bin && rm -f /mnt/rescuetotalfw.bin
+    if [ -f $DIRH/$UserDisk/.wdcache/rescuetotalfw.bin ]; then
+        md5sum $DIRH/$UserDisk/.wdcache/rescuetotalfw.bin
+        upgrade $DIRH/$UserDisk/.wdcache/rescuetotalfw.bin && rm -f $DIRH/$UserDisk/.wdcache/rescuetotalfw.bin
+    fi
+    touch /tmp/.upgrading && exit
+fi
+
+#Going to Recovery Mode
+echo "24;0;" > /tmp/MCU_Cmd
+echo "17;1;" > /tmp/MCU_Cmd
+if [ -f /tmp/HDDDevNode ]; then
+    UserDisk=`cat /tmp/HDDDevNode`
+    if [ -f "$DIRH/$UserDisk/.wdcache/MyPassportWirelessGen2.bin" ]; then
+        echo "Cache FW found"
+        rm -f /etc/saveconfigfiles.tar /mnt/saveconfigfiles.tar
+		/usr/local/sbin/sendHWCollect.sh 102 RecoveryCache Start `cat /etc/version`
+        sync
+        upgrade $DIRH/$UserDisk/.wdcache/MyPassportWirelessGen2.bin && touch /tmp/.upgrading && exit
+    fi
+fi
+
+mount /dev/${HiddenV1}1 /opt
+
+while [ ! -f /tmp/.upgrading ]; do
+    for KNAME in `ls $DIRP/`; do
+        if [ -d "$DIRP/$KNAME/update"  ]; then
+            echo "Found update folder in $DIRP/$KNAME"
+            update_images=`find $DIRP/$KNAME/update -name "MyPassportWirelessGen2*.bin"`
+            for update_image in $update_images; do
+            	
+            	
+                if [ "$KNAME" == "SDcard" ]; then
+                    /usr/local/sbin/sendHWCollect.sh 102 RecoverySDCard Start `cat /etc/version`
+                else
+                    /usr/local/sbin/sendHWCollect.sh 102 RecoveryUSB Start `cat /etc/version`
+                fi
+                upgrade $update_image && touch /tmp/.upgrading && exit
+            done
+        fi
+    done
+    
+    for KNAME in `ls $DIRH/`; do
+        if [ -d "$DIRH/$KNAME/update"  ]; then
+            echo "Found update folder in $DIRH/$KNAME"
+            update_images=`find $DIRH/$KNAME/update -name "MyPassportWirelessGen2*.bin"`
+            for update_image in $update_images; do
+                /usr/local/sbin/sendHWCollect.sh 102 RecoveryHDD Start `cat /etc/version`
+                upgrade $update_image && touch /tmp/.upgrading && exit
+            done
+        fi
+    done
+
+    if [ -d "/opt" ]; then #Internal recovery image
+            update_images=`find /opt/ -name "MyPassportWirelessGen2*.bin"`
+            for update_image in $update_images; do
+                /usr/local/sbin/sendHWCollect.sh 102 RecoveryDefaultFW Start `cat /etc/version`
+                upgrade $update_image && touch /tmp/.upgrading && exit
+            done
+    fi
+
+    sleep 1
+done
+

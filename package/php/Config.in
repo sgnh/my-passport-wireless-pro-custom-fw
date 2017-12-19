@@ -1,0 +1,68 @@
+config BR2_PACKAGE_PHP
+	bool "php"
+	help
+	  PHP  is a widely-used general-purpose scripting
+	  language that is especially suited for Web development
+	  and can be embedded into HTML.
+
+	  http://www.php.net
+
+if BR2_PACKAGE_PHP
+
+source "package/php/Config.ext"
+
+config BR2_PACKAGE_PHP_APACHE
+       bool
+
+config BR2_PACKAGE_PHP_CLI
+       bool
+
+config BR2_PACKAGE_PHP_CGI
+       bool
+
+choice
+        prompt "Interface"
+        default BR2_PACKAGE_PHP_SAPI_CGI
+        help
+          Select the PHP interface(s).
+
+config BR2_PACKAGE_PHP_SAPI_APACHE
+	bool "Apache"
+	select BR2_PACKAGE_APACHE
+	select BR2_PACKAGE_PHP_APACHE
+	depends on !BR2_STATIC_LIBS # apache
+	depends on BR2_TOOLCHAIN_HAS_THREADS # apache
+	depends on BR2_USE_MMU # apr
+	help
+	  Apache module
+
+comment "apache module needs a toolchain w/ dynamic library, threads"
+	depends on BR2_USE_MMU
+	depends on BR2_STATIC_LIBS || !BR2_TOOLCHAIN_HAS_THREADS
+
+config BR2_PACKAGE_PHP_SAPI_CGI
+	bool "CGI"
+	# CGI uses fork()
+	depends on BR2_USE_MMU
+	select BR2_PACKAGE_PHP_CGI
+	help
+	  Common Gateway Interface
+
+config BR2_PACKAGE_PHP_SAPI_CLI
+        bool "CLI"
+	select BR2_PACKAGE_PHP_CLI
+        help
+          Command Line Interface
+
+config BR2_PACKAGE_PHP_SAPI_CLI_CGI
+        bool "CLI, APACHE"
+	# CGI uses fork()
+	depends on BR2_USE_MMU
+	select BR2_PACKAGE_PHP_CLI
+	select BR2_PACKAGE_PHP_APACHE
+	help
+	  Command line and Common gateway interfaces
+
+endchoice
+
+endif

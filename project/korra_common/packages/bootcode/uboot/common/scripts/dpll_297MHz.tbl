@@ -1,0 +1,4 @@
+rtd_outl(0xb8000490, 0x0210142A);	// M = 35, N = 3
+rtd_outl(0xb8000494, 0x01720042);	// DIV = 1 , DPLL power on
+rtd_outl(0xb8000640, 0x07500001);	// OFFSET = 1872, DPLL_CLK = 297MHz
+rtd_outl(0xb8000640, 0x07500005);	// Load in

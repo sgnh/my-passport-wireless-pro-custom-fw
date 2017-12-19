@@ -1,0 +1,18 @@
+--- php-5.4.19.ori/ext/phar/Makefile.frag	2013-08-20 12:42:41.000000000 +0800
++++ php-5.4.19/ext/phar/Makefile.frag	2013-09-09 18:24:02.430337204 +0800
+@@ -26,13 +26,13 @@
+ 
+ $(builddir)/phar.php: $(srcdir)/build_precommand.php $(srcdir)/phar/*.inc $(srcdir)/phar/*.php $(SAPI_CLI_PATH)
+ 	-@echo "Generating phar.php"
+-	@$(PHP_PHARCMD_EXECUTABLE) $(PHP_PHARCMD_SETTINGS) $(srcdir)/build_precommand.php > $(builddir)/phar.php
++	-@php $(PHP_PHARCMD_SETTINGS) $(srcdir)/build_precommand.php > $(srcdir)/phar.php
+ 
+ $(builddir)/phar.phar: $(builddir)/phar.php $(builddir)/phar/phar.inc $(srcdir)/phar/*.inc $(srcdir)/phar/*.php $(SAPI_CLI_PATH)
+ 	-@echo "Generating phar.phar"
+ 	-@rm -f $(builddir)/phar.phar
+ 	-@rm -f $(srcdir)/phar.phar
+-	@$(PHP_PHARCMD_EXECUTABLE) $(PHP_PHARCMD_SETTINGS) $(builddir)/phar.php pack -f $(builddir)/phar.phar -a pharcommand -c auto -x \\.svn -p 0 -s $(srcdir)/phar/phar.php -h sha1 -b "$(PHP_PHARCMD_BANG)"  $(srcdir)/phar/
++	-@php $(PHP_PHARCMD_SETTINGS) $(builddir)/phar.php pack -f $(builddir)/phar.phar -a pharcommand -c auto -x \\.svn -p 0 -s $(srcdir)/phar/phar.php -h sha1 -b "$(PHP_PHARCMD_BANG)"  $(srcdir)/phar/
+ 	-@chmod +x $(builddir)/phar.phar
+ 
+ install-pharcmd: pharcmd

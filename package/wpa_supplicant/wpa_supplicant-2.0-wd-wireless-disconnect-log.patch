@@ -1,0 +1,16 @@
+--- wpa_supplicant-2.0/wpa_supplicant/events.c	2013-01-12 23:42:53.000000000 +0800
++++ wpa_supplicant-2.0-new/wpa_supplicant/events.c	2014-08-26 18:17:43.548721300 +0800
+
+@@ -1927,6 +1974,11 @@
+ 	wpas_notify_disconnect_reason(wpa_s);
+ 	if (wpa_supplicant_dynamic_keys(wpa_s)) {
+ 		wpa_dbg(wpa_s, MSG_DEBUG, "Disconnect event - remove keys");
++		memset(msg, 0x0, sizeof(msg));
++		snprintf(msg, sizeof(msg), "/sbin/WifiClientApConnectionStatus.sh " MACSTR "\n", MAC2STR(bssid));
++		if (system(msg) < 0){
++			memset(msg, 0x0, sizeof(msg));
++		}
+ 		wpa_s->keys_cleared = 0;
+ 		wpa_clear_keys(wpa_s, wpa_s->bssid);
+ 	}
+

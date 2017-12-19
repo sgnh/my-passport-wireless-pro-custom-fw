@@ -1,0 +1,11 @@
+--- linux-kernel/arch/arm/boot/dts/rtd-119x-nas-rescue.dts	2015-06-08 10:04:17.022244476 +0800
++++ linux-custom/arch/arm/boot/dts/rtd-119x-nas-rescue.dts	2015-06-08 13:49:27.161934930 +0800
+@@ -125,4 +125,8 @@
+         status = "disabled";
+     };
+ 
++    crsd@18010400 {
++	gpios = <&rtk_misc_gpio 41 1 0>; 		/*sd power , output, default high  (poweroff) */
++    };
++
+ };

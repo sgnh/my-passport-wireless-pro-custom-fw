@@ -1,0 +1,5 @@
+config BR2_PACKAGE_ATOP
+	bool "atop (tools)"
+	help
+	  Atop is an ASCII full-screen performance monitor for Linux (http://www.atoptool.nl/index.php )
+

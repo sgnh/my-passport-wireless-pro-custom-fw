@@ -1,0 +1,6 @@
+config BR2_PACKAGE_LIBUNISTRING
+	bool "libunistring"
+	help
+	  manipulating Unicode strings and for manipulating C strings according to the Unicode standard
+
+	  http://www.linuxfromscratch.org/blfs/view/svn/general/libunistring.html

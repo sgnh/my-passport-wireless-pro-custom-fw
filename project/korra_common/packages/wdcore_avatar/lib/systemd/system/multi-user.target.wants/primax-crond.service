@@ -1,0 +1,10 @@
+[Unit]
+Description=Primax crond RC Script (S93crond)
+DefaultDependencies=no
+After=primax-lighttpd.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash -c "/etc/init.d/S93crond start"
+ExecStop=/bin/bash -c "/etc/init.d/S93crond stop"

@@ -1,0 +1,11 @@
+--- linux-orig/arch/arm/boot/dts/rtd-119x-pmx.dts	2016-01-15 10:59:46.404094826 +0800
++++ linux-custom/arch/arm/boot/dts/rtd-119x-pmx.dts	2016-01-23 20:11:18.172284260 +0800
+@@ -174,7 +174,7 @@
+ 
+                 compatible = "Realtek,rtk119x-rtc";
+                 reg = <0x1801b600 0x34>, <0x18007000 0xdc>;
+-                rtc-base-year = <2014>;
++                rtc-base-year = <2016>;
+         };
+ 
+ };

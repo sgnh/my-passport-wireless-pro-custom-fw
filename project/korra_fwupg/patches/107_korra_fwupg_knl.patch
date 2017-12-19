@@ -1,0 +1,108 @@
+diff -Nur linux-kernel/arch/arm/mach-rtk119x/include/rbus/reg_sb2.h linux-custom/arch/arm/mach-rtk119x/include/rbus/reg_sb2.h
+--- linux-kernel/arch/arm/mach-rtk119x/include/rbus/reg_sb2.h	2015-05-18 15:07:25.000000000 +0800
++++ linux-custom/arch/arm/mach-rtk119x/include/rbus/reg_sb2.h	2015-07-14 14:41:46.974449400 +0800
+@@ -18,6 +18,24 @@
+ #define is_revinfo_1			(get_cpu_revision()==0x00010000)
+ #define is_revinfo_2			(get_cpu_revision()==0x00020000)
+ 
++#define SB2_INV_INTEN		(iobase + 0x004)
++#define SB2_INV_INTSTAT		(iobase + 0x008)
++#define SB2_INV_ADDR		(iobase + 0x00c)
++
++#define SWCIVAIRQ_EN		(1<<6)
++#define ACIVAIRQ_EN 		(1<<3)
++#define SCIVAIRQ_EN             (1<<1)
++
++#define SWCIVA_INT		(1<<4)
++#define ACIVA_INT		(1<<3)
++#define SCIVA_INT		(1<<1)
++
++#define WRITE_DATA_1 		(1<<0)
++#define WRITE_DATA_0 		(0<<0)
++
++
++
++
+ #define SB2_DBG_START_REG0	(iobase + 0x458)
+ #define SB2_DBG_START_REG1	(iobase + 0x45c)
+ #define SB2_DBG_START_REG2	(iobase + 0x460)
+diff -Nur linux-kernel/arch/arm/mach-rtk119x/sb2_dbg.c linux-custom/arch/arm/mach-rtk119x/sb2_dbg.c
+--- linux-kernel/arch/arm/mach-rtk119x/sb2_dbg.c	2015-05-18 15:07:25.000000000 +0800
++++ linux-custom/arch/arm/mach-rtk119x/sb2_dbg.c	2015-07-14 14:41:44.294529200 +0800
+@@ -7,6 +7,7 @@
+ #include <linux/of_irq.h>
+ #include <linux/module.h>
+ #include <linux/moduleparam.h>
++#include <linux/sched.h> 
+ 
+ #include <rbus/reg.h>
+ 
+@@ -19,11 +20,11 @@
+ 
+ 	regs = get_irq_regs();
+ 
+-	pr_info("sb2 get int 0x%08x\n", intr);
+ 
+ 	if (intr & ((1 << 4) | (1 << 10) | (1<<6) | (1<<12))) {
+ 		u32 cause, addr, s_a_cpu;
+ 		char buf[128];
++		pr_err("sb2 get int 0x%08x from SB2_DBG_INT\n", intr);
+ 
+ 		writel((1 << 9) | (1 << 7) | 1, SB2_DBG_INT);
+ 
+@@ -42,6 +43,36 @@
+ 		return IRQ_HANDLED;
+ 	}
+ 
++	intr = readl(SB2_INV_INTSTAT);
++
++
++	if (intr & (SWCIVA_INT | ACIVA_INT | SCIVA_INT)) {
++		char buf[128];
++		pr_err("sb2 get int 0x%08x from SB2_INV_INTSTAT\n", intr);
++
++		writel( SWCIVA_INT | ACIVA_INT | SCIVA_INT | WRITE_DATA_0 , SB2_INV_INTSTAT);
++
++		if (intr & SWCIVA_INT) 
++			//sprintf(buf, "Invalid access issued by SCPU security world\n") ;
++			pr_err("Invalid access issued by SCPU security world\n") ;
++
++		if (intr & ACIVA_INT)
++			//sprintf(buf, "Invalid access issued by Audio CPU \n") ;
++			pr_err("Invalid access issued by Audio \n") ;
++
++			
++		if (intr & SCIVA_INT)
++			//sprintf(buf, "Invalid access issued by System CPU \n") ;
++			pr_err("Invalid access issued by SCPU \n") ;
++
++		pr_err("Invalid address is 0x%x \n", readl(SB2_INV_ADDR));
++	
++		show_regs(regs);		
++//		die(buf, regs, 0);
++//
++		return IRQ_HANDLED;
++
++	}
+ 	return IRQ_NONE;
+ }
+ 
+@@ -55,7 +86,7 @@
+ 	struct device_node *np;
+ 	int irq;
+ 
+-	pr_info("sb2_dbg_init\n");
++	pr_err("sb2_dbg_init\n");
+ 
+ 	np = of_find_matching_node(NULL, rtk_sb2_match);
+ 	if (unlikely(np == NULL))
+@@ -75,6 +106,8 @@
+ 
+ 	writel((1 << 9) | (1 << 7) | 1, SB2_DBG_INT);
+ 
++	writel( SWCIVA_INT | ACIVA_INT | SCIVA_INT | WRITE_DATA_0 , SB2_INV_INTSTAT);
++	writel(SWCIVAIRQ_EN | ACIVAIRQ_EN | SCIVAIRQ_EN | WRITE_DATA_1 | readl(SB2_INV_INTEN), SB2_INV_INTEN);
+ 	return 0;
+ }
+ late_initcall(sb2_dbg_init);
+

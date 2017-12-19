@@ -1,0 +1,25 @@
+From c36a30f64f8d021f6505b7fce48deae75e46425a Mon Sep 17 00:00:00 2001
+From: Yuan-Yi Chang <hank.chang@primax.com.tw>
+Date: Tue, 31 Mar 2015 16:58:02 +0800
+Subject: [PATCH 6/6] SIGQUIT
+
+---
+ init/init.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/init/init.c b/init/init.c
+index 30731e1..1916514 100644
+--- a/init/init.c
++++ b/init/init.c
+@@ -840,7 +840,7 @@ static void exec_restart_action(void)
+ 
+ 		reset_sighandlers_and_unblock_sigs();
+ 
+-		run_shutdown_and_kill_processes(sig);
++		run_shutdown_and_kill_processes(SIGQUIT);
+ 
+ #ifdef RB_ENABLE_CAD
+ 		/* Allow Ctrl-Alt-Del to reboot the system.
+-- 
+1.7.9.5
+

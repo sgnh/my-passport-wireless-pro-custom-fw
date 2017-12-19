@@ -1,0 +1,54 @@
+#! /bin/sh
+
+set -e
+
+DESC="vsftpd"
+NAME=vsftpd
+DAEMON=/usr/sbin/$NAME
+
+case "$1" in
+  start)
+	if [ ! -d /var/ftp/Storage ]; then
+		mkdir -p /var/ftp/Storage
+		chmod 555 /var/ftp
+		chown root:ftp /var/ftp/Storage
+		chmod 775 /var/ftp/Storage
+	fi
+	isMount=`mount | grep \/var\/ftp\/Storage | wc -l`
+	if [ $isMount == 0 ]; then
+		if [ ! -d /media/sdb1_fuse ]; then
+			mount --bind /media/sdb1/ /var/ftp/Storage
+		else
+			mount --bind /media/sdb1_fuse/ /var/ftp/Storage
+		fi
+	fi
+	if [ `cat /etc/nas/service_startup/vsftpd` == "disabled" ]; then
+		exit 0;
+	fi
+	echo -n "Starting $DESC: "
+	start-stop-daemon -S -b -x $NAME
+	echo "OK"
+	;;
+  stop)
+	if [ `cat /etc/nas/service_startup/vsftpd` == "disabled" ]; then
+		exit 0;
+	fi
+	echo -n "Stopping $DESC: "
+	start-stop-daemon -K -x $NAME
+	#umount /var/ftp/Storage
+	echo "OK"
+	;;
+  restart|force-reload)
+	echo "Restarting $DESC: "
+	$0 stop
+	sleep 1
+	$0 start
+	echo ""
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart|force-reload}" >&2
+	exit 1
+	;;
+esac
+
+exit 0

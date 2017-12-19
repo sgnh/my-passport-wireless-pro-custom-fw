@@ -1,0 +1,35 @@
+From a395986e16e10fdacd9f7bbd1c0fb0c57cd04ea1 Mon Sep 17 00:00:00 2001
+From: Yuan-Yi Chang <hank.chang@primax.com.tw>
+Date: Tue, 31 Mar 2015 16:10:53 +0800
+Subject: [PATCH 3/6] busybox-1.21.0-wd-date.patch
+
+---
+ coreutils/date.c |   12 +++++++++---
+ 1 file changed, 9 insertions(+), 3 deletions(-)
+
+diff --git a/coreutils/date.c b/coreutils/date.c
+index 767e0d4..6879f26 100644
+--- a/coreutils/date.c
++++ b/coreutils/date.c
+@@ -293,9 +293,15 @@ int date_main(int argc UNUSED_PARAM, char **argv)
+ 		maybe_set_utc(opt);
+ 
+ 		/* if setting time, set it */
+-		if ((opt & OPT_SET) && stime(&ts.tv_sec) < 0) {
+-			bb_perror_msg("can't set date");
+-		}
++		//if ((opt & OPT_SET) && stime(&ts.tv_sec) < 0) {
++		//	bb_perror_msg("can't set date");
++		//}
++        if (opt & OPT_SET) {
++            if  (stime(&ts.tv_sec) < 0)
++                bb_perror_msg("can't set date");
++            else
++                system("hwclock -w -u");
++        }
+ 	}
+ 
+ 	/* Display output */
+-- 
+1.7.9.5
+

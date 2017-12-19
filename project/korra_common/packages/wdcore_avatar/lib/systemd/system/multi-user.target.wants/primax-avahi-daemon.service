@@ -1,0 +1,10 @@
+[Unit]
+Description=Primax avahi-daemon RC Script (S50avahi-daemon)
+DefaultDependencies=no
+After=primax-ifplugd.service dbus.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash -c "/etc/init.d/S50avahi-daemon start"
+ExecStop=/bin/bash -c "/etc/init.d/S50avahi-daemon stop"

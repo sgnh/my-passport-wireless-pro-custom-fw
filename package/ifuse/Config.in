@@ -1,0 +1,6 @@
+config BR2_PACKAGE_IFUSE
+	bool "ifuse"
+	help
+	  A fuse filesystem implementation to access the contents of iOS devices.
+
+	  http://www.libimobiledevice.org/downloads/

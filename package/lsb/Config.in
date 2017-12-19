@@ -1,0 +1,5 @@
+config BR2_PACKAGE_LSB
+	bool "lsb"
+	select BR2_PACKAGE_NCURSES
+	help
+      Linux Standard Base 4.1 core support package

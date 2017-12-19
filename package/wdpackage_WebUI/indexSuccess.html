@@ -1,0 +1,160 @@
+
+<html>
+<head>
+	<title>Success</title>
+	<meta name="viewport" content="width=device-width" />
+	<script type="text/javascript" src="./detect-source/js/jquery-1.12.0.min.js"></script>
+	<script type="text/javascript" src="./detect-source/js/mdetect.js"></script>
+	
+	<link href="./detect-source/css/detect_device.css" rel="stylesheet" type="text/css">
+    <script type="text/javascript">
+    	var CNA;
+		/*var timeout;
+
+		window.open( "db-i36zhy7qcg2elwd://", "_system" );
+		var iframe = document.createElement("iframe");
+
+    iframe.style.border = "none";
+    iframe.style.width = "1px";
+    iframe.style.height = "1px";
+    iframe.onload = function () {
+        document.location = alt;
+    };
+    iframe.src = "db-i36zhy7qcg2elwd://"; //iOS app schema url
+
+    window.onload = function(){
+        document.body.appendChild(iframe);
+    }
+
+    setTimeout(function(){
+        window.location = fallbackUrl; //fallback url
+    },300);*/
+		//http://stackoverflow.com/questions/18986200/suppress-safari-cant-open-the-page-because-the-address-is-invalid-custom-app-l?lq=1
+
+		function detectedDevice(){
+				if(MobileEsp.DetectTierTablet()||MobileEsp.DetectTierIphone())
+				{
+					//Check Device is Mobile Phone/tablet.
+					if(MobileEsp.DetectIos())
+					{	
+						setTimeout(function(){
+							window.location.replace("db-i36zhy7qcg2elwd://");},2000);
+							
+						setTimeout(function(){
+							window.location = "./detect-source/IOSPhone.html"; 
+						},3000);
+						checkCNA();
+						
+					}
+					else if(MobileEsp.DetectAndroid())
+					{
+						setTimeout(function(){
+						window.location.replace("db-i36zhy7qcg2elwd://");
+							
+						},2000);
+						setTimeout(function(){
+							window.location = "./detect-source/AndroidPhone.html"; 
+						},3000);
+						
+					}
+					else
+					{
+						window.location = "./detect-source/Unsupport.html";
+					}	
+				}
+				else
+				{
+					//Check Device is Computer
+					window.location = "/UI";
+				}
+		}
+		
+		function checkEula(){
+			$.ajax({
+      	"url": "/api/2.6/rest/eula_acceptance",
+        "success": function(data) {
+                  window.location = "/UI";
+                   
+         },
+         "error": function(request, status, error) {
+         					detectedDevice()
+             			
+         }
+     	});			
+		}
+		function checkCNA(){
+			$.ajax({
+      	"url": "/api/2.6/rest/device_captiveportal",
+      	"type": "GET",
+        "success": function(data) {
+        	
+         },
+         "error": function(request, status, error) {
+         					detectedDevice()
+             			
+         }
+     	});		
+			
+			
+		}
+		
+		function RestoreCNA(){
+			$.ajax({
+      	"url": "/api/2.6/rest/device_captiveportal",
+      	"type": "POST",
+        "success": function(data) {
+        	
+         },
+         "error": function(request, status, error) {
+         	detectedDevice() 			
+         }
+     	});		
+			
+			
+		}
+		
+		window.onload = function(){
+			checkEula();
+			RestoreCNA();
+			
+		/*var wording_ele,wording_text;
+		var timer_wording;
+		var word_reg=/[\.]/g; 
+		window.onload = function(){
+					wording_ele = document.getElementById("wording")
+					wording_text = wording_ele.innerHTML.replace(word_reg,"");;
+					console.info(wording_text)
+					timer_wording = setTimeout(function(){loading_ef()},1000);
+		}
+		
+		
+		var dot = "",
+					count = 0;
+		function loading_ef(){
+			if(wording_text == null)
+				clearTimeout(timer_wording);
+				
+			if(count<3){
+				count++
+				dot = dot + ".";	
+			}else{
+				count = 0;
+				dot = ""
+			}
+			document.getElementById("wording").innerHTML = wording_text + dot;
+			timer_wording = setTimeout(function(){loading_ef()},1000);
+		}  
+		  */
+		}
+ 	</script>
+</head>
+<body>
+	<div id="containner">
+    	<div id="logo"><img src="./detect-source/images/loading_logo.png"/>
+        <div id="wording">Loading...</div>
+      </div>
+        <!--<div id="bottom_area"></div>change22-->
+	</div><!--containner-->
+
+</body>
+</html>

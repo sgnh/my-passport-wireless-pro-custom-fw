@@ -1,0 +1,10 @@
+[Unit]
+Description=Primax mdev initdisk Script (S43initdisk)
+DefaultDependencies=no
+After=primax-mdev.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash -c "/etc/init.d/S43initdisk start"
+ExecStop=/bin/bash -c "/etc/init.d/S43initdisk stop"

@@ -1,0 +1,165 @@
+#!/bin/sh
+#
+# $Id: dhcp3-server.init.d,v 1.4 2003/07/13 19:12:41 mdz Exp $
+#
+
+# On what interfaces should the DHCP server (dhcpd) serve DHCP requests?
+#       Separate multiple interfaces with spaces, e.g. "eth0 eth1".
+source /etc/nas/config/wifinetwork-param.conf
+
+DNSMASQ_CONF_PATH="/etc/dnsmasq.conf"
+DHCPD_CONF="/etc/dhcpd.conf"
+
+if [ "$AP_CHANNEL_LITE" == "0" ]; then
+	INTERFACES="br0"
+elif [ "$AP_CHANNEL_LITE" == "2" ]; then	
+	INTERFACES="$AP_IFACE"
+elif [ "$AP_CHANNEL_LITE" == "5" ]; then	
+	INTERFACES="$AP5G_IFACE"
+fi
+
+cmd=$1
+cmd2=$2
+
+if [ "$cmd2" == "" ] || [ "$cmd2" == "all" ]; then
+	if [ "$AP_CHANNEL_LITE" == "0" ]; then
+		iface=all
+	elif [ "$AP_CHANNEL_LITE" == "2" ]; then	
+		iface=$AP_IFACE
+	elif [ "$AP_CHANNEL_LITE" == "5" ]; then	
+		iface=$AP5G_IFACE
+	fi
+elif [ "$cmd2" == "$AP5G_IFACE" ]; then
+	iface=$AP5G_IFACE
+elif [ "$cmd2" == "$AP_IFACE" ]; then
+	iface=$AP_IFACE
+fi
+
+GENERATE_DNSMASQ_CONFIG()
+{
+    echo "resolv-file=/etc/resolv.conf"                             > $DNSMASQ_CONF_PATH    
+    if [ -f "/etc/.device_Unconfigured" ]; then
+        echo "address=/#/$AP_IP"                                  >> $DNSMASQ_CONF_PATH
+    fi
+    echo "interface=$INTERFACES"                                    >> $DNSMASQ_CONF_PATH
+    #echo "listen-address=192.168.60.1"                           >> $DNSMASQ_CONF_PATH
+    #echo "listen-address=127.0.0.1"                               >> $DNSMASQ_CONF_PATH	
+    #echo "bind-interfaces"                               			>> $DNSMASQ_CONF_PATH
+}
+
+GENERATE_IP_CONFIG()
+{
+	newip=`echo ${AP_IP} | awk -F. '{print $1"."$2"."$3"."}'`
+
+	AP_SUBNET="${newip%.*}.0"
+    AP_DHCP_UPPER_BOUND="${newip%.*}.100"
+    AP_DHCP_LOWER_BOUND="${newip%.*}.200"
+
+	sed -i '110,$d' $DHCPD_CONF
+	echo "" >> $DHCPD_CONF
+	echo "subnet ${AP_SUBNET} netmask $AP_MASK {" >> $DHCPD_CONF
+	echo "pool {" >> $DHCPD_CONF
+	echo "max-lease-time 86400;" >> $DHCPD_CONF
+	echo "range ${AP_DHCP_UPPER_BOUND} ${AP_DHCP_LOWER_BOUND};" >> $DHCPD_CONF
+	echo "allow unknown-clients;" >> $DHCPD_CONF
+	if [ -f "/tmp/HybridEnabled" ]; then
+		echo "option routers ${AP_IP};" >> $DHCPD_CONF
+	else
+		echo "option routers ${AP_IP};" >> $DHCPD_CONF
+	fi
+	echo "option domain-name-servers ${AP_IP}, ${AP_DNS};" >> $DHCPD_CONF
+	echo "}" >> $DHCPD_CONF
+	echo "}" >> $DHCPD_CONF
+}
+
+check_br_stat(){
+	if [ "$AP_CHANNEL_LITE" == "0" ]; then
+		br0interface=`ifconfig | grep ^${INTERFACES}`
+		if [ "${br0interface}" == "" ]; then
+			brctl delif br0 $AP5G_IFACE > /dev/null
+  			brctl delif br0 $AP_IFACE > /dev/null
+  			ifconfig br0 down
+  			brctl delbr br0	
+			#sleep 1
+			brctl addbr br0
+			ifconfig br0 $AP_IP netmask $AP_MASK up
+			if [ "$AP5G_HOTSPOT" == "true" ]; then
+				brctl addif br0 $AP5G_IFACE 
+			fi
+			if [ "$AP_HOTSPOT" == "true" ]; then
+				brctl addif br0 $AP_IFACE
+			fi
+		fi
+	fi
+		
+		route add -net 224.0.0.0 netmask 240.0.0.0 dev $INTERFACES &
+		ifconfig $INTERFACES promisc &
+}
+
+# It is not safe to start if we don't have a default configuration...
+#echo "/etc/init.d/dhcp-server not yet configured! - Aborting..."
+#exit 1;
+
+test -f /usr/sbin/dhcpd || exit 0
+
+
+if [ -f /var/lock/dhcpServer ] ; then
+	exec 310>/var/lock/dhcpServer
+	flock -x 310
+
+case "$1" in
+	start)
+		check_br_stat > /dev/null 2>&1
+		if [ "$AP_DHCPD_ENABLE" == "true" ]; then 
+			echo -n "Starting DHCP server: "
+			cp -a /etc/dhcpd.conf.bak /etc/dhcpd.conf		
+			GENERATE_IP_CONFIG > /dev/null
+			GENERATE_DNSMASQ_CONFIG > /dev/null
+			
+			test -d /var/lib/dhcp/ || mkdir -p /var/lib/dhcp/
+			test -f /var/lib/dhcp/dhcpd.leases || touch /var/lib/dhcp/dhcpd.leases	
+			start-stop-daemon -S -b -x /usr/sbin/dhcpd -q $INTERFACES &
+			start-stop-daemon -S -b -x /usr/sbin/dnsmasq -- -C /etc/dnsmasq.conf &
+		fi
+		;;
+	stop)
+		echo -n "Stopping DHCP server: dhcpd3"
+		start-stop-daemon -K -x /usr/sbin/dhcpd
+        start-stop-daemon -K -x /usr/sbin/dnsmasq
+        if [ -f "/tmp/dhcpd.leases" ]; then
+        	rm /tmp/dhcpd.leases
+        	rm /tmp/dhcpd.leases~
+        	rm /tmp/dhcpd.pid
+        fi
+		echo "."
+		;;
+	restart | force-reload)
+		echo -n "Stopping DHCP server: dhcpd3"
+		start-stop-daemon -K -x /usr/sbin/dhcpd
+        start-stop-daemon -K -x /usr/sbin/dnsmasq
+        if [ -f "/tmp/dhcpd.leases" ]; then
+        	rm /tmp/dhcpd.leases
+        	rm /tmp/dhcpd.leases~
+        	rm /tmp/dhcpd.pid
+        fi
+        sleep 1
+        check_br_stat > /dev/null 2>&1
+		if [ "$AP_DHCPD_ENABLE" == "true" ]; then 
+			echo -n "Starting DHCP server: "
+			cp -a /etc/dhcpd.conf.bak /etc/dhcpd.conf		
+			GENERATE_IP_CONFIG > /dev/null
+			GENERATE_DNSMASQ_CONFIG > /dev/null
+			
+			test -d /var/lib/dhcp/ || mkdir -p /var/lib/dhcp/
+			test -f /var/lib/dhcp/dhcpd.leases || touch /var/lib/dhcp/dhcpd.leases	
+			start-stop-daemon -S -b -x /usr/sbin/dhcpd -q $INTERFACES &
+			start-stop-daemon -S -b -x /usr/sbin/dnsmasq -- -C /etc/dnsmasq.conf &
+		fi
+		;;
+	*)
+		echo "Usage: /etc/init.d/dhcp-server {start|stop|restart|force-reload}"
+esac
+
+flock -u 310
+fi
+exit 0

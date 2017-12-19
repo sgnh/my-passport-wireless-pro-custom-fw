@@ -1,0 +1,10 @@
+config BR2_PACKAGE_WILINK8_UTILS
+	bool "wilink8-utils(ti-wl18xx)"
+    depends on BR2_PACKAGE_WILINK8 
+    depends on BR2_PACKAGE_LIBNL
+	select BR2_PACKAGE_NCURSES
+	help
+      Texas Instrument's WiLink™ 8.0 offers high performance and low energy solutions to WLAN, Bluetooth® and BLE applications.
+      The WL18xx single-chip module encompasses all digital and analog content required for multiple radio technologies.
+
+      http://processors.wiki.ti.com/index.php/WL18xx

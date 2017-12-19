@@ -1,0 +1,5 @@
+config BR2_PACKAGE_WDPACKAGE_NOTIFIER
+	bool "wdpackage(Notifier)"
+	help
+	  The wd package(Notifier) package
+

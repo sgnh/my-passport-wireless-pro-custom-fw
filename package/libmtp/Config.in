@@ -1,0 +1,11 @@
+config BR2_PACKAGE_LIBMTP
+	select BR2_PACKAGE_LIBUSB_COMPAT
+	select BR2_PACKAGE_LIBUSB
+	bool "libmtp"
+	help
+	  libmtp is a LGPL library implementation of the Media Transfer Protocol (MTP), a superset of the Picture Transfer Protocol (PTP).
+
+	  http://sourceforge.net/projects/libmtp/files/latest/download
+
+comment "full MTP initiator implementation library for Linux, MacOS and *BSD"
+	

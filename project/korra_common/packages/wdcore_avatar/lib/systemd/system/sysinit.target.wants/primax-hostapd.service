@@ -1,0 +1,12 @@
+[Unit]
+Description=Primax hostapd RC Script (S60hostapd)
+DefaultDependencies=no
+After=primax-wilink8.service
+Before=primax-mdev.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash -c "/etc/init.d/S60hostapd start"
+ExecStop=/bin/bash -c "/etc/init.d/S60hostapd stop"
+TimeoutSec=30s

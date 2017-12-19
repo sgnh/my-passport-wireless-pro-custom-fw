@@ -1,0 +1,5 @@
+config BR2_PACKAGE_PMXPACKAGE_FWUPG
+	bool "pmxpackage(fwupg)"
+	help
+	  The primax package(fwupg) FWUPG script for Avatar device
+

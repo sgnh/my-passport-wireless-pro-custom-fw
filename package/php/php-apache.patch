@@ -1,0 +1,56 @@
+--- php-5.4.19/configure	2015-04-01 13:34:36.559716182 +0800
++++ php-5.4.19/configure.patch	2015-04-02 01:08:34.570303741 +0800
+@@ -6349,7 +6349,7 @@
+ 
+   # Test that we're trying to configure with apache 1.x
+ 
+-  ac_output=`$APXS_HTTPD -v 2>&1 | grep version | $SED -e 's/Oracle-HTTP-//'`
++  ac_output=`Server version: Apache/2.4.9 (Unix)`
+   ac_IFS=$IFS
+ IFS="- /.
+ "
+@@ -7633,7 +7633,7 @@
+ 
+   # Test that we're trying to configure with apache 2.x
+ 
+-  ac_output=`$APXS_HTTPD -v 2>&1 | grep version | $SED -e 's/Oracle-HTTP-//'`
++  ac_output=`Server version: Apache/2.4.9 (Unix)`
+   ac_IFS=$IFS
+ IFS="- /.
+ "
+@@ -8339,7 +8339,7 @@
+ 
+     fi
+   else
+-    APACHE_THREADED_MPM=`$APXS_HTTPD -V | grep 'threaded:.*yes'`
++    APACHE_THREADED_MPM="threaded:     yes (fixed thread count)"
+     if test -n "$APACHE_THREADED_MPM"; then
+ 
+   enable_maintainer_zts=yes
+@@ -8457,7 +8457,7 @@
+ 
+   # Test that we're trying to configure with apache 2.x
+ 
+-  ac_output=`$APXS_HTTPD -v 2>&1 | grep version | $SED -e 's/Oracle-HTTP-//'`
++  ac_output=`Server version: Apache/2.4.9 (Unix)`
+   ac_IFS=$IFS
+ IFS="- /.
+ "
+@@ -9163,7 +9163,7 @@
+ 
+     fi
+   else
+-    APACHE_THREADED_MPM=`$APXS_HTTPD -V | grep 'threaded:.*yes'`
++    APACHE_THREADED_MPM="threaded:     yes (fixed thread count)"
+     if test -n "$APACHE_THREADED_MPM"; then
+ 
+   enable_maintainer_zts=yes
+@@ -9262,7 +9262,7 @@
+ 
+   # Test that we're trying to configure with apache 1.x
+ 
+-  ac_output=`$APXS_HTTPD -v 2>&1 | grep version | $SED -e 's/Oracle-HTTP-//'`
++  ac_output=`Server version: Apache/2.4.9 (Unix)`
+   ac_IFS=$IFS
+ IFS="- /.
+ "

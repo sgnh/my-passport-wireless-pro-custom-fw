@@ -1,0 +1,12 @@
+diff -Nur linux-kernel/arch/arm/boot/dts/rtd-119x-pmx.dts linux-custom/arch/arm/boot/dts/rtd-119x-pmx.dts
+--- linux-kernel/arch/arm/boot/dts/rtd-119x-pmx.dts	2015-07-15 14:59:59.572172842 +0800
++++ linux-custom/arch/arm/boot/dts/rtd-119x-pmx.dts	2015-07-13 15:13:54.080098203 +0800
+@@ -131,7 +131,7 @@
+ 	};
+ 	suspend@18007400 {
+ 		compatible = "Realtek,suspend";
+-		wakeup-gpio-enable = <1>, <1>, <1>; /* (0) disable (1) enable */
++		wakeup-gpio-enable = <1>, <1>, <1>; /* (0) disable (1) enable */
+ 		wakeup-gpio-list =  <&rtk_iso_gpio 17 0 0>, <&rtk_iso_gpio 18 0 0>, <&rtk_iso_gpio 1 0 0>; /* list : <&rtk_iso_gpio {num} {force input (2) } {default N/A (0)] }> */
+ 		wakeup-gpio-activity = <0>, <0>, <1>; /* (0) low activity (1) high activity */
+ 		wakeup-flags = <0x0c>; /*Bits[5]cec [4]timer [3]alarm [2]gpio [1]ir [0]lan */

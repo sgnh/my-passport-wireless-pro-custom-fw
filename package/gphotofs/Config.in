@@ -1,0 +1,10 @@
+config BR2_PACKAGE_GPHOTOFS
+	select BR2_PACKAGE_LIBUSB_COMPAT
+	select BR2_PACKAGE_LIBUSB
+	select BR2_PACKAGE_GPHOTO2
+	depends on BR2_PACKAGE_LIBGPHOTO2
+	bool "gphotofs"
+	help
+	  gphotofs is a command line interface of PTP mount.
+
+	  http://sourceforge.net/projects/gphoto/files/gphotofs/0.5.0/

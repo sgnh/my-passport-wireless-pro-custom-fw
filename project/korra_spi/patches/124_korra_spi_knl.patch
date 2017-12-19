@@ -1,0 +1,38 @@
+--- linux-kernel.orig/drivers/usb/phy/phy-rtk-usb3.c	2015-05-18 15:08:03.000000000 +0800
++++ linux-kernel.mod/drivers/usb/phy/phy-rtk-usb3.c	2016-08-29 13:45:44.776131513 +0800
+@@ -82,7 +82,7 @@
+ 	else {	// REV_B
+ 		rtk_usb_phy_write(0x08, 0x3592);
+ 		rtk_usb_phy_write(0x09, 0x325C);
+-		rtk_usb_phy_write(0x0A, 0xD643);
++		rtk_usb_phy_write(0x0A, 0xD663);
+ 		rtk_usb_phy_write(0x0B, 0xA909);
+ 	}
+ 	rtk_usb_phy_write(0x0C, 0xC008);
+@@ -102,7 +102,7 @@
+ 		rtk_usb_phy_write(0x19, 0x7004);
+ 	}
+ 	else {	// REV_B ...
+-		rtk_usb_phy_write(0x19, 0x3804);
++		rtk_usb_phy_write(0x19, 0x0C04);
+ 	}
+ 	rtk_usb_phy_write(0x1A, 0x1260);
+ 	rtk_usb_phy_write(0x1B, 0xFF0C);
+@@ -114,7 +114,7 @@
+ 		rtk_usb_phy_write(0x20, 0xD4FF);
+ 	}
+ 	else { //REV_C ...
+-		rtk_usb_phy_write(0x20, 0x94FF);
++		rtk_usb_phy_write(0x20, 0x94ff);
+ 
+ 	}
+ 	rtk_usb_phy_write(0x21, 0xAAFF);
+@@ -129,7 +129,7 @@
+ 	}
+ 	else {	// REV_B ...
+ 	//	rtk_usb_phy_write(0x28, 0xF842);
+-		rtk_usb_phy_write(0x28, 0xF840);
++		rtk_usb_phy_write(0x28, 0xf800);
+ 	}
+ 	rtk_usb_phy_write(0x29, 0x3080);
+ 	rtk_usb_phy_write(0x2A, 0x3083);

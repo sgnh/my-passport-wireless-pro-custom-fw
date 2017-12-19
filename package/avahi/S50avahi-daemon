@@ -1,0 +1,63 @@
+#!/bin/sh
+#
+# avahi-daemon init script
+
+DAEMON=/usr/sbin/avahi-daemon
+
+case "$1" in
+    start)
+    if [ ! -d "/tmp/avahi" ]; then
+    	mkdir -p  /tmp/avahi_service/
+    	chmod 755 /tmp/avahi_service/
+    	if [ ! -d "/etc/avahi/AvahiService" ]; then
+    		cp -a /etc/avahi/services /tmp/avahi_service/
+    	else
+    		mkdir -p /tmp/avahi_service/services
+    		cp -a /etc/avahi/services/afpd.service /tmp/avahi_service/services/
+    	fi
+    fi
+    if [ ! -d "/etc/avahi/AvahiService" ]; then
+    	capacity=`/usr/sbin/get_capacity.sh`
+    	case ${capacity} in
+       	0)
+       		sed -i 's/modelNumber=.*/modelNumber=WDBLJT\<\/txt-record\>/' /tmp/avahi_service/services/web.service
+			sed -i 's/modelNumber=.*/modelNumber=WDBLJT\<\/txt-record\>/' /tmp/avahi_service/services/wd2go.service
+            ;;
+        1)
+        	sed -i 's/modelNumber=.*/modelNumber=WDBK8Z\<\/txt-record\>/' /tmp/avahi_service/services/web.service
+			sed -i 's/modelNumber=.*/modelNumber=WDBK8Z\<\/txt-record\>/' /tmp/avahi_service/services/wd2go.service
+            ;;
+        2)
+        	sed -i 's/modelNumber=.*/modelNumber=WDBDAF\<\/txt-record\>/' /tmp/avahi_service/services/web.service
+			sed -i 's/modelNumber=.*/modelNumber=WDBDAF\<\/txt-record\>/' /tmp/avahi_service/services/wd2go.service
+            ;;
+        *)
+        	sed -i 's/modelNumber=.*/modelNumber=UnKnown_HDD\<\/txt-record\>/' /tmp/avahi_service/services/web.service
+			sed -i 's/modelNumber=.*/modelNumber=UnKnown_HDD\<\/txt-record\>/' /tmp/avahi_service/services/wd2go.service
+            ;;
+    	esac
+    	SerialNumeber=`/usr/local/sbin/getSerialNumber.sh`
+		if [ "$SerialNumeber" != ""  ]; then
+			sed -i 's/serialNumber=.*/serialNumber='$SerialNumeber'\<\/txt-record\>/' /tmp/avahi_service/services/web.service
+			sed -i 's/serialNumber=.*/serialNumber='$SerialNumeber'\<\/txt-record\>/' /tmp/avahi_service/services/wd2go.service
+		else
+			echo "Serial Number not ready to read."
+		fi
+    fi
+	$DAEMON -c || $DAEMON -D
+	
+	;;
+    stop)
+	$DAEMON -c && $DAEMON -k
+	;;
+    reload|restart)
+	#$DAEMON -c && $DAEMON -r
+	$DAEMON -c && $DAEMON -k
+	sleep 2
+	$DAEMON -c || $DAEMON -D
+    ;;
+    *)
+	echo "Usage: S50avahi-daemon {start|stop|reload}" >&2
+	exit 1
+	;;
+esac

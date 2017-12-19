@@ -1,0 +1,10 @@
+[Unit]
+Description=Primax twonkyserver RC Script (S80twonkyserver)
+DefaultDependencies=no
+After=primax-initdisk.service primax-hostapd.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=-/bin/bash -c "/etc/init.d/S80twonkyserver start"
+ExecStop=-/bin/bash -c "/etc/init.d/S80twonkyserver stop"

@@ -1,0 +1,10 @@
+--- linux-orig/drivers/usb/host/ohci-rtk.c	2015-05-18 15:08:04.000000000 +0800
++++ linux-custom/drivers/usb/host/ohci-rtk.c	2016-02-01 21:10:53.216174425 +0800
+@@ -156,6 +156,7 @@
+ 
+ 	ohci = hcd_to_ohci(hcd);
+ 
++	ohci->regs = hcd->regs;
+ 	ohci_hcd_init(ohci);
+ 
+ 	ret = usb_add_hcd(hcd, irq, IRQF_SHARED);

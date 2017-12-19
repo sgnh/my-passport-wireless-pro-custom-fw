@@ -1,0 +1,234 @@
+#!/bin/bash
+#
+# Starts multi-role.
+#
+
+source /etc/nas/config/wifinetwork-param.conf
+restart=0
+
+cmd=$1
+cmd2=$2
+
+if [ "$cmd2" == "" ]; then
+	if [ "$STA_CHANNEL_LITE" == "0" ]; then
+		iface=all
+	elif [ "$STA_CHANNEL_LITE" == "2" ]; then	
+		iface=$STA2G4_IFACE
+	elif [ "$STA_CHANNEL_LITE" == "5" ]; then	
+		iface=$STA_IFACE
+	fi
+elif [ "$cmd2" == "$STA2G4_IFACE" ]; then
+	iface=$STA2G4_IFACE
+elif [ "$cmd2" == "$STA_IFACE" ]; then
+	iface=$STA_IFACE
+fi 
+
+function restoreFlag {
+	if [ ! -f "/tmp/ApCliRetry" ]; then
+		echo 0 > /tmp/ApCliRetry
+	fi
+	if [ -f "/tmp/clientStatus" ]; then
+		rm /tmp/clientStatus
+	fi
+	if [ ! -f "/tmp/WPStatus" ]; then
+		echo NONE  > /tmp/WPStatus
+	fi
+}
+
+function setup_iprule {
+	interface=$1
+	
+	if [ -f "/tmp/ifplugd_trust" ]; then
+		modeTrust=`cat /tmp/ifplugd_trust`
+	fi
+	
+	if [ "$modeTrust" != "trusted" ]; then
+		#/usr/sbin/iptables -A INPUT -i $interface -p icmp --icmp-type echo-request -j DROP
+   		/usr/sbin/iptables -A INPUT -i $interface -p tcp --dport 80 -j DROP
+		/usr/sbin/iptables -A INPUT -i $interface -p tcp --dport 5353 -j DROP
+		/usr/sbin/iptables -A INPUT -i $interface -p tcp --dport 9000 -j DROP
+		/usr/sbin/iptables -A INPUT -i $interface -p udp --dport 1900 -j DROP
+		/usr/sbin/iptables -A INPUT -i $interface -p udp --dport 137:138 -j DROP
+		/usr/sbin/iptables -A INPUT -i $interface -p tcp --dport 139 -j DROP
+		/usr/sbin/iptables -A INPUT -i $interface -p tcp --dport 445 -j DROP
+		/usr/sbin/iptables -A INPUT -i $interface -p tcp --dport 22 -j DROP
+		/usr/sbin/iptables -A INPUT -i $interface -p udp --dport 5353 -j DROP
+		/usr/sbin/iptables -A INPUT -i $interface -p tcp --dport 548 -j DROP
+		/usr/sbin/iptables -A INPUT -i $interface -p tcp --dport 21 -j DROP
+	fi
+}
+
+
+start() 
+{
+	if [ "${STA_CLIENT}" == "false" ]; then	
+		exit 0
+	else
+		echo "Starting multi-role: " $iface
+		#touch /tmp/WiFiClientApDebugModeEnabledLog
+		if [ "$iface" == "all" ]; then
+			if [ "$STA_CHANNEL_LITE" == "0" ]; then
+				/sbin/ifconfig "$STA2G4_IFACE" up
+				/sbin/ifconfig "$STA_IFACE" up		
+			elif [ "$STA_CHANNEL_LITE" == "2" ]; then
+				/sbin/ifconfig "$STA2G4_IFACE" up
+			elif [ "$STA_CHANNEL_LITE" == "5" ]; then
+				/sbin/ifconfig "$STA_IFACE" up
+			fi
+		else
+			/sbin/ifconfig "$iface" up
+		fi		
+	
+		echo 30 > /proc/sys/net/ipv4/netfilter/ip_conntrack_udp_timeout
+		echo 16384 > /proc/sys/net/ipv4/netfilter/ip_conntrack_max
+		echo 3600 >  /proc/sys/net/netfilter/nf_conntrack_tcp_timeout_established
+		echo 8192 > /proc/sys/net/nf_conntrack_max
+		echo 16384 > /proc/sys/net/ipv4/netfilter/ip_conntrack_max
+		echo 1 > /proc/sys/net/ipv4/ip_forward
+		/sbin/wifi-restart UPDATE_STA_CONF
+		/usr/sbin/iptables -F INPUT
+		/usr/sbin/iptables -F OUTPUT
+		/usr/sbin/iptables -t nat -F
+				
+		if [ "$iface" == "all" ]; then
+			if [ "$STA_CHANNEL" == "5" ]; then
+               	setup_iprule $STA_IFACE
+               	#/usr/sbin/wpa_supplicant -d -Dnl80211 -c/etc/wpa_supplicant.conf -i$STA_IFACE -B
+            else
+                setup_iprule $STA2G4_IFACE
+                #/usr/sbin/wpa_supplicant -d -Dnl80211 -c/etc/wpa2G4_supplicant.conf -i$STA2G4_IFACE -B
+            fi
+			/usr/sbin/wpa_supplicant -d -Dnl80211 -c/etc/wpa_supplicant.conf -i$STA_IFACE -N -Dnl80211 -c/etc/wpa2G4_supplicant.conf -i$STA2G4_IFACE -B
+			/usr/sbin/ifplugd -i $STA_IFACE -wI -u1 -d5 -r /etc/ifplugd/ifplugd.action
+			/usr/sbin/ifplugd -i $STA2G4_IFACE -wI -u1 -d5 -r /etc/ifplugd/ifplugd.action
+			#if [ "$STA_CHANNEL_LITE" == "0" ] || [ "$STA_CHANNEL_LITE" == "5" ]; then
+			if [ "$STA_CHANNEL_LITE" == "5" ]; then
+				/usr/sbin/wpa_supplicant -d -Dnl80211 -c/etc/wpa_supplicant.conf -i$STA_IFACE -B
+				/usr/sbin/ifplugd -i $STA_IFACE -wI -u1 -d5 -r /etc/ifplugd/ifplugd.action
+				setup_iprule $STA_IFACE
+			elif [ "$STA_CHANNEL_LITE" == "2" ]; then	
+				/usr/sbin/wpa_supplicant -d -Dnl80211 -c/etc/wpa2G4_supplicant.conf -i$STA2G4_IFACE -B
+				/usr/sbin/ifplugd -i $STA2G4_IFACE -wI -u1 -d5 -r /etc/ifplugd/ifplugd.action
+				setup_iprule $STA2G4_IFACE
+			fi
+		elif [ "$iface" == "$STA_IFACE" ]; then
+			/usr/sbin/wpa_supplicant -d -Dnl80211 -c/etc/wpa_supplicant.conf -i$STA_IFACE -B
+			/usr/sbin/ifplugd -i $STA_IFACE -wI -u1 -d5 -r /etc/ifplugd/ifplugd.action
+			setup_iprule $STA_IFACE
+		elif [ "$iface" == "$STA2G4_IFACE" ]; then
+			/usr/sbin/wpa_supplicant -d -Dnl80211 -c/etc/wpa2G4_supplicant.conf -i$STA2G4_IFACE -B
+			/usr/sbin/ifplugd -i $STA2G4_IFACE -wI -u1 -d5 -r /etc/ifplugd/ifplugd.action
+			setup_iprule $STA2G4_IFACE
+			#if [ "$STA_CHANNEL_LITE" == "0" ] || [ "$STA_CHANNEL_LITE" == "5" ]; then
+			#	/usr/sbin/wpa_supplicant -d -Dnl80211 -c/etc/wpa_supplicant.conf -i$STA_IFACE -B
+			#	setup_iprule $STA_IFACE
+			#elif [ "$STA_CHANNEL_LITE" == "2" ]; then	
+			#	/usr/sbin/wpa_supplicant -d -Dnl80211 -c/etc/wpa_supplicant.conf -i$STA2G4_IFACE -B
+			#	setup_iprule $STA2G4_IFACE
+			#fi
+		fi			
+		if [ "$STA_CHANNEL_LITE" == "0" ]; then
+			if [ "$STA_CHANNEL" == "5" ]; then
+               	/usr/sbin/iptables -t nat -A POSTROUTING -o $STA_IFACE -j MASQUERADE
+            else
+                /usr/sbin/iptables -t nat -A POSTROUTING -o $STA2G4_IFACE -j MASQUERADE
+            fi
+			#/usr/sbin/iptables -t nat -A POSTROUTING -o $STA_IFACE -j MASQUERADE
+		elif [ "$STA_CHANNEL_LITE" == "2" ]; then
+			/usr/sbin/iptables -t nat -A POSTROUTING -o $STA2G4_IFACE -j MASQUERADE
+		elif [ "$STA_CHANNEL_LITE" == "5" ]; then
+			/usr/sbin/iptables -t nat -A POSTROUTING -o $STA_IFACE -j MASQUERADE
+		fi	
+		echo "OK"
+	fi
+	wifi_client_ap_scan.sh > /dev/null 2>&1 &
+	
+	#if [ ! -f "/tmp/wifinetwork-remembered.conf" ]; then
+	#	ConnNum=`cat /etc/nas/config/wifinetwork-remembered.conf | wc -l`
+	#	if [ "$ConnNum" != "0" ]; then
+	#		/usr/local/sbin/wifi_client_ap_scan.sh --remembered signalConnect > /tmp/RememberNetwork1
+	#		/usr/local/sbin/wifi_client_ap_retry.sh 2 >/dev/null 2>&1 &
+	#	fi
+	#fi
+	
+	if [ -f "/etc/.device_Unconfigured" ]; then
+		/sbin/UrlRedirect.sh AddRule
+	fi
+	
+}
+stop() {
+    echo -n "Stopping multi-role: "
+    if [ "$STA_CHANNEL_LITE" == "0" ]; then
+    	if [ "$STA_CHANNEL" == "5" ]; then
+			wpa_cli -i $STA_IFACE disconnect > /dev/null 2>&1 &
+		else
+			wpa_cli -i $STA2G4_IFACE disconnect > /dev/null 2>&1 &
+		fi
+	elif [ "$STA_CHANNEL_LITE" == "2" ]; then	
+		wpa_cli -i $STA2G4_IFACE disconnect > /dev/null 2>&1 &
+	elif [ "$STA_CHANNEL_LITE" == "5" ]; then	
+		wpa_cli -i $STA_IFACE disconnect > /dev/null 2>&1 &
+	fi
+    
+ 	WpaSupplicant=`pidof wpa_supplicant`
+ 	if [ "$WpaSupplicant" != "" ]; then
+ 		kill -9 $WpaSupplicant > /dev/null
+ 	fi
+ 	
+ 	WpaSupplicant=`pidof wpa_supplicant`
+ 	if [ "$WpaSupplicant" != "" ]; then
+ 		kill -9 $WpaSupplicant > /dev/null
+ 	fi
+ 
+ 	killall avahi-autoipd > /dev/null
+    killall wpa_supplicant > /dev/null
+    /etc/init.d/S40ifplugd stop
+    #killall ifplugd > /dev/null
+   
+    if [ "$STA_CHANNEL_LITE" == "0" ]; then
+    	if [ "$STA_CHANNEL" == "5" ]; then
+    		/sbin/ifdown $STA_IFACE
+    		/sbin/ifconfig $STA_IFACE down
+    	else
+    		/sbin/ifdown $STA2G4_IFACE
+    		/sbin/ifconfig $STA2G4_IFACE down
+    	fi
+	elif [ "$STA_CHANNEL_LITE" == "2" ]; then	
+		/sbin/ifdown $STA2G4_IFACE
+    	/sbin/ifconfig $STA2G4_IFACE down
+	elif [ "$STA_CHANNEL_LITE" == "5" ]; then	
+		/sbin/ifdown $STA_IFACE
+    	/sbin/ifconfig $STA_IFACE down
+	fi
+    
+    /usr/sbin/iptables -F INPUT
+	/usr/sbin/iptables -F OUTPUT
+	/usr/sbin/iptables -t nat -F
+    
+    echo "OK"
+}
+restart() {
+    stop
+    sleep 1
+    start
+}
+
+case "$1" in
+    start)
+    	restoreFlag
+        start
+        ;;
+    stop)
+    	restoreFlag
+        stop
+        ;;
+    restart|reload)
+    	restart=1
+        restart
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart}"
+        exit 1
+esac
+
+exit $?

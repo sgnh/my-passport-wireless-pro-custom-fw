@@ -1,0 +1,8 @@
+menu "apache modules"
+
+config BR2_PACKAGE_APACHE_EXT_MOD_XSENDFILE
+	bool "XSendFile"
+	help
+	  mod_xsendfile is a small Apache2 module that processes X-SENDFILE headers output handlers might have registered.
+
+endmenu

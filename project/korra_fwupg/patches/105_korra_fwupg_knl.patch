@@ -1,0 +1,35 @@
+diff -Nur linux-kernel/fs/fat/file.c linux-custom/fs/fat/file.c
+--- linux-kernel/fs/fat/file.c	2015-05-18 15:07:37.000000000 +0800
++++ linux-custom/fs/fat/file.c	2015-07-08 14:26:47.369195046 +0800
+@@ -494,10 +494,31 @@
+ 		inode_dio_wait(inode);
+ 
+ 		if (attr->ia_size > inode->i_size) {
++#if 1
++			loff_t size;
++			size = attr->ia_size;
++			/* FAT cannot truncate to a longer file (Samba hack) */
++            return 0;
++			if (size & 0xe0000000) {
++				if (size > (loff_t)0xfffffffeL)
++				{
++					printk("VFAT larger than 4GB");
++					error = -EFBIG;
++				}else
++					error = -EPERM;
++				goto out;
++			}else{
++				error = fat_cont_expand(inode, attr->ia_size);
++				if (error || attr->ia_valid == ATTR_SIZE)
++					goto out;
++				attr->ia_valid &= ~ATTR_SIZE;
++			}
++#else
+ 			error = fat_cont_expand(inode, attr->ia_size);
+ 			if (error || attr->ia_valid == ATTR_SIZE)
+ 				goto out;
+ 			attr->ia_valid &= ~ATTR_SIZE;
++#endif
+ 		}
+ 	}
+ 

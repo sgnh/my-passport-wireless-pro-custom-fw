@@ -1,0 +1,238 @@
+#!/bin/bash
+#
+# Starts hostapd.
+#
+source /etc/nas/config/wifinetwork-param.conf
+HOSTAPD_EXE=/usr/sbin/hostapd
+HOSTAPD_2G4_CONF="/etc/hostapd/hostapd.conf.2G"
+HOSTAPD_5G_CONF="/etc/hostapd/hostapd.conf.5G"
+factory_conf=/etc/nas/config/factory.conf
+
+cmd=$1
+cmd2=$2
+
+if [ "$cmd2" == "" ] || [ "$cmd2" == "all" ]; then
+	iface=all
+elif [ "$cmd2" == "$AP5G_IFACE" ]; then
+	iface=$AP5G_IFACE
+elif [ "$cmd2" == "$AP_IFACE" ]; then
+	iface=$AP_IFACE
+fi
+
+ReGerneateSSID(){
+	if [ ! -f "/etc/.eula_accepted" ]; then
+		if [ "${AP_SSID_NAME}" == "My Passport (2.4 GHz)" ] && [ "${AP5G_SSID_NAME}" == "My Passport (5 GHz)" ]; then
+			SN=`hdparm -I /dev/sda | sed -n -e 's/.*Serial Number:\(.*\)/\1/p' | sed -e 's/^[ \t]*//' | awk '{gsub("WD-","",$0); print $0}' | cut -c 5-12`
+    		if [ "${SN}" != "" ]; then
+    			SSID2G4="${AP_SSID_NAME} - `iw dev "${AP_IFACE}" info | grep "addr" | awk '{print $2}' | tr [:lower:] [:upper:] | awk -F: '{print $4$5$6}'`"
+				SSID25G="${AP5G_SSID_NAME} - `iw dev "${AP5G_IFACE}" info | grep "addr" | awk '{print $2}' | tr [:lower:] [:upper:] | awk -F: '{print $4$5$6}'`"
+    
+    			sed -i 's/AP_SSID_NAME=.*/AP_SSID_NAME='\""${SSID2G4}"\"'/' /etc/nas/config/wifinetwork-param.conf
+    			sed -i 's/AP5G_SSID_NAME=.*/AP5G_SSID_NAME='\""${SSID25G}"\"'/' /etc/nas/config/wifinetwork-param.conf
+    			sed -i 's/AP5G_ENCRYPTION_KEY=.*/AP5G_ENCRYPTION_KEY='\""${SN}"\"'/' /etc/nas/config/wifinetwork-param.conf
+    			sed -i 's/AP_ENCRYPTION_KEY=.*/AP_ENCRYPTION_KEY='\""${SN}"\"'/' /etc/nas/config/wifinetwork-param.conf
+    			sed -i 's/AP5G_ENCRYPTION_TYPE=.*/AP5G_ENCRYPTION_TYPE=WPA2PSK/' /etc/nas/config/wifinetwork-param.conf
+    			sed -i 's/AP5G_CIPHER_TYPE=.*/AP5G_CIPHER_TYPE=TKIPAES/' /etc/nas/config/wifinetwork-param.conf
+    			sed -i 's/AP_ENCRYPTION_TYPE=.*/AP_ENCRYPTION_TYPE=WPA2PSK/' /etc/nas/config/wifinetwork-param.conf
+    			sed -i 's/AP_CIPHER_TYPE=.*/AP_CIPHER_TYPE=TKIPAES/' /etc/nas/config/wifinetwork-param.conf
+   			fi
+		fi
+	fi
+}
+
+NetworkParamCheck(){
+	if [ ! -f "/etc/nas/config/wifinetwork-param.conf" ]; then
+		cp -a /etc/nas/config/wifinetwork-param.default.conf /etc/nas/config/wifinetwork-param.conf
+		. /etc/nas/config/wifinetwork-param.conf 2>/dev/null
+	else
+		Apinface=`cat /etc/nas/config/wifinetwork-param.conf | grep -rsw AP_IFACE`
+		Cliinface=`cat /etc/nas/config/wifinetwork-param.conf | grep STA_IFACE`
+
+		if [ "$Apinface" != "AP_IFACE=wlan3" ] || [ "$Cliinface" != "STA_IFACE=wlan0" ]; then
+			cp -a /etc/nas/config/wifinetwork-param.default.conf /etc/nas/config/wifinetwork-param.conf
+			. /etc/nas/config/wifinetwork-param.conf 2>/dev/null
+		fi
+	fi
+}
+
+
+killCheck() {
+	if [ "$cmd2" == "" ] || [ "$cmd2" == "all" ]; then
+		hostapd_wlan1=`ps aux | grep -v "grep" | grep "/etc/hostapd/hostapd.conf.5G" | awk '{print $1}' | head -n 1`
+		if [ "$hostapd_wlan1" != "" ]; then
+			kill -9 "$hostapd_wlan1"
+			iw "$AP5G_IFACE" set type managed
+			ifconfig "$AP5G_IFACE" down
+		fi
+		hostapd_wlan3=`ps aux | grep -v "grep" | grep "/etc/hostapd/hostapd.conf.2G" | awk '{print $1}' | head -n 1`
+		if [ "$hostapd_wlan3" != "" ]; then
+			kill -9 "$hostapd_wlan3"
+			iw "$AP_IFACE" set type managed
+			ifconfig "$AP_IFACE" down
+		fi
+	elif [ "$cmd2" == "$AP5G_IFACE" ]; then
+		hostapd_wlan1=`ps aux | grep -v "grep" | grep "/etc/hostapd/hostapd.conf.5G" | awk '{print $1}' | head -n 1`
+		if [ "$hostapd_wlan1" != "" ]; then
+			kill -9 "$hostapd_wlan1"
+			iw "$AP5G_IFACE" set type managed
+			ifconfig "$AP5G_IFACE" down
+		fi
+	elif [ "$cmd2" == "$AP_IFACE" ]; then
+		hostapd_wlan3=`ps aux | grep -v "grep" | grep "/etc/hostapd/hostapd.conf.2G" | awk '{print $1}' | head -n 1`
+		if [ "$hostapd_wlan3" != "" ]; then
+			kill -9 "$hostapd_wlan3"
+			iw "$AP_IFACE" set type managed
+			ifconfig "$AP_IFACE" down
+		fi
+	fi
+}
+start() {
+	if [ "$AP_HOTSPOT" == "false" ] && [ "$AP5G_HOTSPOT" == "false" ]; then
+	 	exit 0
+	else	
+		echo "Starting hostapd: " "$iface"
+		#touch /tmp/WiFiApDebugModeEnabledLog
+		
+		if [ ! -f "/tmp/ConnectionMode" ]; then
+			echo "ApMode" > /tmp/ConnectionMode
+			#/sbin/AutoChan.sh $iface
+			if [ -f "/etc/nas/hybrid_list" ]; then
+				cp -a /etc/nas/hybrid_list /tmp/
+			fi
+		fi
+	
+		isBr=`brctl show | grep br0 | wc -l`
+		if [ "${isBr}" == "0" ]; then
+			brctl addbr br0
+			ifconfig br0 $AP_IP netmask $AP_MASK up
+		fi
+		if [ "$AP5G_HOTSPOT" == "true" ]; then
+			ifconfig "$AP5G_IFACE" 0.0.0.0 up
+		fi
+		if [ "$AP_HOTSPOT" == "true" ]; then
+			ifconfig "$AP_IFACE" 0.0.0.0 up
+		fi
+		
+		echo "NONE" > /tmp/WPS_APstatus
+		if [ -f "/etc/.device_Unconfigured" ]; then
+			if [ "$AP_ENCRYPTION_TYPE" == "WPA2PSK" ]; then
+				if [ `expr $(echo "$AP_ENCRYPTION_KEY" | wc -m) - 1` -lt 8 ]; then
+    				SN=`/usr/local/sbin/getSerialNumber.sh | cut -c 5-12`
+    				sed -i 's/AP_ENCRYPTION_KEY=.*/AP_ENCRYPTION_KEY='\""${SN}"\"'/' /etc/nas/config/wifinetwork-param.conf
+    			fi
+    		fi
+    		if [ "$AP5G_ENCRYPTION_TYPE" == "WPA2PSK" ]; then
+				if [ `expr $(echo "$AP5G_ENCRYPTION_KEY" | wc -m) - 1` -lt 8 ]; then
+    				SN=`/usr/local/sbin/getSerialNumber.sh | cut -c 5-12`
+    				sed -i 's/AP5G_ENCRYPTION_KEY=.*/AP5G_ENCRYPTION_KEY='\""${SN}"\"'/' /etc/nas/config/wifinetwork-param.conf
+    			fi
+    		fi
+			/sbin/wifi-restart UPDATE_AP_WPS_CONF > /dev/null 2>&1
+			/usr/local/sbin/wifi_ap_get_config.sh updateCH > /dev/null 2>&1
+		fi	
+		
+		if [ -f $factory_conf ] && [ `grep FACTORY_MODE $factory_conf | wc -l` == "1" ] && [ `grep FACTORY_MODE $factory_conf | awk -F= '{print $2}'` == "1" ]; then
+			/usr/local/sbin/wifi_ap_get_config.sh updateCH > /dev/null 2>&1
+			/sbin/wifi-restart UPDATE_AP_WPS_CONF > /dev/null
+		fi
+				
+		if [ "$iface" == "all" ]; then
+			if [ "$AP5G_HOTSPOT" == "true" ]; then
+				start-stop-daemon -S -q -b -N -15 -p /var/run/hostapd.pid --exec $HOSTAPD_EXE ${HOSTAPD_5G_CONF} -- -e /etc/hostapd/entropy.bin
+			fi
+			if [ "$AP_HOTSPOT" == "true" ]; then
+				start-stop-daemon -S -q -b -N -15 -p /var/run/hostapd.pid --exec $HOSTAPD_EXE ${HOSTAPD_2G4_CONF} -- -e /etc/hostapd/entropy.bin
+			fi
+		elif [ "$iface" == "$AP_IFACE" ]; then
+			if [ "$AP_HOTSPOT" == "true" ]; then
+				start-stop-daemon -S -q -b -N -15 -p /var/run/hostapd.pid --exec $HOSTAPD_EXE $HOSTAPD_2G4_CONF -- -e /etc/hostapd/entropy.bin
+			fi
+		elif [ "$iface" == "$AP5G_IFACE" ]; then
+			if [ "$AP5G_HOTSPOT" == "true" ]; then
+				start-stop-daemon -S -q -b -N -15 -p /var/run/hostapd.pid --exec $HOSTAPD_EXE $HOSTAPD_5G_CONF -- -e /etc/hostapd/entropy.bin
+			fi
+		fi
+	fi
+	echo "24;0;" > /tmp/MCU_Cmd	
+	if [ "$AP_HOTSPOT" == "true" ]; then
+		ifconfig $AP_IFACE promisc &
+	fi
+	if [ "$AP5G_HOTSPOT" == "true" ]; then
+		ifconfig $AP5G_IFACE promisc &
+	fi
+	echo "OK"
+	/usr/local/sbin/wifi_ap_get_config.sh updateconfig > /dev/null 2>&1 &
+}
+stop() {
+	echo -n "Stopping hostapd: " "$iface"
+	if [ "$iface" == "all" ]; then
+		hostapd_wlan1=`ps aux | grep -v "grep" | grep "/etc/hostapd/hostapd.conf.5G" | awk '{print $1}' | head -n 1`
+		if [ "$hostapd_wlan1" != "" ]; then
+			kill -15 "$hostapd_wlan1"
+			ifconfig "$AP5G_IFACE" down
+		fi
+		
+		hostapd_wlan3=`ps aux | grep -v "grep" | grep "/etc/hostapd/hostapd.conf.2G" | awk '{print $1}' | head -n 1`
+		if [ "$hostapd_wlan3" != "" ]; then
+			kill -15 "$hostapd_wlan3"
+			ifconfig "$AP_IFACE" down
+		fi
+	
+		#killall hostapd
+		#ifconfig "$AP5G_IFACE" down
+		#ifconfig "$AP_IFACE" down
+		
+		if [ "$AP_CHANNEL_LITE" == "0" ]; then	
+			ifconfig br0 down
+		fi
+	elif [ "$iface" == "$AP_IFACE" ]; then
+		hostapd_wlan3=`ps aux | grep -v "grep" | grep "/etc/hostapd/hostapd.conf.2G" | awk '{print $1}' | head -n 1`
+		if [ "$hostapd_wlan3" != "" ]; then
+			kill -15 "$hostapd_wlan3"
+		fi
+		#killall hostapd > /dev/null
+		ifconfig "$AP_IFACE" down
+	elif [ "$iface" == "$AP5G_IFACE" ]; then
+		hostapd_wlan1=`ps aux | grep -v "grep" | grep "/etc/hostapd/hostapd.conf.5G" | awk '{print $1}' | head -n 1`
+		if [ "$hostapd_wlan1" != "" ]; then
+			kill -15 "$hostapd_wlan1"
+		fi
+		#killall hostapd > /dev/null
+		ifconfig "$AP5G_IFACE" down
+	fi
+	#start-stop-daemon -K -q -p /var/run/hostapd.pid
+	echo "OK"
+}
+restart() {
+	stop
+	#NetworkParamCheck
+  	sleep 1
+	start
+}
+
+case "$1" in
+  start)
+  	ReGerneateSSID
+  	#NetworkParamCheck
+	start
+	;;
+  stop)
+	stop
+	;;
+  restart|reload)
+	restart
+	;;
+  kill_check )
+	killCheck
+	;;
+  Regenerate )
+  	ReGerneateSSID
+  	;;	
+	
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?
+

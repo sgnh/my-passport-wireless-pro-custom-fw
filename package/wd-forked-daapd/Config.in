@@ -1,0 +1,22 @@
+config BR2_PACKAGE_WD_FORKED_DAAPD
+    bool "wd-forked-daapd"
+    select BR2_PACKAGE_LIBAV
+    select BR2_PACKAGE_SQLITE
+    select BR2_PACKAGE_AVAHI
+    select BR2_PACKAGE_AVAHI_DAEMON
+    select BR2_PACKAGE_AVAHI_LIBCLIENT
+    select BR2_PACKAGE_ZLIB
+    select BR2_PACKAGE_LIBUNISTRING
+    select BR2_PACKAGE_LIBGCRYPT
+    select BR2_PACKAGE_LIBCONFUSE
+    select BR2_PACKAGE_MXML
+    select BR2_PACKAGE_LIBEVENT
+    select BR2_PACKAGE_LIBAVL
+    select BR2_PACKAGE_ALSA_LIB
+    select BR2_PACKAGE_TRE
+    select BR2_PACKAGE_LIBANTLR
+    select BR2_PACKAGE_TAGLIB
+    help
+        forked-daapd is an iTunes server (DAAP server) made by Julian Blache, based on mt-daapd(Firefly). It's also a Roku server(RSP server).
+        https://github.com/jasonmc/forked-daapd
+

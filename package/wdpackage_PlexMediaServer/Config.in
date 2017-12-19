@@ -1,0 +1,14 @@
+config BR2_PACKAGE_WDPACKAGE_PLEXMEDIASERVER
+	bool "wdpackage(PlexMediaServer)"
+	help
+	  The wd package(PlexMediaServer) package
+
+if BR2_PACKAGE_WDPACKAGE_PLEXMEDIASERVER
+
+config BR2_PACKAGE_WDPACKAGE_PLEXMEDIASERVER_INSTALL_PACKAGE
+    bool "PlexMediaServer Package install Method"
+    help
+      Say 'y' if you want to install PlexMediaServer in install package method
+
+endif
+

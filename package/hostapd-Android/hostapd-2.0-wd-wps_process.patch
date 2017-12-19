@@ -1,0 +1,74 @@
+diff -uN hostapd-2.3/src/ap/wps_hostapd.c hostapd-2.3-modify/src/ap/wps_hostapd.c
+--- hostapd-2.3/src/ap/wps_hostapd.c	2014-10-09 22:41:31.000000000 +0800
++++ hostapd-2.3-modify/src/ap/wps_hostapd.c	2015-02-09 14:00:05.785447031 +0800
+@@ -797,8 +797,14 @@
+ 		hostapd_wps_event_fail(hapd, &data->fail);
+ 		break;
+ 	case WPS_EV_SUCCESS:
++		if(hapd->iconf->hw_mode == HOSTAPD_MODE_IEEE80211A){
++			system("hostapd_cli -i wlan3 wps_cancel");
++		}else{
++			system("hostapd_cli -i wlan1 wps_cancel");
++		}
+ 		hostapd_wps_event_success(hapd, &data->success);
+ 		wpa_msg(hapd->msg_ctx, MSG_INFO, WPS_EVENT_SUCCESS);
++	
+ 		break;
+ 	case WPS_EV_PWD_AUTH_FAIL:
+ 		hostapd_pwd_auth_fail(hapd, &data->pwd_auth_fail);
+
+diff -uNr hostapd-Android-2.0/hostapd/src/ap/wps_hostapd.c new-hostapd-Android-2.0/hostapd/src/ap/wps_hostapd.c
+--- hostapd-Android-2.0/hostapd/src/ap/wps_hostapd.c	2015-03-02 10:30:53.771960711 +0800
++++ hostapd-Android-2.0/hostapd/src/ap/wps_hostapd.c	2015-03-02 17:55:40.140058769 +0800
+@@ -764,8 +764,21 @@
+ 
+ static void hostapd_wps_event_pbc_timeout(struct hostapd_data *hapd)
+ {
++	char msg[128];
+ 	/* Update WPS PBC Status:PBC Timeout */
+ 	hapd->wps_stats.pbc_status = WPS_PBC_STATUS_TIMEOUT;
++	
++	memset(msg, 0x0, sizeof(msg));
++	snprintf(msg, sizeof(msg), "echo \"22;0;\"  > /tmp/MCU_Cmd\n");
++	if (system(msg) < 0){
++		memset(msg, 0x0, sizeof(msg));
++	}
++	
++	memset(msg, 0x0, sizeof(msg));
++	snprintf(msg, sizeof(msg), "echo NONE > /tmp/WPS_APstatus\n");
++	if (system(msg) < 0){
++		memset(msg, 0x0, sizeof(msg));
++	}
+ }
+ 
+ 
+diff -uNr hostapd-Android-2.0/hostapd/src/wps/wps_registrar.c new-hostapd-Android-2.0/hostapd/src/wps/wps_registrar.c
+--- hostapd-Android-2.0/hostapd/src/wps/wps_registrar.c	2015-02-12 20:41:21.000000000 +0800
++++ hostapd-Android-2.0/hostapd/src/wps/wps_registrar.c	2015-03-02 17:55:49.139402046 +0800
+@@ -3288,6 +3288,7 @@
+ static void wps_registrar_set_selected_timeout(void *eloop_ctx,
+ 					       void *timeout_ctx)
+ {
++	char msg[128];
+ 	struct wps_registrar *reg = eloop_ctx;
+ 
+ 	wpa_printf(MSG_DEBUG, "WPS: Selected Registrar timeout - "
+@@ -3295,6 +3296,18 @@
+ 	reg->selected_registrar = 0;
+ 	reg->pbc = 0;
+ 	wps_registrar_selected_registrar_changed(reg, 0);
++	
++	memset(msg, 0x0, sizeof(msg));
++	snprintf(msg, sizeof(msg), "echo TIMEDOUT > /tmp/WPS_APpinMethod\n");
++	if (system(msg) < 0){
++		memset(msg, 0x0, sizeof(msg));
++	}
++	
++	memset(msg, 0x0, sizeof(msg));
++	snprintf(msg, sizeof(msg), "echo \"22;0;\"  > /tmp/MCU_Cmd\n");
++	if (system(msg) < 0){
++		memset(msg, 0x0, sizeof(msg));
++	}
+ }
+ 
+ 

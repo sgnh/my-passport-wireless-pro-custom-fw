@@ -1,0 +1,33 @@
+#!/bin/sh
+#
+# Start pmxcache module....
+#
+
+case "$1" in
+  start)
+	insmod /lib/modules/3.10.24-rtk-nas/pmxcache/pmxcache/pmxcache.ko
+	insmod /lib/modules/3.10.24-rtk-nas/pmxcache/pmxfs/pmxfs.ko
+	;;
+  stop)
+	mount | grep -q "/media/sdb1 type ${module}"
+	if [ $? == 0 ]; then
+		umount -l /var/ftp/Storage
+		umount -l /media/sdb1/.wdcache/.wd-alert
+		umount -l /DataVolume
+		umount -l /shares/Storage
+		umount -l /media/sdb1
+	fi
+	lsmod | grep -q ${module}
+	if [ $? == 0 ]; then
+		rmmod -f pmxfs
+		rmmod -f ${module}
+	fi
+	;;
+  restart|reload)
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?

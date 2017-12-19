@@ -1,0 +1,5 @@
+config BR2_PACKAGE_PMXPACKAGE_MONITOR
+	bool "pmxpackage(monitor)"
+	help
+	  The primax package(monitor) Monitor SMART status and Disk free spaces for Avatar device
+

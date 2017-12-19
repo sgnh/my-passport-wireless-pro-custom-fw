@@ -1,0 +1,19 @@
+<?xml version="1.0" standalone='no'?>
+<!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+<service-group>    
+    <name replace-wildcards="yes">%h</name>
+    <service>
+        <type>_http._tcp</type>        
+        <port>80</port>
+        <txt-record>TXTVersion=1.1</txt-record>
+        <txt-record>Vendor=WDC</txt-record>
+        <txt-record>manufacturer=Western Digital Corporation</txt-record>
+        <txt-record>manufacturerURL=http://www.wdc.com</txt-record>
+        <txt-record>modelName=My Passport Wireless Pro</txt-record>
+        <txt-record>modelDescription=Wi-Fi Mobile Storage</txt-record>
+        <txt-record>modelURL=http://products.wdc.com/mypassportwirelesspro</txt-record>
+        <txt-record>modelNumber=AV1W</txt-record>
+        
+        <txt-record>serialNumber=WDAvatarSerialNumber</txt-record>
+    </service>
+</service-group>

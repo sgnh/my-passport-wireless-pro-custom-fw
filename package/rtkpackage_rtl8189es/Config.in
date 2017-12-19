@@ -1,0 +1,4 @@
+config BR2_PACKAGE_RTKPACKAGE_RTL8189ES
+	bool "rtl8189es"
+	help
+		RTK wifi 8189es driver

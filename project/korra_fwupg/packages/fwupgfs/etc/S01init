@@ -1,0 +1,32 @@
+#!/bin/sh
+#
+# Start logging
+#
+
+case "$1" in
+  start)
+	echo "Starting mcu daemon..."
+	/bin/mcu_daemon &
+	sleep 2
+	echo "1;0;" > /tmp/MCU_Cmd
+	echo 42 > /sys/class/gpio/export
+	echo 47 > /sys/class/gpio/export
+	echo out > /sys/class/gpio/gpio42/direction
+	echo out > /sys/class/gpio/gpio47/direction
+	echo 0 > /sys/class/gpio/gpio42/value
+	echo 0 > /sys/class/gpio/gpio47/value
+	;;
+  stop)
+	echo "Stoping mcu daemon..."
+	echo "17;0;" > /tmp/MCU_Cmd
+	sleep 2
+    echo "16;0;" > /tmp/MCU_Cmd
+    sleep 2
+	killall mcu_daemon
+	;;
+  *)
+	echo "Usage: $0 {start|stop}"
+	exit 1
+esac
+
+exit $?

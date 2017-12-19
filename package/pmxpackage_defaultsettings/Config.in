@@ -1,0 +1,5 @@
+config BR2_PACKAGE_PMXPACKAGE_DEFAULTSETTINGS
+	bool "pmxpackage(defaultsettings)"
+	help
+	  The primax package(defaultsettings) Default settings for MyPassport device
+

@@ -1,0 +1,10 @@
+[Unit]
+Description=Primax swapfile RC Script (S74swapfile)
+DefaultDependencies=no
+After=primax-mdev.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash -c "/etc/init.d/S74swapfile start"
+ExecStop=/bin/bash -c "/etc/init.d/S74swapfile stop"

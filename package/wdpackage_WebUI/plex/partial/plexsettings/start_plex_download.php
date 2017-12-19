@@ -1,0 +1,1 @@
+<?php echo exec('/usr/local/sbin/updatePlexFirmwareToLatest.sh &'); ?>

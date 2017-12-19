@@ -1,0 +1,55 @@
+From 3a9a6da7134a46ded298b9f7bf7d7d72fc0567c3 Mon Sep 17 00:00:00 2001
+From: Yuan-Yi Chang <hank.chang@primax.com.tw>
+Date: Tue, 31 Mar 2015 16:11:33 +0800
+Subject: [PATCH 4/6] busybox-1.21.0-wd-init.patch
+
+---
+ init/init.c |   13 ++++++++-----
+ 1 file changed, 8 insertions(+), 5 deletions(-)
+
+diff --git a/init/init.c b/init/init.c
+index d99d68c..30731e1 100644
+--- a/init/init.c
++++ b/init/init.c
+@@ -732,14 +732,17 @@ static void pause_and_low_level_reboot(unsigned magic)
+ 		sleep(1);
+ }
+ 
+-static void run_shutdown_and_kill_processes(void)
++static void run_shutdown_and_kill_processes(int sig)
+ {
+ 	/* Run everything to be run at "shutdown".  This is done _prior_
+ 	 * to killing everything, in case people wish to use scripts to
+ 	 * shut things down gracefully... */
+ 	run_actions(SHUTDOWN);
+-
+-	message(L_CONSOLE | L_LOG, "The system is going down NOW!");
++    if (sig == SIGUSR1)
++        system("/bin/echo \"25;0\" > /tmp/MCU_Cmd");
++    if (sig == SIGTERM)
++        system("/bin/echo \"16;0\" > /tmp/MCU_Cmd");
++    message(L_CONSOLE | L_LOG, "The system is going down NOW!");
+ 
+ 	/* Send signals to every process _except_ pid 1 */
+ 	kill(-1, SIGTERM);
+@@ -804,7 +807,7 @@ static void halt_reboot_pwoff(int sig)
+ 	 */
+ 	reset_sighandlers_and_unblock_sigs();
+ 
+-	run_shutdown_and_kill_processes();
++	run_shutdown_and_kill_processes(sig);
+ 
+ 	m = "halt";
+ 	rb = RB_HALT_SYSTEM;
+@@ -837,7 +840,7 @@ static void exec_restart_action(void)
+ 
+ 		reset_sighandlers_and_unblock_sigs();
+ 
+-		run_shutdown_and_kill_processes();
++		run_shutdown_and_kill_processes(sig);
+ 
+ #ifdef RB_ENABLE_CAD
+ 		/* Allow Ctrl-Alt-Del to reboot the system.
+-- 
+1.7.9.5
+

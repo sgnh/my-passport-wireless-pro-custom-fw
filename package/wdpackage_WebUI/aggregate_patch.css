@@ -1,0 +1,6410 @@
+@CHARSET "ISO-8859-1";html {
+    height: 100%;
+}
+
+body {
+    font: 14px Arial,"Helvetica Neue",Helvetica,sans-serif;
+    color: #4B5A68;
+    background-color: #fafafa;
+    margin: 0;
+    padding: 0 0 20px;
+    height: 100%;
+    overflow-y: scroll;
+}
+
+h1 {
+    font: 28px Arial,"Helvetica Neue",Helvetica,sans-serif;
+    color: #4b5a68;
+    margin: 9px 0 11px;
+    padding: 0
+}
+
+h2 {
+    font: 22px Arial,"Helvetica Neue",Helvetica,sans-serif;
+    color: #4b5a68;
+    margin: 21px 0 20px;
+    padding: 0
+}
+
+h3 {
+    font: 16px Arial,"Helvetica Neue",Helvetica,sans-serif;
+    color: #85939c
+}
+
+hr {
+    color: #c8c8c8;
+    background-color: #c8c8c8;
+    height: 1px;
+    border: 0;
+    margin: 20px 0 20px
+}
+
+a {
+    font: 14px Arial,"Helvetica Neue",Helvetica,sans-serif;
+    color: #15abff;
+    text-decoration: underline
+}
+
+a:hover,a:active,a:focus {
+    color: #0067a6
+}
+
+.generic_progressbar {
+    width: 150px;
+    height: 5px
+}
+
+.plex_progressbar {
+    width: 410px;
+    height: 5px
+}
+button,input[type="submit"],input[type="button"] {
+    height: 32px;
+    line-height: 32px;
+    padding: 0 20px;
+    background-color: #ebebeb;
+    background-image: -webkit-gradient(linear,left top,left bottom,from(#fafafa),to(#dcdcdc));
+    background-image: -webkit-linear-gradient(top,#fafafa,#dcdcdc);
+    background-image: -moz-linear-gradient(top,#fafafa,#dcdcdc);
+    background-image: -ms-linear-gradient(top,#fafafa,#dcdcdc);
+    background-image: linear-gradient(top,#fafafa,#dcdcdc);
+    filter: progid:DXImageTransform.Microsoft.gradient(GradientType=0,StartColorStr='#fafafa',EndColorStr='#dcdcdc');
+    font: 14px Arial,"Helvetica Neue",Helvetica,sans-serif;
+    color: #4b5a68;
+    text-align: center;
+    cursor: pointer;
+    border: 0 solid transparent;
+    border-top-width: 1px;
+    border-top-color: #FFF;
+    border-bottom-width: 1px;
+    border-bottom-color: #c8c8c8;
+    -moz-appearance: none;
+    -webkit-appearance: none;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -ms-box-sizing: border-box;
+    box-sizing: border-box;
+    outline: 1px solid #c8c8c8
+}
+
+button:hover,input[type="submit"]:hover,input[type="button"]:hover,.top_dashboard_dropdown:hover, {
+    background-color: #f1f1f1;
+    background-image: -webkit-gradient(linear,left top,left bottom,from(#ececec),to(#f6f6f6));
+    background-image: -webkit-linear-gradient(top,#ececec,#f6f6f6);
+    background-image: -moz-linear-gradient(top,#ececec,#f6f6f6);
+    background-image: -ms-linear-gradient(top,#ececec,#f6f6f6);
+    background-image: linear-gradient(top,#ececec,#f6f6f6);
+    filter: progid:DXImageTransform.Microsoft.gradient(GradientType=0,StartColorStr='#ececec',EndColorStr='#f6f6f6')
+}
+
+input:focus,textarea:focus {
+    border: 1px solid #09F!important
+}
+
+label {
+    display: inline-block;
+    width: 200px;
+    margin-right: 50px;
+    vertical-align: middle;
+    font: 14px Arial,"Helvetica Neue",Helvetica,sans-serif;
+    color: #85939c
+}
+
+#create_network_password_form label,#login_form label {
+    width: 190px;
+    margin-right: 35px;
+    font-size:15px;
+    color:#85939C;
+    line-height:32px;
+    
+}
+
+.help_topic_container {
+    height: 40px;
+    text-align: left;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -ms-box-sizing: border-box;
+    box-sizing: border-box
+}
+
+.help_topic_container:hover {
+    background: #15abff
+}
+
+.help_topic_container:hover a {
+    color: #fafafa!important
+}
+
+.help_link_image>span {
+    position: relative;
+    left: 10px
+}
+
+#getting_started_wizard_link {
+    background-position: 0 -1708px
+}
+
+#getting_started_wizard_link:hover {
+    background-position: 0 -1738px
+}
+
+#main_header_container {
+    height: 60px;
+    padding: 0px;
+    background-color:#15abff;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -ms-box-sizing: border-box;
+    box-sizing: border-box;
+    /*position:fixed;*/
+    width:100%;
+}
+
+#main_header {
+    width: 960px;
+    margin: 0 auto
+}
+
+#main_header #header_left.branding_logo {
+    position: relative;
+   	top: 15px;
+    width: 265px;
+    height: 25px;
+    float: left;
+    background: url('img/img_logo_s.png?v=1.4.0-87') no-repeat; /* 0 -452px*/
+}
+
+#main_header #header_left img {
+    padding-right: 5px;
+    vertical-align: middle
+}
+
+#main_header_container,#page {
+    padding-left: 0;
+    padding-right: 0
+    	
+}
+
+#fullpage_container {
+    position: relative;
+    overflow:hidden;
+}
+
+#page {
+    width: 968px;
+    margin: 30px auto 0 auto;
+}
+
+#header_toolbar {
+    position: relative;
+    top: -12px;
+    right: -6px;
+    display: inline;
+    /*display: none;*/
+    float: right
+}
+
+.toolbar_item {
+    position: relative;
+    display: inline-block;
+    margin: 0 11px 0 0
+}
+
+.top_dashboard_dropdown {
+    top: 11px;
+    height: 32px;
+    line-height: 32px;
+    padding: 0 10px;
+    /*background-color: #ebebeb;
+    background-image: -webkit-gradient(linear,left top,left bottom,from(#fafafa),to(#dcdcdc));
+    background-image: -webkit-linear-gradient(top,#fafafa,#dcdcdc);
+    background-image: -moz-linear-gradient(top,#fafafa,#dcdcdc);
+    background-image: -ms-linear-gradient(top,#fafafa,#dcdcdc);
+    background-image: linear-gradient(top,#fafafa,#dcdcdc);
+    filter: progid:DXImageTransform.Microsoft.gradient(GradientType=0,StartColorStr='#fafafa',EndColorStr='#dcdcdc');-change22*/
+    text-align: center;
+    font: 14px Arial,"Helvetica Neue",Helvetica,sans-serif;
+    color: #4b5a68;
+    cursor: pointer;
+   /*border: 0 solid transparent;
+    border-top-width: 1px;
+    border-top-color: #FFF;
+    border-bottom-width: 1px;
+    border-bottom-color: #c8c8c8;-change22*/
+    -moz-appearance: none;
+    -webkit-appearance: none;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -ms-box-sizing: border-box;
+    box-sizing: border-box
+}
+
+#notification_toolbar.toolbar_item {
+    margin-right: 10px
+}
+
+#shortcut_toolbar.toolbar_item {
+    margin-right: 7px;
+    position: relative;
+    top: 10px;
+}
+
+#help_toolbar.toolbar_item {
+    margin-right: 10px
+}
+
+#device_toolbar.toolbar_item {
+    margin-right: 10px
+}
+#eulaLanguage_block{
+	overflow:hidden;
+}
+#eulaLanguageTitle{
+	float:left;
+	display:block;
+	font-size:18px;
+	font-weight:bold;
+	margin-top:5px;
+}
+#language_toolbar.toolbar_item {
+    /*top: 10px;
+    left: -67px*/
+    float:left;
+    margin-left:10px;
+}
+#eula_check_form{
+		float:left;
+}
+#eula_check_block{
+		overflow:hidden;
+		margin:15px 0;
+}
+.toolbar_button_container {
+    width: 99px
+}
+#language_container{
+	width: auto;
+}
+#notification_toolbar .toolbar_button_container {
+    width: 57px
+}
+
+#help_toolbar .toolbar_button_container {
+    width: 61px
+}
+
+#device_toolbar .toolbar_button_container {
+    width: 61px
+}
+
+#shortcut_toolbar .toolbar_button_container {
+    width: auto
+}
+
+.toolbar_button {
+    position: absolute;
+    top: -1px;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: block;
+    width: 100%;
+    height: 32px;
+    max-height: 32px;
+    float: left;
+    margin-right: 11px;
+    /*border: 0 solid transparent;
+    border-top-width: 1px;
+    border-top-color: #FFF;
+    border-bottom-width: 1px;
+    border-bottom-color: #CCC; -change22*/
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    box-sizing: border-box;
+    /*outline: 1px solid #c8c8c8-change22*/
+}
+#shortcut_toolbar button,#logout_toolbar button
+{
+	/*change22*/
+	background:none;
+	border:0 solid transparent;
+	outline:1px solid transparent;
+	color:#FFF;
+}
+@-moz-document url-prefix() {
+    .toolbar_button {
+        top: -1px
+    }
+}
+#header_toolbar_contents{
+	margin-top:15px;	
+	/*change22*/
+}
+
+#header_toolbar_contents .toolbar_item{
+  display:none;  
+}
+#header_toolbar_contents>.toolbar_item:last-child {
+    margin-right: 0
+}
+
+@-moz-document url-prefix() {
+    #header_toolbar_contents>.toolbar_item:last-child {
+        margin-right: 5px
+    }
+}
+
+.toolbar_button .down_arrow {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    display: inline-block;
+    width: 16px;
+    height: 8px;
+    background: url("img/main_sprite.png?v=1.4.0-87") -162px -605px no-repeat transparent
+}
+
+#notification_toolbar .icon {
+    position: absolute;
+    top: 5px;
+    left: 10px;
+    display: inline-block;
+    width: 21px;
+    height: 25px;
+    background: url("img/main_sprite.png?v=1.4.0-87") -1px -810px no-repeat transparent
+}
+
+#help_toolbar .icon {
+    position: absolute;
+    top: 3px;
+    left: 10px;
+    display: inline-block;
+    width: 25px;
+    height: 25px;
+    background: url("img/main_sprite.png?v=1.4.0-87") -265px -609px no-repeat transparent
+}
+
+#device_toolbar .icon {
+    position: absolute;
+    top: 3px;
+    left: 10px;
+    display: inline-block;
+    width: 25px;
+    height: 25px;
+    background: url("img/main_sprite.png?v=1.4.0-87") -265px -609px no-repeat transparent
+}
+
+#shortcut_toolbar .icon {
+    position: relative;
+    top: 0px;
+    left: -4px;
+    display: inline-block;
+    width: 52px;
+    height: 23px;
+    margin-top: 7px;
+    margin-right: 2px;
+    background: url("img/product_images_sprite.png?v=1.4.0-87") -543px 0 no-repeat transparent
+}
+
+@-moz-document url-prefix() {
+    #shortcut_toolbar .icon {
+        height: 19px
+    }
+}
+
+#shortcut_toolbar .text {
+    display: inline-block;
+    position: relative;
+    top: -6px;
+    left: -6px
+    color:#FFF;
+    /*change22*/
+}
+
+.toolbar_button.selected {
+    /*border-top-color: #054f9d;
+    border-bottom-color: transparent;
+    background-color: #018be5;
+    background-image: -webkit-gradient(linear,left top,left bottom,from(#027dcb),to(#09f));
+    background-image: -webkit-linear-gradient(top,#027dcb,#09f);
+    background-image: -moz-linear-gradient(top,#027dcb,#09f);
+    background-image: -ms-linear-gradient(top,#027dcb,#09f);
+    background-image: linear-gradient(top,#027dcb,#09f);
+    color: #fafafa;
+    outline: 0*/
+}
+
+.toolbar_button.selected .down_arrow {
+    background-position: -162px -595px
+}
+
+#notification_link.toolbar_button.selected .icon {
+    left: 10px;
+    width: 20px;
+    height: 24px;
+    background-position: -1px -837px
+}
+
+#help_link.toolbar_button.selected .icon {
+    background-position: -291px -609px
+}
+
+.toolbar_button_list_container {
+    position: absolute;
+    top: 35px;
+    right: 0;
+    z-index: 15;
+    display: none;
+    background: #f0f0f0;
+    border: 1px solid #d2d2d2;
+    margin-left: 8px
+}
+
+div.nav_container {
+    margin: 9px 0 0;
+    width: 960px;
+    height: 90px;
+    overflow: hidden
+}
+
+nav.top_nav {
+    position: relative;
+    left: -2px;
+    width: 962px;
+    height: 83px;
+    border-bottom: 2px solid #FFF;
+    border-top: 2px solid #dcdcdc;
+    background-color: #f0f0f0;
+    background-image: -webkit-gradient(linear,left top,left bottom,from(#ececec),to(#f4f4f4));
+    background-image: -webkit-linear-gradient(top,#ececec,#f4f4f4);
+    background-image: -moz-linear-gradient(top,#ececec,#f4f4f4);
+    background-image: -ms-linear-gradient(top,#ececec,#f4f4f4);
+    background-image: linear-gradient(top,#ececec,#f4f4f4);
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -ms-box-sizing: border-box;
+    box-sizing: border-box
+}
+
+nav.top_nav ul {
+    position: relative;
+    list-style-type: none;
+    margin: 0;
+    padding: 0
+}
+
+nav.top_nav ul li {
+    position: relative;
+    top: 0;
+    width: 134px;
+    height: 81px;
+    float: left;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    text-align: center;
+    border: 1px solid transparent
+}
+
+nav.top_nav ul li:last-child {
+    width: 141px;
+    border-right-width: 0
+}
+
+nav.top_nav ul li a {
+    display: inline-block;
+    width: 100%;
+    height: 80px;
+    line-height: 38px;
+    text-decoration: none;
+    vertical-align: bottom;
+    font: 15px Arial,"Helvetica Neue",Helvetica,sans-serif;
+    color: #4b5a68;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none
+}
+
+nav.top_nav ul li a:hover,nav.top_nav ul li.current span {
+    color: #15abff;
+    outline: 0
+}
+
+div.main_nav_link_icon {
+    position: relative;
+    top: 13px;
+    display: block;
+    width: 90px;
+    height: 36px;
+    margin: 0 auto 10px;
+    background: url("img/main_sprite.png?v=1.4.0-87") no-repeat transparent
+}
+
+span.main_nav_link_title {
+    position: relative;
+    top: 9px;
+    display: block;
+    margin: 0 auto;
+    width: 100%;
+    white-space: nowrap
+}
+
+a#nav_dashboard_link .main_nav_link_icon {
+    background-position: 0 -294px
+}
+
+#nav_dashboard:hover .main_nav_link_icon {
+    background-position: 0 -252px
+}
+
+li.current a#nav_dashboard_link .main_nav_link_icon {
+    background-position: 0 -252px
+}
+
+a#head_settings_nav_media_link_link .main_nav_link_icon {
+    background-position: 0 -378px
+}
+
+#head_settings_nav_media_link:hover .main_nav_link_icon {
+    background-position: 0 -336px
+}
+
+li.current a#head_settings_nav_media_link_link .main_nav_link_icon {
+    background-position: 0 -336px
+}
+
+a#head_settings_nav_network_link_link .main_nav_link_icon {
+    background-position: 0 -462px
+}
+
+#head_settings_nav_network_link:hover .main_nav_link_icon {
+    background-position: 0 -420px
+}
+
+li.current a#head_settings_nav_network_link_link .main_nav_link_icon {
+    background-position: 0 -420px
+}
+
+a#head_settings_nav_hardware_link_link .main_nav_link_icon {
+    background-position: 0 -210px
+}
+
+#head_settings_nav_hardware_link:hover .main_nav_link_icon {
+    background-position: 0 -168px
+}
+
+li.current a#head_settings_nav_hardware_link_link .main_nav_link_icon {
+    background-position: 0 -168px
+}
+
+a#head_settings_nav_admin_link_link .main_nav_link_icon {
+    background-position: 0 -42px
+}
+
+#head_settings_nav_admin_link:hover .main_nav_link_icon {
+    background-position: 0 0
+}
+
+li.current a#head_settings_nav_admin_link_link .main_nav_link_icon {
+    background-position: 0 0
+}
+
+a#head_settings_nav_support_link_link .main_nav_link_icon {
+    background-position: 0 -546px
+}
+
+#head_settings_nav_support_link:hover .main_nav_link_icon {
+    background-position: 0 -504px
+}
+
+li.current a#head_settings_nav_support_link_link .main_nav_link_icon {
+    background-position: 0 -504px
+}
+
+a#head_settings_nav_update_link_link .main_nav_link_icon {
+    top: 12px;
+    background-position: 0 -126px
+}
+
+#head_settings_nav_update_link:hover .main_nav_link_icon {
+    background-position: 0 -83px
+}
+
+li.current a#head_settings_nav_update_link_link .main_nav_link_icon {
+    background-position: 0 -83px
+}
+
+div.main_content_header {
+    width: 960px;
+    margin: 0;
+    border-bottom: 1px solid #c8c8c8
+}
+
+div.main_content_header img {
+    padding: 5px;
+    padding-bottom: 0
+}
+
+div.main_content_header h1 {
+    display: inline-block;
+    padding-left: 20px
+}
+
+#support_header.main_content_header>h1 {
+    margin-bottom: 10px
+}
+
+.content_full_container {
+    width: 960px;
+    margin: auto
+}
+
+.leftmenu_container {
+    width: 212px;
+    float: left;
+    padding: 0;
+    margin: 0 40px 0 1px
+}
+
+.leftmenu {
+    position: relative;
+    width: 212px;
+    height: 312px;
+    padding: 0;
+    margin: 0;
+    background: #1e1e1e;
+    overflow: hidden;
+    border-radius: 6px
+}
+
+.leftmenu ul {
+    position: relative;
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+    border-bottom: 1px solid #2b2b2b
+}
+
+.leftmenu ul li {
+    position: relative;
+    padding: 0;
+    border: 1px solid transparent;
+    border-bottom: 1px solid #0e0e0e;
+    border-top: 1px solid #2b2b2b
+}
+
+.leftmenu ul li a {
+    font: 16px Arial,"Helvetica Neue",Helvetica,sans-serif;
+    color: #a0a0a0;
+    height: 50px;
+    line-height: 50px;
+    text-decoration: none
+}
+
+.leftmenu ul li:hover {
+    border: 1px solid #0067a6;
+    border-radius: 6px
+}
+
+.leftmenu ul li.selected {
+    background: #0067a6;
+    color: #d2d2d2;
+    border: 1px solid #0067a6;
+    border-radius: 6px
+}
+
+.leftmenu ul li a {
+    display: block;
+    padding-left: 20px
+}
+
+.leftmenu ul.listNavigation li a {
+    position: relative;
+    width: 200px;
+    padding-left: 10px
+}
+
+.leftmenu ul li.selected a {
+    color: #d2d2d2
+}
+
+.leftmenu ul li a img {
+    vertical-align: middle;
+    border: 0
+}
+
+.leftmenu_buttons {
+    text-align: right;
+    margin-top: 10px
+}
+
+.leftmenu li a img {
+    border: 0;
+    vertical-align: middle
+}
+
+div.content_container {
+    width: 663px;
+    margin-left: 17px;
+    padding-top: 0;
+    margin-bottom: 32px
+}
+
+#page {
+    display: none
+}
+
+#container {
+    position: relative;
+    z-index: 10;
+    width: 960px;
+    margin: 0 auto
+}
+
+#content {
+    top: 0;
+    left: 0;
+    z-index: 11;
+    width: 964px;
+    margin: 0 auto
+}
+
+.jquery-checkbox {
+    position: relative;
+    top: -2px;
+    display: inline;
+    font-size: 20px;
+    line-height: 20px;
+    cursor: pointer;
+    vertical-align: middle;
+    outline: 0
+}
+
+.jquery-checkbox div.checkbox_container {
+    display: inline-block;
+    min-width: 80px;
+    height: 32px;
+    line-height: 32px;
+    margin-left: 0;
+    background-color: #eaeaea;
+    background-image: -webkit-gradient(linear,left top,left bottom,from(#e5e5e5),to(#f0f0f0));
+    background-image: -webkit-linear-gradient(top,#e5e5e5,#f0f0f0);
+    background-image: -moz-linear-gradient(top,#e5e5e5,#f0f0f0);
+    background-image: -o-linear-gradient(top,#e5e5e5,#f0f0f0);
+    background-image: -ms-linear-gradient(top,#e5e5e5,#f0f0f0);
+    background-image: linear-gradient(top,#e5e5e5,#f0f0f0);
+    font: 12px/26px Arial,"Helvetica Neue",Helvetica,sans-serif;
+    color: #4b5a68;
+    vertical-align: middle;
+    cursor: pointer;
+    border-bottom: 1px solid #CCC;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -ms-box-sizing: border-box;
+    box-sizing: border-box
+    outline:none;
+}
+
+.jquery-checkbox div.checkbox_off {
+    display: inline-block;
+    font: 16px Arial,"Helvetica Neue",Helvetica,sans-serif;
+    text-align: right;
+    vertical-align: text-bottom;
+    color: #CCC
+}
+
+label.checbox_off,label.checkbox_on {
+    width: auto;
+    height: 32px;
+    min-width: 12px;
+    line-height: 32px;
+    padding-left: 20px;
+    padding-right: 20px;
+    text-align: center;
+    cursor: pointer;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -ms-box-sizing: border-box;
+    box-sizing: border-box
+}
+
+label.checkbox_off {
+    display: inline-block;
+    background-color: #eaeaea;
+    background-image: -webkit-gradient(linear,left top,left bottom,from(#e5e5e5),to(#f0f0f0));
+    background-image: -webkit-linear-gradient(top,#e5e5e5,#f0f0f0);
+    background-image: -moz-linear-gradient(top,#e5e5e5,#f0f0f0);
+    background-image: -o-linear-gradient(top,#e5e5e5,#f0f0f0);
+    background-image: -ms-linear-gradient(top,#e5e5e5,#f0f0f0);
+    background-image: linear-gradient(top,#e5e5e5,#f0f0f0);
+    border-top: 1px solid #CCC
+}
+
+label.checkbox_on {
+    background-color: transparent;
+    border-top: 1px solid #054f9d
+}
+
+label.checkbox_on span {
+    color: #f6f6f6
+}
+
+.toggle_switch+label.checkbox_off {
+    height: 31px;
+    line-height: 32px;
+    padding: 0 20px;
+    background-color: #eaeaea;
+    background-image: -webkit-gradient(linear,left top,left bottom,from(#f0f0f0),to(#e5e5e5));
+    background-image: -webkit-linear-gradient(top,#f0f0f0,#e5e5e5);
+    background-image: -moz-linear-gradient(top,#f0f0f0,#e5e5e5);
+    background-image: -o-linear-gradient(top,#f0f0f0,#e5e5e5);
+    background-image: -ms-linear-gradient(top,#f0f0f0,#e5e5e5);
+    background-image: linear-gradient(top,#f0f0f0,#e5e5e5)
+}
+
+.jquery-checkbox2 label.checkbox_on {
+    width: 26px!important;
+    height: 24px
+}
+
+.jquery-checkbox2 label.checkbox_off {
+    display: inline;
+    width: 26px!important;
+    height: 24px
+}
+
+.jquery-checkbox div.checkbox_on {
+    display: inline-block;
+    font: 16px Arial,"Helvetica Neue",Helvetica,sans-serif;
+    text-align: left;
+    vertical-align: text-bottom;
+    color: #CCC
+}
+
+.jquery-checkbox-checked label.checkbox_on {
+    background-color: #018be3;
+    background-image: -webkit-gradient(linear,left top,left bottom,from(#027dc8),to(#09F));
+    background-image: -webkit-linear-gradient(top,#027dc8,#09F);
+    background-image: -moz-linear-gradient(top,#027dc8,#09F);
+    background-image: -o-linear-gradient(top,#027dc8,#09F);
+    background-image: -ms-linear-gradient(top,#027dc8,#09F);
+    background-image: linear-gradient(top,#027dc8,#09F)
+}
+
+.jquery-checkbox span.toggle_on,.jquery-checkbox span.toggle_off {
+    position: relative;
+    top: -1px;
+    display: none;
+    background: url('img/main_sprite.png?v=1.4.0-87') no-repeat -175px -558px transparent;
+    width: 14px;
+    height: 16px;
+    margin: 0 20px;
+    line-height: 32px;
+    vertical-align: middle;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -ms-box-sizing: border-box;
+    box-sizing: border-box
+}
+
+.jquery-checkbox span.toggle_off {
+    background-position: -189px -558px
+}
+
+.jquery-checkbox span.toggle_off {
+    display: inline-block
+}
+
+.jquery-checkbox .toggle_switch {
+    display: none
+}
+
+.jquery-checkbox2 {
+    position: relative;
+    left: -3px;
+    display: inline;
+    cursor: pointer;
+    outline:none;
+}
+
+.jquery-checkbox2 div.checkbox_container {
+    display: inline-block;
+    width: 24px;
+    height: 24px;
+    vertical-align: middle
+}
+
+.toggle_off,.toggle_on {
+    width: 20px;
+    height: 20px;
+    margin: 3px;
+    background-image: url("img/main_sprite.png?v=1.4.0-87");
+    background-repeat: no-repeat;
+    background-color: transparent;
+    cursor: pointer
+}
+
+.toggle_off {
+    background-position: -180px -575px
+}
+
+.toggle_off:hover {
+    background-position: -200px -575px
+}
+
+.toggle_on {
+    background-position: -160px -575px
+}
+
+.toggle_on:hover {
+    background-position: -140px -575px
+}
+
+.jquery-checkbox2 .mark {
+    display: inline
+}
+
+.jquery-checkbox2 img {
+    width: 24px;
+    height: 24px;
+    vertical-align: middle
+}
+
+.jquery-checkbox2 img {
+    background: transparent url("img/checkbox2.png?v=1.4.0-87") no-repeat
+}
+
+.jquery-checkbox2 div.checkbox_container {
+    background-position: 0 0
+}
+
+.jquery-checkbox2-hover div.checkbox_container {
+    background-position: -24px 0
+}
+
+.jquery-checkbox2-checked div.checkbox_container {
+    background-position: 0 -24px
+}
+
+.jquery-checkbox2-checked .jquery-checkbox2-hover div.checkbox_container {
+    background-position: -24px -24px
+}
+
+.jquery-checkbox2-disabled div.checkbox_container {
+    background-position: 0 -48px
+}
+
+.jquery-checkbox2-checked .jquery-checkbox2-disabled div.checkbox_container {
+    background-position: 0 -72px
+}
+
+div .selectBox .ui-selectmenu {
+    position: relative;
+    display: inline-block;
+    min-width: 100px;
+    height: 32px;
+    padding: 0 20px 0 10px;
+    overflow: hidden;
+    border: 0;
+    background: #f0f0f0;
+    background: -moz-linear-gradient(top,#fafafa 0,#dcdcdc 100%);
+    background: -webkit-gradient(linear,left top,left bottom,color-stop(0%,#fafafa),color-stop(100%,#dcdcdc));
+    background: -webkit-linear-gradient(top,#fafafa 0,#dcdcdc 100%);
+    background: -o-linear-gradient(top,#fafafa 0,#dcdcdc 100%);
+    background: -ms-linear-gradient(top,#fafafa 0,#dcdcdc 100%);
+    background: linear-gradient(to bottom,#fafafa 0,#dcdcdc 100%);
+    /*border: 0 solid transparent;
+    border-top-width: 1px;
+    border-top-color: #FFF;
+    border-bottom-width: 1px;
+    border-bottom-color: #CCC;*/
+    border: 1px solid #D2D2D2;
+    text-align: left;
+    vertical-align: middle;
+    text-decoration: none;
+    font: 14px Arial,"Helvetica Neue",Helvetica,sans-serif;
+    color: #4b5a68;
+    cursor: pointer;
+    -moz-appearance: none;
+    -webkit-appearance: none;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -ms-box-sizing: border-box;
+    box-sizing: border-box;
+    border-radius: 0;
+    outline: 0
+}
+input[type="checkbox"]{
+		outline: none;
+}
+div .selectBox .ui-selectmenu-icon {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    display: inline-block;
+    width: 16px;
+    height: 8px;
+    background: url("img/main_sprite.png?v=1.4.0-87") -168px -639px no-repeat transparent
+}
+
+div .selectBox .ui-state-active .ui-selectmenu-icon {
+    background-position: -162px -595px
+}
+
+div .selectBox .ui-state-active {
+    background-color: #1f96e3;
+    background-image: -webkit-gradient(linear,left top,left bottom,from(#027eca),to(#3daffc));
+    background-image: -webkit-linear-gradient(top,#027eca,#3daffc);
+    background-image: -moz-linear-gradient(top,#027eca,#3daffc);
+    background-image: -o-linear-gradient(top,#027eca,#3daffc);
+    background-image: -ms-linear-gradient(top,#027eca,#3daffc);
+    background-image: linear-gradient(top,#027eca,#3daffc)
+}
+
+div .selectBox .ui-state-active .ui-selectmenu-status {
+    color: #f6f6f6
+}
+
+div .selectBox .ui-state-default,div .selectBox .ui-widget-content .ui-state-default,div .selectBox .ui-widget-header .ui-state-default {
+    color: #4b5a68
+}
+
+.ui-selectmenu-menu {
+    position: absolute;
+    top: 0;
+    display: none;
+    padding: 0;
+    margin: 0;
+    z-index: 1005
+}
+
+.ui-selectmenu-menu ul {
+    position: relative;
+    padding: 0;
+    margin: 4px 0 0;
+    list-style: none;
+    overflow: auto;
+    overflow-y: auto;
+    overflow-x: hidden;
+    border: 1px solid #d2d2d2;
+    background: #f0f0f0;
+    border-radius: 0
+}
+
+.ui-selectmenu-open {
+    display: block
+}
+
+.ui-selectmenu-menu-popup {
+    margin-top: -1px
+}
+
+.ui-selectmenu-menu li {
+    display: block;
+    height: 32px;
+    line-height: 32px;
+    min-width: 70px;
+    padding: 0 50px 0 0;
+    margin: 0;
+    font-weight: normal;
+    white-space: nowrap;
+    cursor: pointer;
+    border-radius: 0!important;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -ms-box-sizing: border-box;
+    box-sizing: border-box
+}
+
+.ui-selectmenu-menu li:hover a {
+    color: #fafafa
+}
+
+.ui-selectmenu-menu li.ui-state-hover {
+    background-color: #15abff;
+    border-color: #15abff
+}
+
+.selectMenuBlack .ui-widget-content a {
+    display: block;
+    height: 32px;
+    line-height: 32px;
+    color: #4b5a68;
+    padding-left: 10px;
+    border: 0;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none
+}
+
+.selectMenuBlack .ui-widget-content a:hover {
+    color: #fafafa
+}
+
+.ui-selectmenu-menu li a {
+    display: block;
+    line-height: 26px;
+    padding-left: 20px;
+    padding-right: 65px;
+    font: 14px Arial,"Helvetica Neue",Helvetica,sans-serif;
+    color: #a0a0a0;
+    outline: 0;
+    text-decoration: none
+}
+
+.ui-selectmenu-menu li.ui-state-disabled a,.ui-state-disabled {
+    cursor: default
+}
+
+.ui-selectmenu-menu li.ui-selectmenu-hasIcon a,.ui-selectmenu-hasIcon .ui-selectmenu-status {
+    position: relative;
+    padding-left: 20px;
+    margin-left: 5px
+}
+
+.ui-selectmenu-menu li .ui-icon,.ui-selectmenu-status .ui-icon {
+    position: absolute;
+    top: 1em;
+    left: 0;
+    margin-top: -8px
+}
+
+.ui-selectmenu-status {
+    line-height: 32px
+}
+
+.ui-selectmenu-menu li span,.ui-selectmenu-status span {
+    display: block;
+    margin-bottom: .2em
+}
+
+.ui-selectmenu-menu li .ui-selectmenu-item-header {
+    font-weight: bold
+}
+
+.ui-selectmenu-menu li .ui-selectmenu-item-footer {
+    opacity: .8
+}
+
+.ui-selectmenu-menu .ui-selectmenu-group {
+    font-size: 1em
+}
+
+.ui-selectmenu-menu .ui-selectmenu-group .ui-selectmenu-group-label {
+    display: block;
+    padding: .6em .5em 0;
+    line-height: 1.4em;
+    font-weight: bold
+}
+
+.ui-selectmenu-menu .ui-selectmenu-group ul {
+    margin: 0;
+    padding: 0
+}
+
+div .selectBox {
+    display: inline-block
+}
+
+#advanced {
+    z-index: 12
+}
+
+#wizard {
+    z-index: 12;
+    color: #898989
+}
+
+input[type="text"],input[type="password"] {
+    font: 14px Arial,"Helvetica Neue",Helvetica,sans-serif;
+    width: 214px;
+    height: 32px;
+    padding-left: 12px;
+    padding-right: 4px;
+    border: 0px solid transparent;
+    border-top-color: #dcdcdc;
+    border-bottom-color: #FFF;
+    background: #f0f0f0;
+    color: #4b5a68;
+    vertical-align: middle;
+    outline: 0;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -ms-box-sizing: border-box;
+    box-sizing: border-box
+}
+
+input[type="password"] {
+    width: 252px;
+    padding-right:40px;
+}
+
+div.content_row,div.wizard_content_row {
+    display: block;
+    height: 32px;
+    line-height: 32px;
+    margin: 0 0 15px;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -ms-box-sizing: border-box;
+    box-sizing: border-box
+}
+
+div.content_row:last-child,div.wizard_content_row:last-child,#wifi_signin_form div.content_row.display_ssid_password+div.content_row.display_ssid_password,#wifi_network_settings_dhcp_container,.wifi_client_network_settings_dhcp_container div.content_row {
+    margin-bottom: 0
+}
+
+div.content_row:only-child,div.wizard_content_row:only-child {
+    margin-bottom: 10px;
+}
+#sd_card_checkbox_box div.content_row:only-child,#usb_checkbox_box div.content_row:only-child{
+	margin-bottom: 0px;
+}
+#wifi_edit_config_form_password_confirm_container {
+    height: 32px
+}
+
+.display_ssid_password .show_password {
+    display: block;
+    padding: 1px 0 0 227px
+}
+
+.content_row.update_now_container {
+    position: relative;
+    top: 4px
+}
+
+.content_row span {
+    font-size: 14px;
+    color: #4b5a68
+}
+
+ul.content_listing {
+    display: inline-block;
+    padding: 0;
+    margin: 0;
+    list-style: none
+}
+
+#help_list_container ul {
+    width: 300px;
+    list-style: none;
+    margin: 0;
+    padding: 0
+}
+
+#help_list_container ul li {
+    border-top: 1px solid #e1e1e1
+}
+
+#help_list_container ul li:first-child {
+    border-top: 0
+}
+
+#help_list_container ul a {
+    text-decoration: none;
+    display: block;
+    padding: 5px;
+    font-size: 14px;
+    line-height: 32px;
+    color: #4b5a68;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -ms-box-sizing: border-box;
+    box-sizing: border-box;
+}
+
+#help_list_container ul a:hover {
+    color: #f6f6f6
+}
+#create_network_password_low_band_container{
+	position:relative;
+	display:inline-block;
+}
+#user_edit_container div#create_user,#user_create_container div#user_detail,#share_edit_container div#create_share,#share_create_container div#share_detail {
+    display: none
+}
+
+div.button_container:active {
+    background: #0067a6
+}
+
+form.delete_list_item_form {
+    display: inline-block;
+    margin: 0;
+    padding: 0;
+    vertical-align: top
+}
+
+div.content_text {
+    display: inline-block;
+    width: 318px;
+    line-height: normal;
+    vertical-align: middle
+}
+
+li a.safepoint.listnavigation_item img {
+    padding-left: 170px
+}
+
+#loading,#acknowledgement_down {
+    position: fixed;
+    top: 0;
+    left: 50%;
+    z-index: 2147483647;
+    display: none;
+    min-width: 200px;
+    height: 67px;
+    line-height: 67px;
+    margin: 0 auto 0 -144px;
+    border: 1px solid #e6e6e6;
+    border-top-color: transparent;
+    border-bottom-width: 2px;
+    border-bottom-color: #CCC;
+    background: #ececec;
+    text-align: center
+}
+
+#acknowledgement_down {
+    min-height: 67px;
+    max-width: 300px;
+    margin: 0;
+    padding: 0;
+    padding-left: 10px;
+    padding-right: 10px;
+    height: auto;
+    line-height: normal;
+    padding-top: 30px;
+    text-align: left
+}
+
+#acknowledgement_down ul {
+    margin: 0;
+    padding-left: 10px
+}
+
+#acknowledgement_down_controls {
+    float: right;
+    padding-top: 20px;
+    padding-bottom: 20px
+}
+
+#loading img {
+    vertical-align: middle
+}
+
+#loading.sticky {
+    position: fixed;
+    top: 0
+}
+
+#loading_back,#splash_back {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 9998;
+    min-width: 100%;
+    min-height: 100%;
+    display: none;
+    text-align: center;
+    opacity: .6;
+    filter: alpha(opacity = 90)
+}
+
+#splash_back {
+    /*display: block;*/
+    opacity: 1.0;
+    filter: alpha(opacity=100)
+}
+
+div.heading3 {
+    font: 14px Arial,"Helvetica Neue",Helvetica,sans-serif;
+    color: #CCC;
+    font-weight: bold;
+    padding: 5px 0 10px 0
+}
+
+.defaultfont {
+    font: 12px Arial,"Helvetica Neue",Helvetica,sans-serif
+}
+
+.trash {
+    margin: 10px;
+    opacity: .5;
+    filter: alpha(opacity = 50);
+    cursor: pointer
+}
+
+.trash:hover {
+    opacity: 1.0;
+    filter: alpha(opacity = 100)
+}
+
+.ntp_server label {
+    vertical-align: top
+}
+
+#reboot_dialog,#confirm_reboot,#confirm_shutdown,#shutting_down,#confirm_delete_mobile_device,#confirm_delete_webaccount,#confirm_disable_remote_access {
+    color: #898989;
+    font: 12px Arial,"Helvetica Neue",Helvetica,sans-serif
+}
+
+span.deleteicon {
+    position: relative;
+    display: inline-block;
+    outline:1px solid #C8C8C8;
+    background: #f0f0f0;
+}
+
+span.deleteicon input[type=text],span.deleteicon input[type=password] {
+    padding-right: 0;
+    border-right: 0
+}
+
+span.deleteicon span.spacer {
+    display: inline-block;
+    width: 35px;
+    height: 32px;
+    vertical-align: middle;
+    background-color: #f0f0f0;
+    /*border: 1px solid transparent;
+    border-left: 0;
+    border-top-color: #dcdcdc;
+    border-bottom-color: #FFF;*/
+    margin-right: -2px;
+}
+
+span.deleteicon input[type=text].ui-state-disabled+span.spacer {
+    opacity: .35
+}
+
+span.deleteicon span.deletebutton {
+    position: absolute;
+    display: inline-block;
+    top: 5px;
+    right: 10px;
+    width: 24px;
+    height: 24px;
+    background: url("img/main_sprite.png?v=1.4.0-87") -248px -583px no-repeat transparent;
+    cursor: pointer
+}
+span.deleteicon span.deletebutton:hover{
+		background-position:-222px -583px;
+}
+
+span.deleteicon input[type=text]:focus+span.spacer {
+    border: 1px solid #09F;
+    border-left: 0
+}
+
+span.deleteicon input {
+    padding-right: 37px
+}
+
+span.deleteicon input:focus {
+    border-right: 0!important
+}
+
+.form_controls {
+    display: none;
+    margin-left: 256px
+}
+
+.overlay {
+    display: none;
+    font: 12px Arial,"Helvetica Neue",Helvetica,sans-serif
+}
+
+.dialog_class {
+    color: #808080;
+    overflow-x: hidden
+}
+
+.dialog_class .ui-dialog-titlebar-close {
+    visibility: hidden
+}
+
+.wizard_dialog .step {
+    position: relative
+}
+
+.wizard_dialog label.checkbox_off,.wizard_dialog label.checkbox_on {
+    width: 85px
+}
+
+.share_access_list label {
+    height: 18px
+}
+
+.share_access_list li label img {
+    vertical-align: middle
+}
+
+.edit_container {
+    padding-left: 252px;
+    padding-top: 14px
+}
+
+.edit_container .edit_container_box:first-child h2,.content_container .edit_container_box:first-child h2 {
+    padding-top: 0
+}
+
+.clearfix:after {
+    content: ".";
+    display: block;
+    height: 0;
+    clear: both;
+    visibility: hidden
+}
+
+.share_access_description {
+    float: right;
+    margin-right: 30px
+}
+
+#user_detail_edit_link {
+    margin-left: 20px
+}
+
+.access_link_container {
+    display: inline-block
+}
+
+.share_access_overlay,.user_access_overlay {
+    position: absolute;
+    left: 0;
+    display: none;
+    height: 45px;
+    width: 100%;
+    opacity: .8;
+    text-align: center
+}
+
+#users_container,.listNavigation li:first-child,#shares_container,#firmware_container,#device_container,#network_container,#diagnostics_container,#factoryrestore_container,#configuration_container,#rebootshutdown_container,#media_container,#settings_container,#remoteaccess_container,#safepoints_container,#support_container {
+    display: none
+}
+
+.iconTooltip_container,.tooltip_container,.error_tooltip_container {
+    display: inline-block;
+    margin-left: 10px;
+    margin-right: 10px;
+    overflow: visible
+}
+
+#selected_wireless_network_ssid_container .tooltip_container {
+    margin-right: 0
+}
+
+.tooltip_inner_container {
+    position: absolute;
+    z-index: 1;
+    display: block;
+    overflow: visible;
+    white-space: normal
+}
+
+span.tooltip_icon,.error_icon {
+    display: inline-block;
+    width: 20px;
+    height: 18px;
+    line-height: 24px;
+    vertical-align: middle;
+    background: url("img/main_sprite.png?v=1.4.0-87") no-repeat -140px -615px transparent;
+    cursor: pointer
+}
+
+span.tooltip_icon:hover {
+    background-position: -140px -595px
+}
+
+.tooltip {
+    position: absolute;
+    left: 30px;
+    z-index: 900000000;
+    display: none;
+    min-width: 200px;
+    height: auto;
+    padding: 10px;
+    background: #15abff;
+    font: 100 14px Arial,"Helvetica Neue",Helvetica,sans-serif;
+    color: #fafafa;
+    text-align: left;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -ms-box-sizing: border-box;
+    box-sizing: border-box
+}
+
+.tooltip ul {
+    padding-left: 0;
+    list-style-position: inside
+}
+
+.edit_dialog_form_controls {
+    display: none
+}
+
+#users_list_navigation {
+    margin: 0;
+    padding: 0
+}
+
+.edit_dialog_form_controls {
+    margin-left: 10px
+}
+
+.edit_container_box {
+    border-bottom: 1px solid #c8c8c8;
+    padding-bottom: 32px
+}
+
+#check_update_content.edit_container_box {
+    padding-bottom: 26px
+}
+
+.edit_container_box>form {
+    margin-bottom: 10px
+}
+
+form#request_automated_support_form {
+    margin-bottom: 0
+}
+
+.edit_container_box>label {
+    width: 200px;
+    margin-right: 26px
+}
+
+.edit_container_box>label+button {
+    position: relative;
+    left: -2px
+}
+
+.mochi_dialog_content label.checkbox_on,.mochi_dialog_content label.checkbox_off,.edit_container_box label.checkbox_on,.edit_container_box label.checkbox_off {
+    margin-left: 0;
+    margin-right: 0;
+    width: auto
+}
+
+.edit_container_box:first-child {
+    border-top: 0
+}
+
+.edit_container_box:last-child {
+    border-bottom: 0
+}
+
+#drive_lock.edit_container_box>h2 {
+    margin-top: 19px;
+    margin-left: -1px
+}
+
+#manual_update_content.edit_container_box>h2 {
+    margin-top: 20px
+}
+
+#battery_content.edit_container_box>h2 {
+    margin-top: 21px
+}
+
+#dlna_content.edit_container_box>h2,#ssh_content.edit_container_box>h2 {
+    margin-bottom: 12px
+}
+
+#maintenance_content.edit_container_box>h2 {
+    margin-bottom: 14px
+}
+
+#check_update_content.edit_container_box>h2 {
+    margin-bottom: 15px
+}
+
+#drive_lock.edit_container_box>h2 {
+    margin-bottom: 16px
+}
+
+#factory_restore.edit_container_box>h2 {
+    margin-bottom: 17px
+}
+
+#diagnostics_content.edit_container_box>h2 {
+    margin-bottom: 18px
+}
+
+ul.share_access_list li:first-child {
+    display: none
+}
+
+div.button_container {
+    display: inline-block;
+    padding: 0;
+    margin: 0;
+    font: 12px Arial,"Helvetica Neue",Helvetica,sans-serif;
+    margin-right: 12px
+}
+
+div#share_delete_button_container.ui-state-disabled:active {
+    background: transparent
+}
+
+.error {
+    color: red
+}
+
+.warning {
+    color: orange
+}
+
+table,td {
+    border: 0;
+    margin: 0;
+    padding: 0
+}
+
+.overflow_hidden_nowrap_ellipsis {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis
+}
+
+.extra_space_left {
+    padding-left: 5px
+}
+
+#splash_back {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 9998;
+    background: #f6f6f6
+}
+
+#splash {
+    position: relative;
+    top: -75px;
+    z-index: 9999;
+   	display: none;
+    /*width: 968px;*/
+    height: 800px;
+    margin: 0 auto
+}
+
+#splash_header {
+    position: absolute;
+    top: 150px;
+    z-index: 999999;
+    width: 618px;
+    height: 162px;
+    margin-left: -309px;
+    left: 50%;
+    background: url("img/product_images_sprite.png?v=1.4.0-87") no-repeat 0 -182px
+}
+
+#splash_content {
+    position: absolute;
+    top: 200px;
+    /*width: 968px;*/
+    text-align: left;
+    font-size: 20px
+}
+
+#splash_content h1 {
+    position: relative;
+    /*top: 49px;*/
+    left: 0px;
+    z-index: 3;
+    width: 516px;
+    word-break: break-word;
+    font: 28px Arial,"Helvetica Neue",Helvetica,sans-serif;
+    color: #4b5a68
+}
+
+#splash_content h2 {
+    position: relative;
+    z-index: 4;
+    font: 18px Arial,"Helvetica Neue",Helvetica,sans-serif;
+    color: #4b5a68
+}
+
+.splash_city {
+    position: absolute;
+    top: -65px;
+    right: 0;
+    z-index: 2;
+    display: block;
+    width: 905px;
+    height: 401px;
+    margin: 0 auto;
+    background: url("img/cities_sprite.png?v=1.4.0-87") 0 -184px no-repeat
+}
+
+#product_image:after,.pass_city:after {
+    position: absolute;
+    top: 298px;
+    right: 96px;
+    z-index: 3;
+    display: block;
+    content: "";
+    width: 287px;
+    height: 108px;
+    margin: 0;
+    background: url("img/product_images_sprite.png?v=1.4.0-87") 0 -344px no-repeat transparent
+}
+
+#splash_footer {
+    height: 3px
+}
+
+#dashboard_usage_chart {
+    display: none;
+    height: 360px;
+    width: 580px;
+    left: -30px
+}
+
+#dashboard_media_close_button,#dashboard_capacity_close_button {
+    float: right
+}
+
+.jqplot-grid-canvas {
+    display: none
+}
+
+table.jqplot-table-legend {
+    top: 62px!important;
+    right: 5px!important;
+    width: 244px;
+    margin: 0!important;
+    color: #4b5a68;
+    text-align: left;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none
+}
+
+tr.jqplot-table-legend {
+    line-height: 36px
+}
+
+div.jqplot-table-legend-swatch-outline {
+    display: none
+}
+
+.jqplot-table-legend-swatch {
+    display: none;
+    visibility: collapse
+}
+
+td.jqplot-table-legend.jqplot-table-legend-label {
+    height: 40px;
+    line-height: 40px;
+    padding-left: 5px;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -ms-box-sizing: border-box;
+    box-sizing: border-box
+}
+
+.required_dialog_text {
+    font-size: 12px;
+    text-align: right
+}
+
+#users_edit_container,#shares_edit_container,#remoteaccess_edit_container {
+    display: none
+}
+
+#about_cloud_access,#about_users,#about_shares {
+    padding-top: 10px
+}
+
+.nav_up_scroll.ui-state-disabled a:hover,.nav_up_scroll.ui-state-disabled a:active {
+    background-position: 0 -75px;
+    cursor: default
+}
+
+.nav_down_scroll.ui-state-disabled a:hover,.nav_down_scroll.ui-state-disabled a:active {
+    background-position: 0 0;
+    cursor: default
+}
+
+#error_dialog_message ul {
+    line-height: 18px;
+    margin: 0;
+    padding: 0;
+    list-style-position: inside
+}
+
+#error_dialog_message li {
+    padding: 4px;
+    margin-left: 4px
+}
+
+#unknown_ids_message {
+    margin-top: 10px;
+    margin-left: 5px
+}
+
+#unknown_ids_message ul {
+    line-height: 18px;
+    font-size: 12px;
+    margin: 0;
+    padding: 0;
+    list-style-type: none;
+    font-style: italic
+}
+
+#unknown_ids_message ul li {
+    padding: 0!important
+}
+
+.mochi_list {
+    width: 608px;
+    padding-left: 0;
+    margin: 0;
+    list-style: none
+}
+
+.mochi_list li {
+    height: 46px;
+    line-height: 46px;
+    padding-left: 10px
+}
+
+#support_dialog_content {
+    padding-top: 0
+}
+
+#support_dialog_content.mochi_dialog_content h2 {
+    height: 20px;
+    padding-top: 0;
+    padding-bottom: 8px;
+    line-height: 15px
+}
+
+#about_copyright_container {
+    font-size: 12px
+}
+
+#support_dialog_content a:hover,#about_copyright_container a:hover,#single_alert_begin_update a:hover,#remote_access_settings_connectivity_manual_description a:hover {
+    color: #0067a6
+}
+
+.details_link_marker {
+    font-size: 14px
+}
+
+::-ms-clear {
+    display: none
+}
+
+::-ms-reveal {
+    display: none
+}
+
+#user_detail_password_edit_section {
+    padding-left: 10px
+}
+
+.no_dialog_form_controls {
+    border-bottom: 0;
+    background: 0
+}
+
+.factory_restore_desc {
+    display: none
+}
+
+#help_iframe_message {
+    display: none;
+    height: 443px;
+    line-height: 443px;
+    text-align: center
+}
+
+.spinnerSunIcon {
+    display: inline-block;
+    height: 40px;
+    width: 40px;
+    background: url("img/loading40x40.gif") no-repeat;
+    vertical-align: middle
+}
+
+.dashboard_dlna_list_item_count,.dashboard_dlna_list_item_done,.jquery-checkbox2 span.toggle_off,.jquery-checkbox2 label.checkbox_on,.jquery-checkbox2 label.checkbox_off,.jquery-checkbox2 span.toggle_on,#cookies_message,.network_mode,#dashboard_wifi_direct_connect_image {
+    display: none
+}
+
+#create_wd2go_account_dialog label,#edit_wd2go_account_dialog label {
+    width: 140px
+}
+
+.content_row_wrappable {
+    height: auto!important;
+    line-height: 35px!important
+}
+
+#noscript,#ie7_message,#cookies_message {
+    position: fixed;
+    z-index: 10000;
+    width: 100%;
+    height: 100%;
+    padding-top: 200px;
+    background-color: #eaeaea;
+    text-align: center
+}
+
+.battery_radio_label {
+    width: auto;
+    margin-right: 20px
+}
+
+#battery_setting_label {
+    width: 80px
+}
+
+#battery_setting_description {
+    margin-left: 80px;
+    margin-top: 20px
+}
+
+#head_nav {
+    display: none
+}
+
+#head_nav ul {
+    margin: 0;
+    padding: 0
+}
+
+#head_nav ul li {
+    list-style: none
+}
+
+#head_nav ul li a {
+    display: block;
+    width: 266px;
+    line-height: 40px;
+    padding-left: 20px;
+    color: #282828;
+    text-decoration: none;
+    font-size: 14px
+}
+
+div.breadcrumb_container {
+    height: 90px;
+    margin: 20px auto 0;
+    overflow: auto;
+    border-bottom: 2px solid #333
+}
+
+nav.breadcrumb_nav {
+    width: 964px;
+    float: left;
+    overflow: hidden
+}
+
+nav.breadcrumb_nav ul {
+    position: relative;
+    height: 88px;
+    width: 9999px;
+    margin: 0;
+    padding: 0;
+    list-style-type: none
+}
+
+.breadcrumb_nav ul li {
+    display: inline-block;
+    width: 146px;
+    border-left: 0
+}
+
+.breadcrumb_nav ul li div {
+    margin-top: 1px;
+    height: 83px;
+    border: 1px solid transparent
+}
+
+#main_breadcrumb_nav ul li a {
+    display: block;
+    width: 146px;
+    height: 88px;
+    line-height: 88px
+}
+
+#hardware_container,#admin_user_container,#wifi_container,.connected_devices_item.default,.wifi_ap_list_item.default,.wifi_ap_list_item_h.default,.dashboard_capacity_count,#main_nav_container {
+    display: none
+}
+
+.jqplot-table-legend {
+    line-height: 36px;
+    color: #4b5a68
+}
+
+#create_login_password_buttons,#create_network_password_buttons{
+    float: right
+}
+
+.upfront {
+    z-index: 5000!important
+}
+
+#diagnostics_tests_progressbar_percentage {
+    position: relative;
+    font-size: 12px;
+    padding-right: 10px
+}
+
+div#about_dialog .mochi_dialog_content {
+    padding: 0
+}
+
+div#about_device_image {
+    position: relative;
+    padding: 20px 0
+}
+
+div#about_device_image_content {
+    padding: 120px 200px 0 0;
+    font-size: 12px
+}
+
+#about_device_image_content:before {
+    position: absolute;
+    top: 20px;
+    left: 0;
+    display: block;
+    content: "";
+    width: 350px;
+    height: 86px;
+    background: url("img/img_logo_MPW_Pro_v2.png?v=1.4.0-87") 0 0 no-repeat transparent
+}
+
+#about_device_image_content p {
+    margin-top: 22px;
+    font-size: 11px;
+    color: #85939c
+}
+
+#about_device_image_content:after {
+    position: absolute;
+    right: 0;
+    bottom: 20px;
+    display: block;
+    content: "";
+    width: 131px;
+    height: 49px;
+    background: url("img/product_images_sprite.png?v=1.4.0-87") -287px -344px no-repeat transparent
+}
+
+.mochi_dialog_content label {
+    width: 180px
+}
+
+input.wizard_left_button {
+    position: relative;
+    /*left: -2px;*/
+    margin-right:10px;
+    float: left
+}
+input.wizard_right_button {
+    position: relative;
+    /*left: -2px;*/
+    margin-left:10px;
+    float: right;
+}
+
+@-moz-document url-prefix() {
+    #create_network_password_skip_button {
+        left: 0
+    }
+}
+
+#help_container {
+    height: 500px;
+    /*max-height: 272px;*/
+    padding: 20px;
+    overflow: auto;
+    -moz-box-sizing: border-box;
+    box-sizing: border-box
+}
+
+#help_container #help_iframe{
+    border:none;
+}
+#help_container table{
+    border:none;
+}
+
+#help_container a {
+    font-size: 14px
+}
+
+.toggleLeftArrow {
+    line-height: 23px;
+    padding: 3px 0
+}
+
+.toggleLeftArrow.down {
+    padding: 0;
+    margin-top: -9px
+}
+
+.toggleLeftArrow .disclosureContent {
+    display: none
+}
+
+.disclosureTitle {
+    width: 100%;
+    color: #09F;
+    text-decoration: underline;
+    cursor: pointer
+}
+
+.disclosureTitle:hover {
+    color: #0067a6
+}
+
+.down .disclosureTitle {
+    display: inline-block;
+    font-size: 22px;
+    color: #4b5a68;
+    text-decoration: none
+}
+
+.back_to_list {
+    margin-bottom: 10px;
+    font-size: 12px;
+    text-align: right
+}
+
+.back_to_list span.back_to_list_text {
+    color: #09F
+}
+
+.back_to_list span.back_to_list_arrow {
+    position: relative;
+    display: inline-block;
+    width: 16px;
+    height: 8px;
+    margin-left: 10px;
+    background: url("img/main_sprite.png?v=1.4.0-87") -180px -605px no-repeat transparent
+}
+
+.up .back_to_list {
+    display: none
+}
+
+table.help_led_table {
+    width: 500px
+}
+
+.help_led_table>tr>td {
+    border: 1px solid black
+}
+
+@media only screen and (min-device-width : 768px) and (max-device-width :1024px) {
+    html.touch #main_content>div {
+        -webkit-transform:translate3d(0,0,0);
+        -moz-transform: translate3d(0,0,0);
+        -o-transform: translate3d(0,0,0);
+        -ms-transform: translate3d(0,0,0);
+        transform: translate3d(0,0,0);
+        -webkit-perspective: 0;
+        -webkit-backface-visibility: hidden;
+        -webkit-transform-style: preserve-3d;
+        -moz-transform-style: preserve-3d;
+        -ms-transform-style: preserve-3d;
+        transform-style: preserve-3d
+    }
+
+    html.touch span.deleteicon input[type=text],html.touch span.deleteicon input[type=password] {
+        border-radius: 0!important;
+        -webkit-box-shadow: none!important;
+        box-shadow: none!important;
+        -webkit-appearance: caret!important;
+        -ms-appearance: caret!important
+    }
+}
+
+@media only screen and (min-device-width : 768px) and (max-device-width :1024px) and (-webkit-min-device-pixel-ratio:2) {
+    html.touch #splash_header {
+        left:40px
+    }
+
+    html.touch #logout_toolbar {
+        top: -1px
+    }
+}
+
+#shortcut_link {
+    /*position: relative;
+    top: 0px;
+    padding: 0 10px*/
+}
+
+#shortcut_dialog_icon {
+    display: inline-block;
+    width: 374px;
+    height: 143px;
+    margin: 37px 38px 0;
+    background: url("img/product_images_sprite.png?v=1.4.0-87") no-repeat -169px 0 transparent
+}
+
+.connect_network_msg {
+    display: inline-block;
+    width: 370px;
+    height: 166px;
+    margin-top: 20px;
+    margin-left: 30px;
+    vertical-align: top
+}
+
+.connect_network_msg_title {
+    margin-bottom: 10px;
+    font-size: 22px;
+    color: #4b5a68
+}
+
+.wired_connection_to_router {
+    display: none;
+}
+
+#connect_msg_find_wifi_network .icon,#onboarding_connect_msg_find_wifi_network .icon {
+    display: inline-block;
+    width: 226px;
+    height: 202px;
+    background: url("img/main_sprite.png?v=1.4.0-87") no-repeat 0 -1015px transparent
+}
+
+#connect_msg_find_wifi_network .pc_icon,#onboarding_connect_msg_find_wifi_network .pc_icon {
+    background-position: 0 -1217px
+}
+
+#connect_msg_select_other_network .icon,#connect_msg_select_wifi_network .icon,#onboarding_connect_msg_select_wifi_network .icon {
+    display: inline-block;
+    width: 226px;
+    height: 202px;
+    background: url("img/main_sprite.png?v=1.4.0-87") no-repeat -226px -1015px transparent
+}
+
+#connect_msg_select_other_network .pc_icon,#connect_msg_select_wifi_network .pc_icon,#onboarding_connect_msg_select_wifi_network .pc_icon {
+    background-position: -226px -1217px
+}
+
+#connect_network_msg_refresh_browser .icon,#onboarding_connect_network_msg_refresh_browser .icon {
+    display: inline-block;
+    width: 226px;
+    height: 202px;
+    background: url("img/main_sprite.png?v=1.4.0-87") no-repeat -452px -1015px transparent
+}
+
+#ssid_not_broadcasting {
+    display: none
+}
+
+.reconnect_network_content {
+    padding: 10px 0 0;
+    overflow: auto;
+    -moz-box-sizing: border-box;
+    box-sizing: border-box
+}
+
+.reconnect_network_item {
+    padding-bottom: 20px
+}
+
+#reconnect_network_dialog .waiting_for_network_connection,#onboarding_reconnect_network_dialog .waiting_for_network_connection {
+    text-align: left;
+    position: absolute;
+    bottom: 20px
+}
+
+.create_shortcut_dialog_content {
+    padding: 10px 0 20px;
+    overflow: auto;
+    -moz-box-sizing: border-box;
+    box-sizing: border-box
+}
+
+#logout_link,.edit_container_box label {
+    white-space: nowrap
+}
+
+#user_password_overlay,#firmware_up_to_date_dialog {
+    min-width: 500px
+}
+
+.eyeicon_off {
+    background: url('img/main_sprite.png?v=1.4.0-87') no-repeat -274px -721px transparent;
+    width: 32px;
+    height: 19px;
+    display: block
+}
+
+.eyeicon_off:hover {
+    background-position: -274px -751px
+}
+
+.eyeicon_off:active {
+    background-position: -274px -751px
+}
+
+.eyeicon_on {
+    background: url('img/main_sprite.png?v=1.4.0-87') no-repeat -233px -721px transparent;
+    width: 32px;
+    height: 19px;
+    display: block
+}
+
+.eyeicon_on:hover {
+    background-position: -233px -752px
+}
+
+.eyeicon_on:active {
+    background-position: -233px -783px
+}
+
+.eyeicon_password_wifi_settings {
+    position: absolute;
+    margin-left: 450px;
+    margin-top: -25px
+}
+
+.eyeicon_network_password_wifi_settings {
+    position: absolute;
+    right: 8px;
+    top: 8px;
+}
+#create_network_password_show_low_band_container{
+	display:inline-block;	
+}
+#create_network_password_high_band_container,#create_network_password_show_high_band_container,#create_network_password_show_low_band_container{
+    position:relative;
+    display:inline-block;	
+}
+.addmarginright40 {
+    margin-right: 40px
+}
+
+.cancel_icon {
+    display: inline-block;
+    top: 5px;
+    right: 0;
+    width: 24px;
+    height: 24px;
+    vertical-align: middle;
+    background: url("img/main_sprite.png?v=1.4.0-87") -248px -583px no-repeat transparent;
+    cursor: pointer
+}
+
+.cancel_icon:hover {
+    background-position: -222px -583px
+}
+
+a#dashboard_battery_link {
+    text-decoration: none
+}
+
+div#dashboard_container #dashboard_content {
+    width: 100%;
+    margin: 12px auto 0;
+    padding: 0;
+    overflow: hidden
+}
+
+#dashboard_mobile_devices h2,#dashboard_users h2,#dashboard_shares h2 {
+    margin-top: 0;
+    margin-bottom: 5px;
+    color: #0080ff;
+    font-size: 20px
+}
+
+#dashboard_storage_information_space_available_percentage {
+    font-size: 70px;
+    color: #09F
+}
+
+#dashboard_storage_information_space_available_text {
+    font-size: 24px;
+    color: #09F
+}
+
+#dashboard_storage_information_space_available_total {
+    color: #808080;
+    font-size: 16px
+}
+
+#dashboard_storage_information_container {
+    display: inline-block;
+    width: 626px;
+    vertical-align: top
+}
+
+#dashboard_storage_information_icon,#dashboard_storage_information_content {
+    display: inline-block;
+    float: left
+}
+
+#dashboard_storage_information_content {
+    vertical-align: top
+}
+
+.dashboard_storage_information_graph_item {
+    display: none;
+    height: 10px
+}
+
+#dashboard_storage_information_storage_bar_graph_container,#dashboard_storage_information_storage_graph_container {
+    width: 825px;
+    margin: 0 auto
+}
+
+#dashboard_storage_information_storage_graph_container {
+    margin-top: 5px
+}
+
+#dashboard_storage_information_storage_bar_graph_container {
+    border: 1px #808080 solid;
+    font-size: 0;
+    margin: 20px auto 0;
+    border-radius: 6px
+}
+
+#dashboard_storage_information_graph_icons {
+    position: relative;
+    height: 16px
+}
+
+.dashboard_storage_information_graph_icon {
+    width: 15px;
+    height: 16px;
+    display: inline-block
+}
+
+.dashboard_storage_information_graph_icon_container {
+    display: none;
+    position: absolute
+}
+
+.dashboard_diagnostics_list_container,.dashboard_media_list_container,.dashboard_dlna_list_container,.dashboard_connected_devices_list_container {
+    background-color: #1e1e1e;
+    padding: 0;
+    margin: 0 0 10px;
+    -webkit-box-shadow: 0 0 2px rgba(96,96,96,1);
+    box-shadow: 0 0 2px rgba(96,96,96,1);
+    border-radius: 10px
+}
+
+ul.dashboard_diagnostics_list,ul.dashboard_media_list,ul.dashboard_dlna_list,ul.dashboard_connected_devices_list {
+    list-style: none;
+    padding-left: 0;
+    overflow: auto;
+    padding-left: 0;
+    -webkit-overflow-scrolling: touch
+}
+
+ul.dashboard_diagnostics_list li,ul.dashboard_media_list li,ul.dashboard_dlna_list li {
+    min-height: 45px;
+    -webkit-box-shadow: 0 2px 2px -2px #606060;
+    box-shadow: 0 2px 2px -2px #606060
+}
+
+ul.dashboard_diagnostics_list li {
+    line-height: 45px
+}
+
+ul.dashboard_diagnostics_list li,ul.dashboard_media_list li,ul.dashboard_dlna_list li {
+    display: inline-block;
+    width: 530px;
+    padding-left: 20px
+}
+
+ul.dashboard_media_list li,ul.dashboard_dlna_list li {
+    width: 430px
+}
+
+.dashboard_media_list_item_count,.dashboard_dlna_list_item_count {
+    display: inline-block;
+    padding-left: 10px;
+    width: 120px
+}
+
+span.dashboard_diagnostic_list_health_item {
+    display: inline-block;
+    padding-left: 10px;
+    width: 190px
+}
+
+.dashboard_dlna_list_item_label,.dashboard_media_list_item_label {
+    display: inline-block;
+    width: 125px;
+    padding-left: 5px;
+    vertical-align: middle
+}
+
+span.dashboard_diagnostic_list_health_status {
+    display: inline-block;
+    float: right;
+    margin-right: 30px
+}
+
+#dashboard {
+    margin-top: 40px
+}
+
+#dashboard_mobile_devices_container {
+    margin-bottom: 50px
+}
+
+#dashboard_users_shares_container {
+    margin-top: 50px;
+    margin-bottom: 50px
+}
+
+div.dashboard_box {
+    position: relative;
+    padding: 20px;
+    color: #85939c;
+    border-width: 2px;
+    border-style: solid;
+    border-top-color: #FFF;
+    border-left-width: 0;
+    border-right-width: 0;
+    border-bottom-color: #dcdcdc;
+    background-color: #ededed;
+    background-image: -webkit-gradient(linear,left top,left bottom,from(#f0f0f0),to(#eaeaea));
+    background-image: -webkit-linear-gradient(top,#f0f0f0,#eaeaea);
+    background-image: -moz-linear-gradient(top,#f0f0f0,#eaeaea);
+    background-image: -ms-linear-gradient(top,#f0f0f0,#eaeaea);
+    background-image: linear-gradient(top,#f0f0f0,#eaeaea);
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -ms-box-sizing: border-box;
+    box-sizing: border-box
+}
+
+.no-cssgradients .dashboard_box {
+    border: 0;
+    background: transparent;
+    background: url("img/ie8_bg_only_sprite.png?v=1.4.0-87") 0 -172px no-repeat transparent
+}
+
+.no-cssgradients .dashboard_medium_box {
+    width: 360px!important
+}
+
+.no-cssgradients #dashboard_battery {
+    background-position: -582px -303px
+}
+
+.no-cssgradients #dashboard_device_capacity {
+    background-position: 0 -172px
+}
+
+.no-cssgradients #dashboard_wifi_box {
+    background-position: -582px -172px
+}
+
+div.dashboard_small_box {
+    display: inline-block;
+    width: 196px;
+    height: 82px;
+    margin: 0
+}
+
+#dashboard_device_diagnostics_box {
+    margin-bottom: 12px
+}
+
+div.dashboard_big_box {
+    display: inline-block;
+    width: 580px;
+    height: 410px;
+    margin-right: 12px;
+    margin-bottom: 12px;
+    vertical-align: top
+}
+
+div.dashboard_big_box .header {
+    height: 23px;
+    margin-bottom: 30px
+}
+
+div.dashboard_big_box .header h2 {
+    margin: 0;
+    padding: 0 20px 0 0;
+    font-size: 20px;
+    font-weight: 100;
+    color: #85939c
+}
+
+.dashboard_medium_box {
+    display: inline-block;
+    width: 368px;
+    height: 266px;
+    margin-bottom: 12px;
+    text-align: center;
+    vertical-align: top
+}
+
+#dashboard_wifi_box.dashboard_medium_box {
+    width: 368px;
+    height: 132px
+}
+
+div.dashboard_long_box {
+    display: inline-block;
+    width: 960px;
+    height: 80px;
+    text-align: left;
+    vertical-align: top;
+    margin-bottom: 32px
+}
+
+div.dashboard_medium_box div.header,div.dashboard_big_box div.header {
+    position: relative;
+    text-align: left;
+    background: url("img/main_sprite.png?v=1.4.0-87") 0 -992px no-repeat transparent
+}
+
+.no-cssgradients div.dashboard_medium_box div.header,.no-cssgradients div.dashboard_big_box div.header {
+    height: 11px;
+    margin-bottom: 39px;
+    background: url("img/ie8_bg_only_sprite.png?v=1.4.0-87") 0 -588px no-repeat transparent
+}
+
+.no-cssgradients #dashboard_wifi_box div.header {
+    margin-bottom: 12px
+}
+
+div.dashboard_medium_box div.header>h3,div.dashboard_big_box div.header>h2 {
+    display: inline-block;
+    padding-right: 20px;
+    line-height: 22px;
+    font-size: 22px;
+    margin: 0;
+    background-color: #f0f0f0;
+    background-image: -webkit-gradient(linear,left top,left bottom,from(#f1f1f1),to(#f0f0f0));
+    background-image: -webkit-linear-gradient(top,#f1f1f1,#f0f0f0);
+    background-image: -moz-linear-gradient(top,#f1f1f1,#f0f0f0);
+    background-image: -o-linear-gradient(top,#f1f1f1,#f0f0f0);
+    background-image: -ms-linear-gradient(top,#f1f1f1,#f0f0f0);
+    background-image: linear-gradient(top,#f1f1f1,#f0f0f0)
+}
+
+.no-cssgradients div.dashboard_medium_box div.header>h3,.no-cssgradients div.dashboard_big_box div.header>h2 {
+    background: url("img/ie8_bg_only_sprite.png?v=1.4.0-87") 0 -613px no-repeat transparent
+}
+
+div#dashboard_wifi_box div.header h3 {
+    background-color: #eee;
+    background-image: -webkit-gradient(linear,left top,left bottom,from(#efefef),to(#ededed));
+    background-image: -webkit-linear-gradient(top,#efefef,#ededed);
+    background-image: -moz-linear-gradient(top,#efefef,#ededed);
+    background-image: -o-linear-gradient(top,#efefef,#ededed);
+    background-image: -ms-linear-gradient(top,#efefef,#ededed);
+    background-image: linear-gradient(top,#efefef,#ededed)
+}
+
+div#dashboard_wifi_box div.header h3.network_default_title {
+    display: inline-block
+}
+
+div.dashboard_count {
+    height: 48px;
+    margin: 5px;
+    font-size: 48px
+}
+
+div.dashboard_content_status_text {
+    position: relative;
+    top: 5px;
+    font-size: 32px
+}
+
+div.dashboard_medium_box div.footer {
+    position: absolute;
+    left: 20px;
+    right: 10px;
+    bottom: 15px;
+    height: 22px;
+    text-align: right
+}
+
+div.dashboard_big_box div.dashboard_information_box div.body {
+    height: 32px;
+    line-height: 32px;
+    font-size: 24px;
+    text-align: center
+}
+
+div.dashboard_information_box div.header h3 {
+    margin: 0;
+    padding: 0;
+    height: 27px;
+    line-height: 27px
+}
+
+div#dashboard_device_status_information {
+    display: inline-block;
+    width: 196px;
+    margin-top: 2px;
+    margin-right: 40px;
+    vertical-align: top
+}
+
+div#dashboard_device_capacity {
+    float: left;
+    margin-bottom: 12px;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none
+}
+
+div.dashboard_clear_box {
+    margin-left: 20px;
+    margin-bottom: 20px;
+    height: 232px
+}
+
+#dashboard_storage_information_space_available_total_text {
+    display: block;
+    font-size: 60px;
+    text-align: center
+}
+
+#dashboard_storage_information_space_available_container {
+    text-align: center;
+    margin: 0 10px 10px;
+    font-size: 28px;
+    position: relative;
+    top: -30px
+}
+
+#dashboard_battery_information_available_image {
+    display: none;
+    position: relative;
+    left: 38px;
+    width: 246px;
+    height: 68px;
+    margin: 20px 0 10px;
+    background-image: url("img/main_sprite.png?v=1.4.0-87")
+}
+
+#dashboard_battery_information_available_image span {
+    position: absolute;
+    top: 22px;
+    left: 39px;
+    width: 160px;
+    height: 25px;
+    background: url("img/main_sprite.png?v=1.4.0-87") no-repeat -391px -193px transparent
+}
+
+.battery_full {
+    background-position: -140px -193px
+}
+
+.battery_80 {
+    background-position: -140px -266px
+}
+
+.battery_60 {
+    background-position: -140px -339px
+}
+
+.battery_40 {
+    background-position: -140px -412px
+}
+
+.battery_20 {
+    background-position: -140px -485px
+}
+
+.charging span {
+    display: block
+}
+
+.discharging span {
+    display: none
+}
+
+#dashboard_battery_information_available_text {
+    position: relative;
+    top: -4px;
+    display: table;
+    margin: auto;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none
+}
+
+#dashboard_battery_information_available_text div {
+    display: table-cell;
+    vertical-align: middle;
+    color: #85939c
+}
+
+#dashboard_battery_information_available_text .charge_value {
+    font-size: 106px;
+    color: #4b5a68
+}
+
+#dashboard_battery_information_available_text .charge_txt .icn {
+    display: block;
+    font-size: 70px;
+    line-height: 55px;
+    font-style: normal
+}
+
+#dashboard_battery_information_available_text .charge_txt .txt {
+    position: relative;
+    top: 5px;
+    font-size: 18px
+}
+
+div#dashboard_storage_information_text {
+    position: absolute;
+    bottom: 156px;
+    left: 60px;
+    display: none;
+    width: 156px;
+    text-align: center;
+    cursor: default
+}
+
+span#dashboard_storage_information_space_available_total_text,span#dashboard_battery_information_available_total_text {
+    font-size: 66px;
+    line-height: 36px;
+    color: #4b5a68
+}
+
+#dashboard_storage_information_space_type,#dashboard_storage_information_text_free {
+    position: relative;
+    top: 10px;
+    font-size: 20px;
+    color: #85939c;
+    vertical-align: middle
+}
+
+div#dashboard_storage_information_storage_container {
+    margin-bottom: 10px
+}
+
+#dashboard_battery_chart_text {
+    text-align: center;
+    font-size: 40px
+}
+
+#dashboard_battery_chart {
+    display: inline-block;
+    vertical-align: top
+}
+
+#dashboard_battery_settings {
+    display: inline-block;
+    width: 343px;
+    margin-left: 30px;
+    vertical-align: top
+}
+
+.dashboard_connected_devices_kick {
+    float: right;
+    line-height: 40px;
+    margin-right: 30px
+}
+
+.dashboard_connected_devices_time {
+    display: inline-block
+}
+
+.dashboard_connected_devices_item {
+    display: inline-block;
+    width: 190px;
+    padding-left: 10px
+}
+
+li.dashboard_connected_devices_list_item {
+    display: block;
+    width: auto;
+    height: 40px;
+    line-height: 40px;
+    padding-left: 60px;
+    -webkit-box-shadow: 0 2px 2px -2px #606060;
+    box-shadow: 0 2px 2px -2px #606060
+}
+
+#dashboard_battery_settings h3 {
+    font-size: 24px;
+    margin: 0 0 20px
+}
+
+.dashboard_capacity_count,.dashboard_capacity_size {
+    font-size: 14px;
+    color: #85939c
+}
+
+.dashboard_capacity_count .number,.dashboard_capacity_size .number,.jqplot-table-legend .number {
+    font-size: 17px
+}
+
+.number:first-child {
+    padding-left: 3px
+}
+
+.dashboard_capacity_size {
+    display: inline-block
+}
+
+#dashboard_usage_chart:hover,#dashboard_battery_information_available_text:hover,#dashboard_battery:hover,#dashboard_wifi_box:hover {
+    cursor: pointer
+}
+
+#footer_device_timestamp_form {
+    display: none
+}
+
+#footer_device_details {
+    position: relative;
+    top: -39px;
+    font-size: 12px;
+    padding-left: 84px
+}
+
+#footer_device_capacity {
+    position: relative;
+    left: 76px;
+    color: #85939c;
+    font-size: 16px
+}
+
+#footer_device_datetime_container {
+    position: relative;
+    top: 7px;
+    right: -2px;
+    float: right
+}
+
+#footer_device_image {
+    position: absolute;
+    top: 15px;
+    left: 20px;
+    display: block;
+    width: 131px;
+    height: 49px;
+    background: url('img/product_images_sprite.png?v=1.4.0-87') -287px -344px no-repeat transparent
+}
+
+#footer_device_name {
+    position: relative;
+    top: 8px;
+    display: inline-block;
+    font-size: 24px
+}
+
+#footer_device_name h1,#footer_device_name h2 {
+    position: relative;
+    top: -30px;
+    left: 160px;
+    display: inline-block;
+    font-size: 21px
+}
+
+#footer_device_name h1 {
+    color: #4b5a68
+}
+
+#footer_device_name h2 {
+    color: #85939c;
+    padding-left: 10px
+}
+
+#footer_device_version {
+    position: relative;
+    top: 12px;
+    right: -2px;
+    display: inline-block;
+    float: right;
+    font-size: 12px;
+    color: #4b5a68
+}
+
+#notification_list {
+    width: 285px
+}
+
+#notification_list ul {
+    list-style: none;
+    margin: 0;
+    padding: 0
+}
+
+#notification_list ul li {
+    padding: 0;
+    border-top: 1px solid #e6e6e6
+}
+
+#notification_list ul li:first-child {
+    border-top: 0
+}
+
+.notification_none {
+    cursor: default;
+    opacity: .3
+}
+
+.notification_none:active,.notification_none:focus {
+    outline: 0!important
+}
+
+html.no-opacity .notification_none span {
+    filter: Alpha(Opacity=30)
+}
+
+#notifications {
+    position: absolute;
+    top: 35px;
+    display: none;
+    width: 400px;
+    padding: 0;
+    background: #1e1e1e
+}
+
+#notifications ul {
+    list-style: none;
+    margin: 0 20px;
+    padding: 10px 0
+}
+
+#notifications ul li h3 {
+    display: inline
+}
+
+.notitication_code {
+    display: inline;
+    color: #898989
+}
+
+#alert_details_time {
+    display: inline;
+    color: #898989
+}
+
+.notification_time_indented {
+    position: relative;
+    display: inline;
+    margin: 0 0 10px -10px;
+    padding: 0 25px 4px 30px;
+    color: #85939c;
+    font-size: 11px
+}
+
+#dialog_notification_list .notification_time_indented {
+    margin-left: 0
+}
+
+.single_alert_notitication_code_text {
+    position: relative;
+    right: 13px;
+    display: inline;
+    color: #898989;
+    float: right
+}
+
+.notitication_code_text {
+    display: inline;
+    color: #898989
+}
+
+.notification_title {
+    position: relative;
+    display: inline-block;
+    width: 248px;
+    height: 24px;
+    padding-left: 30px;
+    color: #4b5a68;
+    font-size: 14px;
+    line-height: 23px;
+    text-align: left;
+    background: url("img/main_sprite.png?v=1.4.0-87") -1px -941px no-repeat scroll transparent
+}
+
+#notification_list .notification_title {
+    left: -6px
+}
+
+.view_all_notification_list_item .notification_title {
+    width: 339px
+}
+
+#alert_details_title {
+    width: 380px
+}
+
+.notification_title.notification_warning_icon {
+    background-position: -1px -889px
+}
+
+.notification_title.notification_critical_icon {
+    background-position: -1px -915px
+}
+
+.notification_description {
+    color: #eaeaea
+}
+
+.notification_level_display {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    background: url('img/main_sprite.png?v=1.4.0-87') -213px -635px no-repeat transparent;
+    margin-right: 5px
+}
+
+.notification_level_display.notification_level_warning {
+    background-position: -233px -635px
+}
+
+.notification_level_display.notification_level_critical {
+    background-position: -253px -635px
+}
+
+.notification_level_display+td {
+    padding: 0 20px 0 0;
+    font-size: 11px
+}
+
+.notification_legend_td {
+    white-space: nowrap;
+    width: 33%
+}
+
+.padding_left_none {
+    padding-left: 0
+}
+
+a.notification_more_info {
+    color: #eaeaea;
+    float: right;
+    margin-top: 12px;
+    padding-right: 30px
+}
+
+.ui-widget-content a.notification_more_info {
+    color: #eaeaea;
+    margin-top: 12px;
+    padding-right: 30px
+}
+
+.ui-widget-content a.notification_single_alert_more_info {
+    color: #eaeaea;
+    margin-right: 20px;
+    margin-top: 12px;
+    padding-right: 30px
+}
+
+a.notification_single_alert_more_info {
+    color: #eaeaea;
+    float: right;
+    margin-right: 20px
+}
+
+#notification_list_container ul a {
+    display: block;
+    padding: 10px
+}
+
+#notification_list .notification_ignore img {
+    padding-left: 10px;
+    margin: 0;
+    margin-right: 250px
+}
+
+#notification_list img {
+    padding-left: 5px;
+    padding-right: 5px;
+    vertical-align: middle
+}
+
+.notification_ignore {
+    display: inline-block;
+    width: 17px;
+    height: 20px;
+    float: left;
+    margin-left: 3px;
+    background: url("img/main_sprite.png?v=1.4.0-87") -199px -656px no-repeat transparent;
+    color: #eaeaea;
+    cursor: pointer
+}
+
+.notification_ignore:hover {
+    background-position: -182px -656px
+}
+
+.notification_see_details {
+    display: inline-block;
+    width: 8px;
+    height: 16px;
+    float: right;
+    background: url("img/main_sprite.png?v=1.4.0-87") -192px -615px no-repeat transparent;
+    cursor: pointer
+}
+
+.notification_see_details:hover {
+    background-position: -202px -615px
+}
+
+div.notification_information,div.dialog_notification_information {
+    padding: 6px 13px 10px;
+    background: 0
+}
+
+#notification_list_container ul a {
+    padding-right: 20px
+}
+
+#notification_list {
+    margin: 0;
+    padding: 0
+}
+
+#notification_list #notification_totals {
+    border-top: 1px solid #333
+}
+
+div#notification_see_all.view_all {
+    margin-top: 16px;
+    margin-right: 25px
+}
+
+div#notification_see_all.view_all button {
+    position: relative;
+    right: -13px;
+    float: right;
+    margin-bottom: 16px
+}
+
+#notification_see_all.no_view_all {
+    height: 0;
+    margin-right: 25px;
+    margin-top: 30px
+}
+
+#notification_see_all.no_alerts {
+    height: 0;
+    margin-right: 25px;
+    margin-top: 0
+}
+
+#notification_display_levels {
+    display: none;
+    height: 20px;
+    padding: 12px 10px 0 0;
+    border-top: 4px solid #d2d2d2
+}
+
+.dialog_notification_description {
+    font-size: 12px;
+    margin-left: 30px;
+    margin-top: 10px;
+    margin-bottom: 10px
+}
+
+.single_alert_notification_description {
+    font-size: 12px;
+    margin-bottom: 10px;
+    margin-top: 10px
+}
+
+#notifications ul {
+    list-style: none;
+    margin: 0 20px;
+    padding: 20px 0
+}
+
+.notification_functions_container {
+    width: 272px;
+    height: 20px;
+    margin: -7px 0 -2px -8px
+}
+
+.dialog_notification_icon {
+    position: relative;
+    top: 10px;
+    display: inline-block
+}
+
+.dialog_notification_ul li {
+    margin-bottom: 2px
+}
+
+#dialog_notification_list ul {
+    position: relative;
+    left: -20px;
+    width: 526px;
+    height: 400px;
+    padding: 0 20px 0 0;
+    margin: 0;
+    list-style: none;
+    overflow: auto
+}
+
+#dialog_notification_list ul li {
+    padding: 20px 5px 20px 0;
+    border-bottom: 1px solid #e1e1e1
+}
+
+#dialog_notification_list ul li:last-child {
+    border-bottom-color: transparent
+}
+
+.dialog_notification_time,.dialog_notification_code,.dialog_notification_ignore {
+    padding-bottom: 5px
+}
+
+.dialog_notification_code {
+    position: relative;
+    right: 80px;
+    bottom: -1px;
+    float: right
+}
+
+.dialog_notification_ignore {
+    float: right;
+    position: relative;
+    right: 10px;
+    bottom: 3px
+}
+
+.notification_dialog_ignore_alert {
+    display: inline-block;
+    width: 17px;
+    height: 20px;
+    background: url("img/main_sprite.png?v=1.4.0-87") -199px -656px no-repeat transparent;
+    cursor: pointer
+}
+
+.notification_dialog_ignore_alert:hover {
+    background-position: -182px -656px
+}
+
+.all_alert_speciality_container,#single_alert_begin_update {
+    display: none
+}
+
+.all_alert_speciality_container a:hover,#single_alert_begin_update a:hover {
+    color: #0067a6
+}
+
+.all_alert_speciality_container {
+    margin-left: 30px
+}
+
+.single_alert_description {
+    background: 0;
+    padding-left: 0
+}
+
+#notification_time_container {
+    text-align: left;
+    padding-left: 5px
+}
+
+.icon_notification_critical {
+    background-position: -1px -760px!important;
+    width: 18px!important
+}
+
+.icon_notification_warning {
+    background-position: -1px -785px!important;
+    width: 18px!important
+}
+
+.selected .icon_notification_critical,.selected .icon_notification_warning {
+    background-position: -1px -837px!important
+}
+
+#view_all_alerts_dialog .mochi_dialog_content {
+    padding: 0 20px
+}
+
+.webaccount_list_item {
+    height: 40px
+}
+
+.dlna_media_player_list {
+    width: 638px;
+    height: 150px;
+    padding-left: 0;
+    list-style: none;
+    overflow: auto;
+    overflow-x: hidden
+}
+
+.dlna_media_player_ipaddress {
+    position: relative;
+    bottom: 9px;
+    display: inline-block;
+    width: 120px
+}
+
+.dlna_media_player_list li {
+    height: 48px;
+    background: #1e1e1e;
+    border: 1px solid #606060
+}
+
+.dlna_media_player_name {
+    position: relative;
+    bottom: 7px;
+    display: inline-block;
+    width: 250px;
+    padding-left: 5px
+}
+
+.dlna_media_player_toggle {
+    position: relative;
+    right: 10px;
+    top: 10px;
+    display: inline-block;
+    float: right
+}
+
+.dashboard_media_list_item_percent {
+    position: relative;
+    right: 10px;
+    top: 10px;
+    float: right
+}
+
+#cloud_access_instruction {
+    line-height: 20px
+}
+
+.capacity_light_txt {
+    color: #85939c
+}
+
+.dashboard_capacity_icon {
+    position: relative;
+    top: 7px;
+    display: inline-block;
+    height: 24px;
+    width: 24px;
+    background: url("img/main_sprite.png?v=1.4.0-87") no-repeat transparent;
+    padding-right: 10px
+}
+
+.dashboard_capacity_icon_music {
+    background-position: -5px -609px
+}
+
+.dashboard_capacity_icon_photos {
+    background-position: -5px -694px
+}
+
+.dashboard_capacity_icon_videos {
+    height: 22px;
+    margin-left: 1px;
+    padding-bottom: 2px;
+    padding-right: 10px;
+    background-position: -5px -582px
+}
+
+.dashboard_capacity_icon_other {
+    left: 3px;
+    width: 18px;
+    height: 24px;
+    background-position: -5px -638px;
+    padding-right: 15px
+}
+
+.dashboard_capacity_icon_free_space {
+    width: 24px;
+    height: 24px;
+    background-position: -5px -665px
+}
+
+.dashboard_media_list_item_count {
+    position: relative;
+    display: none;
+    height: 6px;
+    width: 92px;
+    padding-left: 0;
+    margin: 2px 0;
+    background: none repeat scroll 0 0 #0a0a0a
+}
+
+.dashboard_media_list_scan_type {
+    display: inline-block;
+    padding-left: 5px;
+    width: 100px
+}
+
+.dashboard_media_list_scan_done {
+    display: inline-block;
+    padding-left: 10px;
+    width: 20px
+}
+
+#dashboard_media_videos_count,#dashboard_media_music_count,#dashboard_media_photos_count,#dashboard_media_other_count {
+    position: absolute;
+    background: #0067a6;
+    height: 6px
+}
+
+#sdcard_dir_list_timestamp,#settings_dlna_form_advanced_options,#settings_media_dlna_last_update_string {
+    display: none
+}
+
+#dlnaMediaDBProcessContainer:after {
+    position: relative;
+    top: 16px;
+    right: -15px;
+    display: inline-block;
+    content: "";
+    width: 40px;
+    height: 40px;
+    background: url("img/loading40x40.gif") 0 0 no-repeat transparent
+}
+
+.updating_database {
+    position: relative;
+    top: -19px
+}
+
+.sdcard_transfer_location label {
+    display: table-cell;
+    vertical-align: top
+}
+
+.sdcard_transfer_location span {
+    position: relative;
+    top: -5px;
+    left: 55px;
+    display: table-cell;
+    width: 430px;
+    vertical-align: top;
+    line-height: 18px
+}
+
+@-moz-document url-prefix() {
+    .sdcard_transfer_location {
+        margin-bottom: 15px
+    }
+
+    .sdcard_transfer_location span {
+        padding-left: 53px
+    }
+}
+
+.mochi_dialog_container,.mochi_dialog .ui-dialog-titlebar-close,#create_user_wizard .wizard_add_user_list_container .wizard_list li:first-child,div.wizard_form_success_message,#getting_started_wizard,#getting_started_wizard_add_users_user_list_container,#getting_started_wizard_add_user_edit_admin_form_container,#getting_started_wizard_add_users_setup_title,#getting_started_wizard_add_users_invite_title,#getting_started_wizard_add_users_do_not_add,#getting_started_wizard_add_user_list li:first-child,#getting_started_wizard_register_form_container,#delete_user_confirmation,#create_user_wizard {
+    display: none
+}
+
+.mochi_dialog {
+    background-color: #eee;
+    background-image: -webkit-gradient(linear,left top,left bottom,from(#f0f0f0),to(#ececec));
+    background-image: -webkit-linear-gradient(top,#f0f0f0,#ececec);
+    background-image: -moz-linear-gradient(top,#f0f0f0,#ececec);
+    background-image: -ms-linear-gradient(top,#f0f0f0,#ececec);
+    background-image: linear-gradient(top,#f0f0f0,#ececec);
+    border: 1px solid #e6e6e6;
+    font: 14px Arial,"Helvetica Neue",Helvetica,sans-serif;
+    color: #4b5a68;
+    overflow: visible;
+    border-radius: 0
+}
+
+.mochi_dialog .ui-dialog-content {
+    padding: 0;
+    margin: 10px 17px 17px;
+    background: #fafafa;
+    color: #4b5a68;
+    overflow: visible;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -ms-box-sizing: border-box;
+    box-sizing: border-box
+}
+
+.mochi_dialog .ui-dialog-content ul {
+    padding: 22px 20px 0;
+    margin: 0;
+    list-style-position: outside
+}
+
+.mochi_dialog .ui-dialog-content ul li {
+    padding-bottom: 14px;
+    line-height: 20px;
+    background: #fafafa
+}
+
+.mochi_dialog .ui-dialog-content ul li:last-child {
+    padding-bottom: 20px
+}
+
+.mochi_dialog .ui-dialog-titlebar {
+    padding: 0;
+    margin: 0 20px;
+    float: none;
+    background: 0;
+    border: 0
+}
+
+.mochi_dialog .ui-dialog-content .mochi_dialog_content_container {
+    padding: 10px 20px 0;
+    margin: 0
+}
+
+.mochi_dialog .dialog_form_controls {
+    position: relative;
+    height: 26px;
+    padding: 20px 0 7px;
+    background: #eaeaea
+}
+
+.mochi_dialog .ui-dialog-content .mochi_dialog_content {
+    min-height: 80px;
+    margin: 0;
+    padding: 20px;
+    word-wrap: break-word
+}
+
+#view_single_alert_dialog .mochi_dialog_content {
+    padding-top: 0
+}
+
+.mochi_dialog.mochi_wizard_dialog .ui-dialog-content .mochi_dialog_content {
+    min-height: 236px
+}
+
+.mochi_dialog .ui-dialog-content .mochi_dialog_content>p,.mochi_dialog .ui-dialog-content .mochi_dialog_content>div>p {
+    font-size: 14px
+}
+
+.mochi_dialog .ui-dialog-content .mochi_dialog_content>p:first-child,.mochi_dialog .ui-dialog-content .mochi_dialog_content>div>p:first-child {
+    margin-top: 0
+}
+
+.mochi_dialog .ui-dialog-content .mochi_dialog_content>p:first-child+ul,.mochi_dialog .ui-dialog-content .mochi_dialog_content>div>p:first-child+ul {
+    padding-top: 0
+}
+
+.mochi_dialog .ui-dialog-content .mochi_dialog_content>p:last-child,.mochi_dialog .ui-dialog-content .mochi_dialog_content>div>p:last-child {
+    margin-bottom: 0
+}
+
+.mochi_dialog_content #update_progressbar {
+    margin: 32px 0 0
+}
+
+.mochi_dialog .wizard_dialog_title {
+    height: 32px;
+    margin: 0 0 5px;
+    padding: 0;
+    font: 100 20px/32px Arial,"Helvetica Neue",Helvetica,sans-serif;
+    color: #4b5a68
+}
+
+.mochi_dialog .ui-dialog-title {
+    display: block;
+    height: 35px;
+    padding: 0;
+    margin: 15px 0 -8px -4px;
+    float: none
+}
+
+.mochi_dialog_save_button {
+    float: right
+}
+
+.mochi_dialog a {
+    color: #09F;
+    line-height: 20px
+}
+
+span.deleteicon input {
+    padding-right: 37px
+}
+
+.ui-widget-overlay {
+    background: #000;
+    opacity: .6
+}
+#wifi_edit_config_form_password_show_container input[type="text"]{
+    padding-right:40px;
+    height:34px;
+}
+#wifi_edit_config_form_password_show_container .deletebutton{
+    right:0px;
+}
+.wizard_add_user_list_container input[type="text"],.wizard_add_user_list_container input[type="password"] {
+    width: 85px;
+    margin-left: 10px
+}
+
+#wifi_edit_config_form_password_show_container_5g #wifi_edit_config_form_password_show_5g{
+    padding-right:40px;
+}
+#wifi_edit_config_form_password_show_container_5g .deletebutton{
+    right:0px;
+}
+.wizard_add_user_list_container input[type="text"].email {
+    width: 170px
+}
+
+.wizard_add_user_list_container .form_controls {
+    margin-left: 10px
+}
+
+.wizard_add_user_list_container input[type="text"].username {
+    margin-left: 0
+}
+
+#getting_started_wizard_add_user_edit_admin_form_container,ul.wizard_list li {
+    height: 48px;
+    line-height: 48px;
+    background-color: #222;
+    margin-bottom: 2px;
+    padding-left: 10px;
+    border-radius: 4px
+}
+
+ul.wizard_list {
+    max-height: 114px;
+    padding-left: 0;
+    margin-bottom: 0;
+    list-style: none;
+    overflow: auto
+}
+
+.wizard_add_email_container {
+    min-height: 200px;
+    -webkit-box-shadow: 2px 2px 2px 2px rgba(96,96,96,1);
+    box-shadow: 2px 2px 2px 2px rgba(96,96,96,1)
+}
+
+.wizard_add_user_form_container {
+    -webkit-box-shadow: 2px -2px 2px -2px rgba(96,96,96,1);
+    box-shadow: 2px -2px 2px -2px rgba(96,96,96,1);
+    display: none
+}
+
+#getting_started_wizard_add_user_list.mochi_list {
+    width: auto
+}
+
+ul.mochi_list li span.wizard_list_username {
+    display: inline-block;
+    width: 425px
+}
+
+ul.mochi_list li .wizard_list_email {
+    display: inline-block
+}
+
+.wizard_list_email {
+    margin-left: 8px
+}
+
+.wizard_add_user_list_container {
+    background-color: #1e1e1e;
+    padding: 0;
+    margin: 0 0 10px;
+    -webkit-box-shadow: 0 0 2px rgba(96,96,96,1);
+    box-shadow: 0 0 2px rgba(96,96,96,1);
+    border-radius: 10px
+}
+
+.add_user_success {
+    position: absolute;
+    right: 0;
+    display: none
+}
+
+#user_edit {
+    color: #808080
+}
+
+#user_edit .content_row label {
+    color: #c0c0c0
+}
+
+#user_edit input[type=text] {
+    width: 160px
+}
+
+#help_dialog.ui-dialog-content ul {
+    padding-top: 5px
+}
+
+#help_dialog.ui-dialog-content ul li {
+    list-style-type: disc
+}
+
+#help_dialog.ui-dialog-content ol li {
+    padding: 5px 0
+}
+
+#dateTime_calender {
+    width: 95px
+}
+
+#admin_user_container .form_controls,#device_container .form_controls,#media_container .form_controls,#remote_access_settings_connectivity_manual_ports .form_controls,#hide_update_schedule .form_controls {
+    margin-left: 5px
+}
+
+#settings_device_language_form .form_controls {
+    position: relative;
+    top: 1px
+}
+
+@-moz-document url-prefix() {
+    #settings_device_language_form .form_controls {
+        position: relative;
+        top: 2px
+    }
+}
+
+.ntp_server_list {
+    list-style: none;
+    width: 615px;
+    padding-left: 0
+}
+
+.ntp_server_name {
+    position: relative;
+    bottom: 12px;
+    display: inline-block;
+    padding-left: 5px;
+    width: 240px
+}
+
+.ntp_server_description {
+    position: relative;
+    bottom: 11px;
+    display: inline-block;
+    width: 200px;
+    vertical-align: middle
+}
+
+.ntp_server_list label {
+    width: 265px;
+    vertical-align: top
+}
+
+.ntp_server_list li {
+    height: 48px;
+    box-shadow: 0 0 2px #606060;
+    background: #1e1e1e
+}
+
+.ntp_server_list li label img,.dlna_media_player_list li label img {
+    position: relative;
+    top: 4px;
+    padding-left: 3px
+}
+
+.ntp_server_list_item,.dlna_media_player_list_item {
+    position: relative
+}
+
+.alert_email_delete {
+    display: none;
+    float: right;
+    padding-right: 8px
+}
+
+#create_user_ntp_btn {
+    position: relative;
+    top: 6px
+}
+
+.time_machine_warning {
+    line-height: 1;
+    font: 12px Arial,"Helvetica Neue",Helvetica,sans-serif
+}
+
+#time_machine_slider {
+    position: relative;
+    left: 18%;
+    top: -18px;
+    width: 50%;
+    background: #000
+}
+
+#alert_config_email_slider,#alert_config_ui_notification_slider {
+    width: 80%;
+    background: #000
+}
+
+#setup_firmware_update_pic_holder {
+    height: 190px;
+    padding-left: 220px
+}
+
+#setup_firmware_update_image_content {
+    width: 90px;
+    height: 180px;
+    background: url('img/main_sprite.png?v=1.4.0-87') no-repeat -410px -574px
+}
+
+#time_machine_slider_value {
+    position: relative;
+    left: 71%;
+    top: -38px
+}
+
+.media_icon {
+    position: relative;
+    width: 15px;
+    height: 16px
+}
+
+.right-button {
+    position: relative;
+    left: -4px
+}
+
+@-moz-document url-prefix() {
+    .right-button {
+        left: 0
+    }
+}
+
+.button-selected {
+    border-top-color: #054f9d;
+    border-bottom-color: #09F;
+    background: #027dc8;
+    background: -moz-linear-gradient(top,#027dc8 0,#09F 100%);
+    background: -webkit-gradient(linear,left top,left bottom,color-stop(0%,#027dc8),color-stop(100%,#09F));
+    background: -webkit-linear-gradient(top,#027dc8 0,#09F 100%);
+    background: -o-linear-gradient(top,#027dc8 0,#09F 100%);
+    background: -ms-linear-gradient(top,#027dc8 0,#09F 100%);
+    background: linear-gradient(to bottom,#027dc8 0,#09F 100%);
+    color: #fafafa;
+    outline: 0;
+    cursor: default
+}
+
+.button-selected:hover {
+    border-top-color: #054f9d;
+    border-bottom-color: #09F;
+    background: #027dc8;
+    background: -moz-linear-gradient(top,#027dc8 0,#09F 100%);
+    background: -webkit-gradient(linear,left top,left bottom,color-stop(0%,#027dc8),color-stop(100%,#09F));
+    background: -webkit-linear-gradient(top,#027dc8 0,#09F 100%);
+    background: -o-linear-gradient(top,#027dc8 0,#09F 100%);
+    background: -ms-linear-gradient(top,#027dc8 0,#09F 100%);
+    background: linear-gradient(to bottom,#027dc8 0,#09F 100%);
+    color: #fafafa;
+    outline: 0;
+    cursor: default
+}
+
+.button-selected:focus {
+    outline: 0
+}
+
+.defaultheight {
+    height: auto!important;
+    line-height: normal!important;
+    padding-top: 0!important
+}
+
+#setup_sd_auto_slurp_content, #onboarding_all_set_content{
+    width: 742px;
+    height:517px;
+    margin: 65px auto 0;
+    padding: 20px;
+    border: 1px solid #e6e6e6;
+    background-color: #EEE;
+    background-image: -webkit-gradient(linear,left top,left bottom,from(#f0f0f0),to(#ececec));
+    background-image: -webkit-linear-gradient(top,#f0f0f0,#ececec);
+    background-image: linear-gradient(top,#f0f0f0,#ececec);
+    -ms-box-sizing: border-box;
+    box-sizing: border-box
+}
+#setup_auto_firmware_update_content{
+    width: 742px;
+    height:572px;
+    margin: 65px auto 0;
+    padding: 20px;
+    border: 1px solid #e6e6e6;
+    background-color: #EEE;
+    background-image: -webkit-gradient(linear,left top,left bottom,from(#f0f0f0),to(#ececec));
+    background-image: -webkit-linear-gradient(top,#f0f0f0,#ececec);
+    background-image: linear-gradient(top,#f0f0f0,#ececec);
+    -ms-box-sizing: border-box;
+    box-sizing: border-box
+}
+
+#setup_sd_auto_slurp_content {
+    position: relative;
+    z-index: 2;
+    padding: 20px 20px 52px
+}
+
+#setup_auto_firmware_update_content {
+    position: relative;
+    z-index: 2;
+    padding: 20px 20px 12px
+}
+
+#setup_sd_auto_slurp_info_container {
+    /*height: 80px;*/
+    padding-bottom: 40px;
+    /*padding-top: 20px*/
+}
+
+.onbaording_edit_container label.checkbox_off,.onbaording_edit_container label.checkbox_on {
+    margin-left: 0;
+    margin-right: 0;
+    width: auto
+}
+
+#setup_auto_firmware_update_info_container {
+    /*height: 30px*/
+    margin:20px 0;
+ 
+}
+.eula_popup_section{
+	margin-bottom:30px;
+	border-top:1px solid #ccc;
+}
+.eula_popup_section:first-child{
+	border-top:none;
+}
+#setup_sd_auto_slurp_image_content {
+    position: absolute;
+    width: 67px;
+    height: 80px;
+    background: url('img/main_sprite.png?v=1.4.0-87') no-repeat -428px -473px
+}
+
+#sd_card_checkbox_box {
+    border-bottom: 1px solid #c8c8c8;
+    border-top: 1px solid #c8c8c8;
+    margin-left: 30px;
+    padding-bottom: 15px;
+    padding-top: 15px;
+    margin-right:30px;
+}
+#usb_checkbox_box {
+    border-bottom: 1px solid #c8c8c8;
+    /*border-top: 1px solid #c8c8c8;*/
+    margin-left: 30px;
+    padding-bottom: 15px;
+    padding-top: 15px;
+    margin-right:30px;   
+}
+
+#setup_sd_auto_slurp_info_text {
+    position: relative;
+    font-size: 18px;
+    padding-left: 30px;
+    display: inline-block;
+    /*width:80%;*/
+    
+}
+
+#update_ntp_form_ntpsrv_user_desc {
+    display: inline-block;
+    width: 214px
+}
+
+.update_progress_label {
+    display: none
+}
+
+#ntp_configure_section,#settings_dateTime_edit_link {
+    margin-left: 14px
+}
+
+.help_checkbox_label,.ssh_checkbox_label {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none
+}
+
+.help_checkbox_label {
+    width: auto!important
+}
+
+.ssh_checkbox_label {
+    position: relative;
+    top: -1px;
+    width: 366px
+}
+
+#alert_configuration_ok_button {
+    margin-left: 10px
+}
+
+.edit_admin_user_static_content,.reboot_reconnect_msg,#edit_user_password_form_password_show_container,#firmware_update_message_acceptance,#firmware_update_message,.firmware_update_item,.firmware_confirmation,.firmware_selection_input,#settings_admin_password_hint,.update_now_container,.settingUpdateFirmwareNewMessage,.settingUpdateFirmwareNewImage,#factory_restore_progressbar_elapsed_time_container {
+    display: none
+}
+
+.fw_eula_checkbox_label {
+    width: 467px;
+    margin-left: 5px
+}
+
+.firmware_update_item {
+    padding-bottom: 5px
+}
+
+.firmware_releasenotes a:hover {
+    color: #0067a6
+}
+
+#confirm_upgrade_firmware_message_iframe,#message_iframe {
+    background-color: #fff
+}
+
+.format_restore_progressbar_percentage {
+    position: relative;
+    left: 165px;
+    top: -12px
+}
+
+.timeZoneMaxWidth {
+    max-width: 300px
+}
+
+.timeZoneMaxWidth_container {
+    max-width: 390px
+}
+
+#auto_system_updates_form table,#factory_restore_form table,#settings_device_timezone_form table {
+    margin-left: -2px
+}
+
+.settings_values_container {
+    padding-left: 0
+}
+
+.settings_values_container .extra_space_left {
+    padding-left: 3px
+}
+
+@-moz-document url-prefix() {
+    .settings_values_container .extra_space_left {
+        padding-left: 5px
+    }
+}
+
+.dialog_content_length_firmware_up_to_date {
+    width: 400px
+}
+
+.show_password {
+    position: relative;
+    top: 3px
+}
+
+#new_firmware_available_dialog_save_button {
+    position: relative;
+    right: -7px;
+    margin-right: 7px
+}
+
+label.network_mode {
+    width: auto
+}
+
+.reboot_label {
+    margin-bottom: 10px
+}
+
+#eula_container {
+    display: none;
+    width: 700px;
+    height: 434px;
+   /* padding: 21px 20px 18px;*/
+    margin: 250px auto 0 auto;
+    /*border: 1px solid #e6e6e6;
+    background-color: #EEE;
+    background-image: -webkit-gradient(linear,left top,left bottom,from(#f0f0f0),to(#ececec));
+    background-image: -webkit-linear-gradient(top,#f0f0f0,#ececec);
+    background-image: -moz-linear-gradient(top,#f0f0f0,#ececec);
+    background-image: -o-linear-gradient(top,#f0f0f0,#ececec);
+    background-image: -ms-linear-gradient(top,#f0f0f0,#ececec);
+    background-image: linear-gradient(top,#f0f0f0,#ececec);*/
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -ms-box-sizing: border-box;
+    box-sizing: border-box
+}
+
+#eula_content {
+    position: relative;
+    z-index: 2
+}
+
+#eula_city {
+    position: absolute;
+    top: 442px;
+    right: 29px;
+    z-index: 1;
+    width: 904px;
+    height: 182px;
+    background: url("img/cities_sprite.png?v=1.4.0-87") 0 0 no-repeat transparent
+}
+
+.eulaTitle {
+    font-size: 28px;
+    color: #4b5a68;
+    margin-bottom: 25px
+}
+
+.eulaSubtext {
+    font-size: 14px
+    display:inline-block;
+    line-height:19pt;
+    margin-left:5px;
+}
+
+#eulaHead {
+    margin-bottom: 14px
+}
+
+#eulaTextWrap {
+    height: 236px;
+    border: 1px solid #dedede
+}
+
+#eula_device_pic_holder {
+    height: 250px;
+    padding-left: 220px
+}
+
+#eula_device_image_content {
+    width: 169px;
+    height: 182px;
+    background: url('img/product_images_sprite.png?v=1.4.0-87') no-repeat 0 0 transparent
+}
+
+#eulaText {
+    height: 100%;
+    background-color: #fafafa;
+    padding: 20px 0 20px 20px;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -ms-box-sizing: border-box;
+    box-sizing: border-box
+}
+
+.iOSTextOverflow,html.touch #eulaText {
+    -webkit-overflow-scrolling: touch;
+    overflow: auto
+}
+
+#eula_iframe {
+    width: 100%;
+    height: 100%;
+    border: 0
+}
+
+#eulaActions {
+    margin-top: 16px
+}
+
+#eulaActions a {
+    display: block;
+    font: normal 12px "Helvetica Neue",Helvetica,sans-serif
+}
+#eulaAgreeLink.gray_out {
+    cursor: text;
+    left: 0;
+    opacity: 0.3;
+}
+#eulaAgreeLink {
+	margin-top:60px;
+    position: relative;
+    /*right: -4px;*/
+    
+   /*
+   float: left;
+    border-top-color: transparent;
+    border-bottom-color: #054f9d;
+    background: #027dc8;
+   background: -moz-linear-gradient(top,#027dc8 0,#09F 100%);
+    background: -webkit-gradient(linear,left top,left bottom,color-stop(0%,#027dc8),color-stop(100%,#09F));
+    background: -webkit-linear-gradient(top,#027dc8 0,#09F 100%);
+    background: -o-linear-gradient(top,#027dc8 0,#09F 100%);
+    background: -ms-linear-gradient(top,#027dc8 0,#09F 100%);
+    background: linear-gradient(to bottom,#027dc8 0,#09F 100%);
+    color: #fafafa;
+    */
+    background-color: #ebebeb;
+    background-image: -webkit-gradient(linear, left top, left bottom, from(#fafafa), to(#dcdcdc));
+    background-image: -webkit-linear-gradient(top, #fafafa, #dcdcdc);
+    background-image: -moz-linear-gradient(top, #fafafa, #dcdcdc);
+    background-image: -ms-linear-gradient(top, #fafafa, #dcdcdc);
+    background-image: linear-gradient(top, #fafafa, #dcdcdc);
+    filter: progid:DXImageTransform.Microsoft.gradient(GradientType=0,StartColorStr='#fafafa', EndColorStr='#dcdcdc');
+    font: 14px Arial, "Helvetica Neue", Helvetica, sans-serif;
+    color: #4B5A68;
+    text-align: center;
+    cursor: pointer;
+    border-top: 1px solid #FFF;
+    border-bottom: 1px solid #C8C8C8;
+    border-right: 0;
+    border-left: 0;
+    -moz-appearance: none;
+    -webkit-appearance: none;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -ms-box-sizing: border-box;
+    box-sizing: border-box;
+    outline: 1px solid #C8C8C8;
+    white-space: nowrap;
+    
+}
+#eula_main_block{
+	position:absolute;
+	top:0px;
+	left:0px;	
+}
+#eula_iframe_block{
+	position:absolute;
+	top:0px;
+	left:0px;
+	display:none;
+}
+#eula_iframe_title{
+    color: #c3c3c3;
+    font-family: "Helvetica Neue Light",Helvetica,sans-serif;
+    font-size: 18px;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+#eula_iframe_subTitle{
+	font-size: 12px;
+	 color: #2d2d2d;
+	 margin:15px 0;
+}
+#eula_iframe_box{
+	width:600px;
+	height:210px;
+}
+#eulaTextWrap .jScrollPaneContainer {
+    width: 100%;
+    height: 100%
+}
+
+#eula_forms_floater {
+    display: block;
+    height: 50%;
+    margin-bottom: -225px;
+    float: left
+}
+
+#eula_forms_container {
+    position: relative;
+    display: block;
+    height: 550px;
+    clear: both
+}
+
+#eula_language_form label {
+    width: auto;
+    font: bold 18px "Helvetica Neue Light",Helvetica,sans-serif;
+    vertical-align: top
+}
+
+#eula_agree_form label {
+    width: auto
+}
+
+#eula_forms_container .ui-selectmenu {
+    margin-bottom: 10px!important
+}
+
+#eulaShowLink {
+    text-decoration: underline
+}
+
+#eulaCancelLink {
+    margin-left: 5px
+}
+
+#eulaDeclineLink {
+    display: inline-block;
+    margin-left: -2px
+}
+
+#eulaSubmit,#loginSubmit {
+    display: block;
+    padding-top: 5px;
+    padding-right: 13px;
+    float: right
+}
+
+#eula_acceptance_error,#eula_not_accepted_error,#eulaPrintLink,#eulaCancelLink,#eula_forms_container {
+    display: none
+}
+
+#privacyPolicyText {
+    height: 360px
+}
+
+#privacyPolicy_iframe {
+    width: 100%;
+    height: 350px;
+    border: 0
+}
+
+.create_network_password_static_content,#create_network_password_show_low_band_container,#create_network_password_show_high_band_container,#create_login_password_container,#authentication_container,#setup_sd_auto_slurp_container,#setup_auto_firmware_update_container,#create_network_security_container,#create_password_hint_container,#invalid_unauthorized,#password_hint_container,#connect_home_network_container, #setup_plex_container,#onboarding_all_set_container{
+    display: none
+}
+#authentication_container .white_bg{
+    height:200px;
+}
+
+#create_login_password_content {
+    width: 444px;
+    margin: 100px auto
+}
+
+#create_network_password_content {
+    width: 742px;
+    margin: 65px auto 0;
+    height:517px;
+    padding: 20px;
+    border: 1px solid #e6e6e6;
+    background-color: #EEE;
+    background-image: -webkit-gradient(linear,left top,left bottom,from(#f0f0f0),to(#ececec));
+    background-image: -webkit-linear-gradient(top,#f0f0f0,#ececec);
+    background-image: -moz-linear-gradient(top,#f0f0f0,#ececec);
+    background-image: -o-linear-gradient(top,#f0f0f0,#ececec);
+    background-image: -ms-linear-gradient(top,#f0f0f0,#ececec);
+    background-image: linear-gradient(top,#f0f0f0,#ececec);
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -ms-box-sizing: border-box;
+    box-sizing: border-box
+}
+#authentication_content {
+    width: 742px;
+    margin: 65px auto 0;
+    height:350px;
+    padding: 20px;
+    border: 1px solid #e6e6e6;
+    background-color: #EEE;
+    background-image: -webkit-gradient(linear,left top,left bottom,from(#f0f0f0),to(#ececec));
+    background-image: -webkit-linear-gradient(top,#f0f0f0,#ececec);
+    background-image: -moz-linear-gradient(top,#f0f0f0,#ececec);
+    background-image: -o-linear-gradient(top,#f0f0f0,#ececec);
+    background-image: -ms-linear-gradient(top,#f0f0f0,#ececec);
+    background-image: linear-gradient(top,#f0f0f0,#ececec);
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -ms-box-sizing: border-box;
+    box-sizing: border-box
+}
+#create_network_password_content {
+    position: relative;
+    z-index: 2;
+    padding: 20px 20px 52px
+}
+
+.onboard_title h2 {
+    margin: 0 0 12px
+}
+
+div.white_bg {
+    background: #FFF;
+    padding: 20px 30px;;
+    height:375px;
+    box-sizing:border-box;
+}
+#connect_home_network_content .white_bg{
+    height:420px;
+}
+.eula_popo_title{
+	font-size: 22px;
+	line-height:48px;
+}
+
+
+#create_network_password_content form .white_bg+#create_network_password_buttons {
+    width: 100%;
+    margin-top: 20px;
+    text-align: right
+}
+
+div.onboard_button_container {
+    width: 100%;
+    margin-top: 10px;
+    text-align: right
+}
+#eula_greyOut{
+    width:100%;
+    height:100%;
+    position:absolute;
+    top:0px;
+    left:0px;
+    background-color:	rgba(0 ,0 ,0,.8);
+    position:fixed;
+}
+#authentication_content form .white_bg+.content_row,#setup_sd_auto_slurp_content form .white_bg+.content_row {
+    width: 100%;
+    margin-top: 20px
+}
+div.onboard_button_container{
+	margin-top:20px;
+}
+#create_network_password_buttons .wizard_action,#setup_sd_auto_slurp_buttons .wizard_action, #create_network_password_buttons_h .wizard_action{
+    float: right
+}
+div#create_network_password_buttons_h{
+	margin-top:20px;
+}
+.pass_city {
+    position: absolute;
+    top: 222px;
+    right: 0;
+    z-index: 1;
+    width: 904px;
+    height: 401px;
+    background: url("img/cities_sprite.png?v=1.4.0-87") 0 -183px no-repeat transparent
+}
+
+#authentication_content {
+    position: relative;
+    z-index: 2;
+    margin: 46px auto 0
+}
+
+#invalid_unauthorized {
+    color: red;
+    padding-left: 230px
+}
+
+.create_password_intro {
+    margin-top: 50px
+}
+
+.waiting_for_network_connection {
+    text-align: center
+}
+
+#authentication_content input[type="text"],#authentication_content input[type="password"] {
+    border-top: 1px solid #dcdcdc;
+    border-bottom: 1px solid #f4f4f4;
+    background: #f0f0f0;
+    color: #4b5a68;
+    -webkit-box-shadow: -1px 0 0 0 #EEE;
+    box-shadow: -1px 0 0 0 #EEE;
+    border-radius: 0
+}
+
+#authentication_content input[type="text"]:focus,#authentication_content input[type="password"]:focus #authentication_content input[type="text"]:hover,#authentication_content input[type="password"]:hover {
+    border-color: transparent;
+    border-top-color: #dcdcdc;
+    border-bottom-color: #f4f4f4
+}
+
+#authentication_content input.invalid_unauthorized,#authentication_content input.invalid_unauthorized:hover,#authentication_content input.invalid_unauthorized:focus {
+    border-color: red!important
+}
+
+.trouble_shooting_hints {
+    margin-bottom: 10px
+}
+
+#create_network_password_show_high_band_container #create_network_password_form_high_band_show_password_checkbox_on{
+    top:0px;
+}
+#create_network_password_show_low_band_container .deletebutton{
+    right:5px; 
+}
+#create_network_password_high_band_container #create_network_password_form_high_band_show_password_checkbox_on{
+    top 0px;
+}
+#create_network_password_show_high_band_container .deletebutton{
+    right:5px;
+}
+#create_network_password_show_high_band_container #create_network_password_form_high_band_show_password_checkbox_on{
+    top 0px;
+}
+#create_network_password_show_high_band_container input[type="text"]{
+    padding-right:40px;
+}
+
+#create_network_password_show_low_band_container input[type="text"]{
+    padding-right:40px;
+}
+
+#create_network_password_tip {
+    text-align: left;
+    margin-top:40px;
+}
+
+.float_right {
+    float: right
+}
+
+div#wifi_content.content_container {
+    width: 926px
+}
+
+#wifi_access_point_image {
+    position: relative;
+    top: 5px;
+    width: 242px;
+    height: 147px;
+    margin-bottom: 1px;
+    background: url("img/network_mpw.png") 3px 10px no-repeat transparent
+}
+
+.router_connected_devices_item,.wifi_ap_list_item {
+    position: relative;
+    background: #ececec
+}
+
+.connected_devices_item {
+	background: #ececec;
+}
+
+.connected_devices_outer {
+	position: relative;
+}
+
+.connected_devices_scroll {
+	overflow-y: auto;
+}
+
+.wifi_ap_list_item:hover,.wifi_ap_list_item.selected {
+    border-left-color: #0067a6;
+    background: #c4c4c4
+}
+
+.wifi_ap_list_item:hover label,.wifi_ap_list_item.selected label {
+    color: #fafafa
+}
+
+#wifi_access_point_edit_container,#wifi_client_ap_submit_container {
+    text-align: right;
+    padding-top: 8px;
+    padding-right: 10px
+}
+
+#wifi_client_ap_submit_container {
+    display: none
+}
+
+#wifi_access_point_name_container {
+    position: relative;
+    top: 1px;
+    display: inline-block
+}
+
+#wifi_access_point_ssid_lock,#wifi_access_point_ssid_lock_2 {
+    position: relative;
+    bottom: 7px;
+    left: 5px;
+    display: inline-block;
+    width: 15px;
+    height: 18px;
+    background: url("img/main_sprite.png?v=1.4.0-87") -418px -272px no-repeat transparent;
+    vertical-align: middle
+}
+
+.wifi_content_full_container {
+    width: 960px;
+    margin: auto
+}
+
+.connected_device_image {
+    position: relative;
+    top: 4px;
+    display: inline-block;
+    width: 25px;
+    height: 20px;
+    margin-right: 11px;
+    background: url("img/main_sprite.png?v=1.4.0-87") -429px -312px no-repeat transparent
+}
+
+.connected_device_me_image {
+    height: 23px;
+    background: url("img/main_sprite.png?v=1.4.0-87") -387px -357px no-repeat transparent
+}
+
+.selected .connected_device_me_image {
+    background-position: -387px -333px
+}
+
+.connected_device_delete {
+    display: inline-block;
+    width: 20px;
+    height: 19px;
+    background: url("img/main_sprite.png?v=1.4.0-87") -434px -272px no-repeat transparent
+}
+
+.connected_device_label_container {
+    width: 142px;
+    margin-left: 0;
+    margin-right: 0
+}
+
+.connected_device_delete {
+    position: relative;
+    top: 4px;
+    right: -3px
+}
+
+.connected_device_delete.ui-state-disabled {
+    display: none
+}
+
+.connected_device_label {
+    position: absolute;
+    top: 13px;
+    width: 157px;
+    height: 22px
+}
+
+.no_devices_found {
+    width: 230px
+}
+
+.wireless_label_text {
+    position: relative;
+    top: 2px;
+    vertical-align: middle;
+    display: inline-block
+}
+
+#selected_wireless_network_image {
+    display: inline-block;
+    width: 242px;
+    height: 148px;
+    background: url("img/main_sprite.png?v=1.4.0-87") -481px -363px no-repeat transparent
+}
+
+.home_network_image {
+    background-position: -481px -511px!important
+}
+
+#wifi_avatar_access_point_name_container,#selected_wireless_network_ssid_container {
+    text-align: center
+}
+
+.iconTooltip_container ul {
+    position: relative;
+    list-style-type: disc
+}
+
+.iconTooltip_container li {
+    height: 18px;
+    line-height: 18px;
+    padding-left: 5px
+}
+
+.iconTooltip_container li,#wifi_access_point_tooltip li,#selected_wireless_network_ssid_container li {
+    white-space: nowrap;
+    padding-right: 20px
+}
+
+#wifi_ap_list_content {
+    overflow: auto
+}
+
+.remembered_profile_refresh {
+    top: -30px!important;
+    right: -3px!important;
+    outline: none!important
+}
+
+.display_wifi_encryption,.display_ssid_password {
+    display: block
+}
+
+.network_button_spacer {
+    padding-left: 20px
+}
+
+.network_separator {
+    position: relative;
+    top: 126px;
+    display: inline-block;
+    width: 58px;
+    margin: 0 10px
+}
+
+.network_separator1,.network_separator2 {
+    background: url("img/main_sprite.png?v=1.4.0-87") -396px -223px no-repeat transparent;
+    width: 58px;
+    height: 8px
+}
+
+#router_connected_devices_container {
+    display: none
+}
+
+.connection_diagram {
+    position: relative;
+    top: 11px;
+    height: 42px;
+    margin: 0 auto;
+    background: transparent
+}
+
+.connection_diagram {
+	width: 158px;
+	background: url("img/connection_sprite.png?v=1.4.0-87") no-repeat transparent;
+	background-position: -26px 0;
+}
+.connection_diagram.mode_direct_connection {
+    width: 158px;
+    background-position: -26px 0;
+}
+
+.connection_diagram.mode_network_hotspot {
+    width: 272px;
+    background-position: -26px -163px;
+}
+
+.connection_diagram.mode_bridged_direct_connection {
+    width: 275px;
+    background-position: -26px -53px;
+}
+
+.connection_diagram.mode_bridged_home_connection,.connection_diagram.mode_trusted_network {
+    width: 276px;
+    background-position: -24px -106px;
+}
+
+.connection_diagram a {
+    position: absolute;
+    display: block;
+    width: 100%;
+    height: 100%;
+    color: #85939c;
+    text-decoration: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none
+}
+
+.connection_diagram span {
+    position: absolute;
+    bottom: -21px;
+    display: inline-block;
+    width: 90px;
+    height: 13px;
+    line-height: 13px;
+    font-size: 11px;
+    text-align: center
+}
+
+span.me_text {
+    left: -25px
+}
+
+span.connection_text {
+    left: 96px
+}
+
+.connection_diagram.mode_direct_connection span.connection_text {
+    display: none
+}
+
+span.device_text {
+    right: -29px
+}
+
+.wireless_ssid_label {
+    width: 163px;
+    height: 22px;
+    margin-right: 0
+}
+
+#wifi_access_point_edit,#wifi_network_settings_edit,.wireless_security_mode,#dashboard_wifi_direct_connect_text,#wifi_avatar_access_point_name_container,#wifi_access_point_edit_container,.wifi_access_point_static_buttons,.wifi_access_point_buttons,#verify_wifi_signin_overlay.verify_wifi_signin_status,#wifi_signin_form_password_show_container,#wifi_edit_config_form_password_show_container,#wifi_signin_to_other_network_form_password_show_container,#wifi_network_settings_dhcp_container,#wifi_network_settings_static_container,.wifi_client_network_settings_dhcp_container,.wifi_client_network_settings_static_container {
+    display: none
+}
+
+.network_default_title {
+    display: inline-block
+}
+
+.wifi_network_outer_box {
+    position: relative;
+    background-color: #dcdcdc;
+    height: 260px;
+    width: 250px;
+}
+#connect_home_network_content .wifi_network_outer_box{
+	background-color:transparent;
+	height: 280px;
+    width: 500px;
+    margin:0 auto;
+}
+.wifi_network_inner_box {
+    background-color: #f0f0f0;
+    height: 260px;
+    width: 250px;
+}
+#connect_home_network_content .wifi_network_inner_box {
+	background-color:transparent;
+	/*margin-top:20px;*/
+	border-top:1px solid #ccc;
+	/*height: 320px;*/
+  width: 500px;
+}
+.wifi_network_freq_box {
+    background-color: #f0f0f0;
+    height: 100px;
+    width: 250px
+}
+
+#wifi_access_point_ssid_form_container.wifi_network_inner_box {
+    padding-left: 17px;
+    width: 234px
+}
+
+div.edit_settings_button {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    width: 24px;
+    height: 24px
+}
+
+div.settings_cog {
+    width: 24px;
+    height: 24px;
+    background: url("img/main_sprite.png?v=1.4.0-87") -213px -609px no-repeat transparent;
+    cursor: pointer
+}
+
+.settings_cog:active,.settings_cog:focus {
+    background-position: -239px -609px
+}
+
+.wifi_box_title {
+    padding: 5px 5px 0 10px
+}
+
+.wifi_box_title span {
+    color: #85939c
+}
+
+.wifi_ap_content_scroll_width {
+    width:250px;
+    overflow-x: hidden!important
+}
+#wifi_ap_list_container_h .wifi_ap_content_scroll_width{
+	width: 500px;
+}
+#wifi_ap_list_container_h{
+    position:relative;
+}
+.wifi_ap_content_scroll_width .wireless_ssid_label {
+    width: 140px!important
+}
+
+.alt_row_bg {
+    background-color: #f8f8f8
+}
+
+#wifi_ap_profile_list.mochi_list {
+    width: 100%;
+    padding: 0;
+    margin: 0;
+    list-style-type: disc;
+    list-style-position: inside;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -ms-box-sizing: border-box;
+    box-sizing: border-box
+}
+
+.wifi_ap_profile_label {
+    width: 290px!important
+}
+
+div.wireless_info {
+    display: inline-block;
+    padding-right: 10px;
+}
+#connect_home_network_content div.wireless_info{
+	margin-right:20px;
+	float:right;
+}
+
+div.wireless_strength {
+    position: relative;
+    bottom: 3px;
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    vertical-align: middle;
+    background: url("img/main_sprite.png?v=1.4.0-87") no-repeat transparent
+}
+
+div.wireless_strength_5bars {
+    background-position: -397px -233px
+}
+
+div.wireless_strength_4bars {
+    background-position: -417px -233px
+}
+
+div.wireless_strength_3bars {
+    background-position: -437px -233px
+}
+
+div.wireless_strength_2bars {
+    background-position: -437px -253px
+}
+
+div.wireless_strength_1bar {
+    background-position: -417px -253px
+}
+
+div.wireless_strength_0bar {
+    background-position: -397px -253px
+}
+
+.selected div.wireless_strength_5bars {
+    background-position: -463px -419px
+}
+
+.selected div.wireless_strength_4bars {
+    background-position: -463px -400px
+}
+
+.selected div.wireless_strength_3bars {
+    background-position: -444px -400px
+}
+
+.selected div.wireless_strength_2bars {
+    background-position: -425px -400px
+}
+
+.selected div.wireless_strength_1bar {
+    background-position: -406px -400px
+}
+
+.selected div.wireless_strength_0bar {
+    background-position: -387px -400px
+}
+
+div.wireless_lock,div.wireless_unlock {
+    display: inline-block;
+    width: 14px;
+    height: 18px;
+    margin-right: 3px;
+    background: url("img/main_sprite.png?v=1.4.0-87") -418px -273px no-repeat transparent;
+    vertical-align: middle;
+    position: relative;
+    top: -2px
+}
+
+.wifi_ap_list_item.selected div.wireless_lock {
+    background-position: -414px -333px
+}
+
+div.wireless_unlock {
+    background: 0
+}
+
+#wifi_content>.three_column_column {
+    display: inline-block;
+    vertical-align: top;
+    margin-top: 20px
+}
+
+#router_connected_devices_list,#connected_devices_list {
+    width: 251px
+}
+
+#wifi_ap_list {
+    width: 251px;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -ms-box-sizing: border-box;
+    box-sizing: border-box
+}
+#wifi_ap_container_title_h{
+		font-size:15px;
+}
+.wifi_ap_list_item {
+    width: 251px;
+    border: 1px solid transparent;
+    border-left-width: 10px;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -ms-box-sizing: border-box;
+    box-sizing: border-box;
+    cursor: pointer
+}
+#wifi_ap_list_h .wifi_ap_list_item{
+	width: 500px;
+	/*change22*/
+}
+
+.wifi_ap_list_item .wireless_ssid_label {
+    width: 154px;
+    cursor: pointer
+}
+
+html.touch .wifi_ap_list_item {
+    width: 251px
+}
+
+#wifi_signin_form_ssid,#wifi_signin_wps_pin_container,#wifi_signin_wps_toggle_container,.wireless_ap_ssid,.wireless_ap_mac,.wireless_ap_security_mode,.wireless_client_info {
+    display: none
+}
+
+.wifi_list_please_wait {
+    padding-top: 62px;
+    text-align: center
+}
+
+#profile_list_please_wait.wifi_list_please_wait {
+    padding-top: 10px
+}
+
+#wifi_access_point_name {
+    display: inline-block;
+    max-width: 200px
+}
+
+#wifi_access_point_name_2 {
+    display: inline-block;
+    max-width: 200px;
+    margin-top: 15px
+}
+
+#wifi_access_point_tooltip {
+    position: relative;
+    bottom: 19px
+}
+
+.floatright {
+    float: right
+}
+
+#no_internet_access {
+    display: none;
+    color: #f00;
+    position: relative;
+    text-align: center;
+    top: 15px
+}
+
+.hide_advanced_options,.advanced_options_container {
+    display: none
+}
+
+.show_advanced_options,.hide_advanced_options {
+    position: relative;
+    left: -20px
+}
+
+.advanced_details_text {
+    cursor: pointer
+}
+
+#wifi_signin_to_other_network_form_h .advanced_options_row{
+  display: none;
+} 
+
+.advanced_options_row .right_arrow,.advanced_options_row .down_arrow {
+    position: relative;
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    top: 2px;
+    margin-left: 8px;
+    background: url("img/main_sprite.png?v=1.4.0-87") -162px -600px no-repeat transparent
+}
+
+.advanced_options_row .right_arrow {
+    background: url("img/main_sprite.png?v=1.4.0-87") -186px -616px no-repeat transparent;
+    top: 4px;
+    margin-left: 2px
+}
+
+.settings_mac_clone,.wifi_buttons,#reconnect_wireless_network_msg_container,.original_settings {
+    display: none
+}
+
+.column3.three_column_column {
+    float: right;
+    position: relative;
+    top: 85px;
+    right: 62px
+}
+
+#wifi_edit_config_form_netmask_container {
+    display: none
+}
+
+.connection_diagram_container {
+    height: 90px;
+    margin-left: 100px
+}
+
+#wifi_access_point_edit,#wifi_network_settings_edit,#connected_devices_list_refresh {
+    padding: 0 10px
+}
+
+.wifi_box_title_button {
+    float: right;
+    margin: 5px
+}
+
+.wifi_box_title_button label.checkbox_on,.wifi_box_title_button label.checkbox_off {
+    margin-left: 0;
+    margin-right: 0;
+    width: auto;
+    padding: 0 14px;
+    height: 32px;
+    position: relative;
+    top: -1px;
+    color: #4b5a68;
+    font-size: 14px
+}
+
+.wifi_box_title_button label.checkbox_off {
+    height: 31px
+}
+
+.wifi_box_title_button .jquery-checkbox {
+    top: 0
+}
+
+.wifi_box_title_button .jquery-checkbox span.toggle_on,.wifi_box_title_button .jquery-checkbox span.toggle_off {
+    margin: 0 10px
+}
+
+#wifi_ap_list_off {
+    display: none
+}
+
+#wifi_ap_list>li {
+    padding-left: 0
+}
+
+#wifi_edit_config_overlay,#wifi_edit_config_overlay_5g,#wifi_edit_config_overlay_advanced,#wifi_signin_overlay,#wifi_modify_overlay,#wifi_signin_to_other_network_overlay,#wifi_signin_confirmation_overlay,#wifi_disconnect_confirmation_overlay {
+    min-width: 500px
+}
+
+.wifi_ap_list_item_icon {
+    width: 24px;
+    height: 24px;
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 5px
+}
+
+.icon_ap_connected {
+    background: url("img/main_sprite.png?v=1.4.0-87") -137px -635px no-repeat transparent
+}
+
+.wifi_signin_help {
+    position: relative;
+    font-size: 12px;
+    left: 28px;
+    line-height: 14px;
+    top: -4px;
+    width: 500px;
+    color: #85939c
+}
+
+.wifi_signin_help_row {
+    margin: 0 0 30px!important
+}
+
+.wifi_signin_help_2row {
+    margin: 0 0 50px!important
+}
+
+#wifi_signin_form label,#wifi_modify_overlay label,#wifi_signin_to_other_network_overlay label {
+    color: #4b5a68
+}
+
+#avatar_icon_tooltip {
+    display: none
+}
+
+.continue_msg {
+    padding-top: 10px
+}
+
+#wifi_ap_list_off_msg {
+    padding: 70px 20px 0;
+    width: 200px
+}
+
+.wifi_dialog_nav_button {
+    position: relative;
+    display: inline-block;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    width: auto;
+    height: 20px;
+    padding-top: 1px;
+    line-height: 47px;
+    font: 14px Arial,"Helvetica Neue",Helvetica,sans-serif;
+    color: #FFFFFF;
+    background-color: #15ABFF;
+    text-align: center;
+    text-decoration: none;
+    box-sizing: border-box
+}
+
+.mochi_dialog a.wifi_dialog_nav_button {
+	color: rgba(255, 255, 255, 0.6);
+	margin: 10px;
+}
+.wifi_dialog_nav_container {
+	padding-left: 125px;
+	background-color: #15ABFF;
+}
+
+.mochi_dialog a.wifi_dialog_nav_button.selected {
+    color: rgba(255, 255, 255, 1);
+    background-color: #15ABFF;
+    font-weight: Bold;
+    border-bottom: 2px solid white;
+    width: auto;
+    outline: none;
+    
+}
+
+.wifi_dialog_nav_button>span {
+    position: absolute;
+    top: 7px;
+    left: 8px;
+    display: inline-block;
+    margin-right: 10px
+}
+
+.wifi_dialog_nav_button.selected {
+    background-color: #15ABFF
+}
+
+.increase_white_space_advanced_dialog {
+    height: 376px;
+    width: 536px
+}
+
+.increase_white_space_freq_dialog {
+    height: 376px;
+    width: 536px
+}
+
+.sizelimitationbutton {
+    font-size: 10px;
+    width: 80px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    padding-left: 10px
+}
+
+.dropdownlimitations {
+    max-width: 270px;
+    min-width: 150px;
+    padding-right: 10px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis
+}
+
+.labelAndTooltipSpace {
+    left: 47.5%;
+    position: absolute;
+    z-index: 0;
+    margin-top: -32px
+}
+
+.mochi_dialog_content .labelTooltipproperties {
+    display: inline-block;
+    max-width: 180px;
+    vertical-align: middle;
+    font: 14px Arial,"Helvetica Neue",Helvetica,sans-serif;
+    color: #85939c;
+    width: inherit;
+    margin-right: 0
+}
+
+#devices_link {
+    width: 82px;
+    height: 32px;
+    background: url('img/external_devices_sprites.png?v=1.4.0-87') 0 0 no-repeat transparent
+}
+
+#devices_link:hover {
+    background-position: 0 -42px
+}
+
+#devices_link:active,#devices_link.selected {
+    background-position: 0 -84px
+}
+
+#device_button.selected {
+    background: #15abff;
+    border: 1px solid #15abff
+}
+
+div#usb_device_list_container {
+    width: 270px;
+    margin-top: 1px
+}
+
+#usb_devices {
+    display:inline-block;
+}
+
+#usb_device_list {
+    padding: 0;
+    margin: 0;
+    max-height: 476px;
+    overflow-y: auto;
+}
+
+#usb_device_list>li {
+    border-radius: 0;
+    display: block;
+    overflow: hidden;
+    list-style: none;
+    margin: 0;
+    padding: 1px 0
+}
+
+#usb_device_list>li:last-child {
+    border-bottom: 0 none
+}
+
+#usb_device_list>li>button {
+    float: right
+}
+
+.usb_device_container {
+    background: #f0f0f0;
+    height: 95px;
+    width: 250px;
+    padding: 10px;
+    border: 1px solid #d2d2d2;
+    float: right
+}
+
+#usb_device_list {
+    margin: -1px
+}
+
+.usb_device_icon {
+    height: 17px;
+    width: 40px;
+    display: inline-block;
+    margin: 10px 2px 0 10px;
+    background: url('img/external_devices_sprites.png?v=1.4.0-87') -96px 0 no-repeat transparent
+}
+
+.devices_copy_link {
+    float: right;
+    font: 14px Arial,"Helvetica Neue",Helvetica,sans-serif;
+    text-decoration: initial;
+    margin-right: -40px
+}
+
+.usb {
+    height: 17px;
+    width: 40px;
+    display: inline-block;
+    margin: 10px 2px 0 10px;
+    background: url('img/external_devices_sprites.png?v=1.4.0-87') -96px 0 no-repeat transparent
+}
+
+.sdcard {
+    width: 22px;
+    height: 27px;
+    display: inline-block;
+    margin: 10px 2px 0 10px;
+    background: url('img/external_devices_sprites.png?v=1.4.0-87') -140px 0 no-repeat transparent
+}
+
+.no_usb_devices_found_icon {
+    display: inline-block;
+    vertical-align: middle
+}
+
+.usb_device_name {
+    height: 18px;
+    display: inline-block;
+    font-size: 14px;
+    margin-left: 2px;
+    max-width: 150px
+}
+
+div.usb_usage {
+    background: #c8c8c8;
+    height: 2px;
+    position: relative;
+    margin: 20px 0 10px 5px;
+    width: 200px
+}
+
+.usb_usage .usb_usage_value_bar {
+    position: absolute;
+    background: #15abff;
+    height: 6px;
+    margin-top: -4px
+}
+
+.external_device_transfer_value_bar {
+    position: absolute;
+    background: #15abff;
+    height: 6px
+}
+
+.usb_device_capacity_free {
+    height: 18px;
+    color: #85939c;
+    padding-left: 5px;
+    font-size: 12px;
+    margin-top: -10px
+}
+
+.usb_device_eject {
+    background: url('img/external_devices_sprites.png?v=1.4.0-87') no-repeat -96px -72px;
+    height: 22px;
+    width: 20px;
+    display: inline-block;
+    cursor: pointer;
+    margin: -20px -40px 0 5px;
+    float: right
+}
+
+.usb_device_eject:hover {
+    background: url('img/external_devices_sprites.png?v=1.4.0-87') no-repeat -96px -48px;
+    cursor: pointer
+}
+
+.usb_device_info {
+    background: url('img/external_devices_sprites.png?v=1.4.0-87') -106px -24px no-repeat transparent;
+    width: 10px;
+    height: 17px;
+    display: inline-block;
+    float: right;
+    margin-right: 20px;
+    margin-top: 10px;
+    cursor: pointer
+}
+
+.usb_device_info:hover {
+    background-position: -116px -24px;
+    cursor: pointer
+}
+
+.usb_device_unlock {
+    background: url('img/external_devices_sprites.png?v=1.4.0-87') no-repeat -127px -72px;
+    width: 24px;
+    height: 22px;
+    display: inline-block;
+    position: relative;
+    left: 10px;
+    cursor: pointer
+}
+
+.usb_device_unlock:hover {
+    background: url('img/external_devices_sprites.png?v=1.4.0-87') no-repeat -127px -48px;
+    cursor: pointer
+}
+
+#confirm_eject_usb li {
+    line-height: 20px
+}
+
+.usb_content_row {
+    display: block;
+    margin: 0;
+    padding-top: 10px;
+    padding-bottom: 10px
+}
+
+#usb_password_hint_link {
+    color: #4b5a68;
+    padding-left: 5px
+}
+
+usb_password_hint_link:hover {
+    color: #15abff
+}
+
+#no_usb_devices_found_container {
+    background: none repeat scroll 0 0 #f0f0f0;
+    padding: 20px 10px;
+    color: #4b5a68;
+    border-bottom: 1px solid #d2d2d2;
+    border-top: 1px solid #d2d2d2
+}
+
+.usb_functions_container {
+    height: 18px;
+    padding-top: 5px
+}
+
+.usb_device_name_container {
+    height: 25px
+}
+
+.usb_devices_none {
+    opacity: .3;
+    filter: alpha(opacity=30)
+}
+
+#device_toolbar.toolbar_button.selected .icon {
+    left: 11px;
+    width: 20px;
+    height: 24px;
+    background-position: -72px -804px
+}
+
+#device_toolbar.toolbar_item {
+    margin-right: 10px;
+    padding-left: 15px;
+    text-align: left
+}
+
+#device_toolbar .toolbar_button_container {
+    width: 57px
+}
+
+#device_toolbar .icon {
+    position: absolute;
+    top: 3px;
+    left: 10px;
+    display: inline-block;
+    width: 25px;
+    height: 25px;
+    background: url('img/external_devices_sprites.png?v=1.4.0-87') -72px -720px no-repeat transparent
+}
+
+#usb_transfer_progressbar_completed {
+    border-top-color: #15abff;
+    border-bottom-color: #027dc8;
+    background-color: #0080d2;
+    background-image: -webkit-gradient(linear,left top,left bottom,from(#09f),to(#0067a6));
+    background-image: -webkit-linear-gradient(top,#09f,#0067a6);
+    background-image: -moz-linear-gradient(top,#09f,#0067a6);
+    background-image: -ms-linear-gradient(top,#09f,#0067a6);
+    background-image: linear-gradient(top,#09f,#0067a6);
+    filter: progid:DXImageTransform.Microsoft.gradient(GradientType=0,StartColorStr='#0099ff',EndColorStr='#0067a6');
+    color: #fafafa;
+    outline: 1px solid #027dc8
+}
+
+#usb_transfer_progressbar_completed:hover {
+    border-top-color: #5ac1fa;
+    border-bottom-color: #027dc8;
+    background-color: #008bd2;
+    background-image: -webkit-gradient(linear,left top,left bottom,from(#00b0ff),to(#0067a6));
+    background-image: -webkit-linear-gradient(top,#00b0ff,#0067a6);
+    background-image: -moz-linear-gradient(top,#00b0ff,#0067a6);
+    background-image: -ms-linear-gradient(top,#00b0ff,#0067a6);
+    background-image: linear-gradient(top,#00b0ff,#0067a6);
+    filter: progid:DXImageTransform.Microsoft.gradient(GradientType=0,StartColorStr='#00b0ff',EndColorStr='#0067a6');
+    color: #fafafa;
+    outline: 1px solid #0284e0
+}
+
+#usb_transfer_progressbar_percentage {
+    position: relative;
+    font-size: 12px;
+    padding-right: 10px
+}
+
+#usb_transfer_progressbar,#usb_transfer_progressbar_completed {
+    display: inline-block;
+    width: 150px
+}
+
+#usb_transfer_in_progress_container {
+    width: 750px
+}
+
+.external_device_transfer_inprogress_container_dropdown {
+    width: 200px;
+    height: 40px;
+    display: inline-block;
+    margin-left: 20px;
+    margin-top: 10px
+}
+
+.external_device_transfer_completed_container_dropdown {
+    width: 200px;
+    height: 40px;
+    display: inline-block;
+    margin-top: 20px
+}
+
+.external_device_transfer_cancel_button {
+    display: inline-block;
+    width: 24px;
+    height: 24px;
+    margin-right: -40px;
+    margin-top: -10px;
+    float: right;
+    background: url("img/main_sprite.png?v=1.4.0-87") -248px -583px no-repeat transparent;
+    cursor: pointer
+}
+
+.external_device_transfer_cancel_button:hover {
+    background-position: -222px -583px
+}
+
+.external_device_copy_now_progress {
+    margin-top: 20px
+}
+
+.external_device_copy_now_progress {
+    background: none repeat scroll 0 0 #c8c8c8;
+    height: 6px;
+    position: relative;
+    margin: 20px 0 10px 5px;
+    width: 200px
+}
+
+.external_device_copy_now_progress_valuebar {
+    position: absolute;
+    background: #15abff;
+    height: 6px;
+    margin-top: px
+}
+
+.sd_device {
+    width: 22px;
+    height: 27px;
+    display: inline-block;
+    margin: 10px 2px 0 10px;
+    background: url('img/external_devices_sprites.png?v=1.4.0-87') -140px 0 no-repeat transparent
+}
+
+#sdcard_transfer_now_button_container,#sdcard_transfer_in_progress_container {
+    display: none
+}
+
+#sdcard_transfer_progressbar,#sdcard_transfer_progressbar_completed {
+    display: inline-block;
+    width: 150px
+}
+
+#sdcard_transfer_in_progress_container {
+    width: 750px
+}
+
+#sdcard_transfer_progressbar_percentage {
+    position: relative;
+    font-size: 12px;
+    padding-right: 10px;
+}
+
+#sdcard_transfer_progressbar_completed,button.wizard_action,input.wizard_action,button:active,button.wizard_action:active,input.wizard_action:active,input[type="submit"]:active,input[type="button"]:active,input[type="submit"]:focus {
+    border-top-color: #15abff;
+    border-bottom-color: #027dc8;
+    background-color: #0080d2;
+    background-image: -webkit-gradient(linear,left top,left bottom,from(#09f),to(#0067a6));
+    background-image: -webkit-linear-gradient(top,#09f,#0067a6);
+    background-image: -moz-linear-gradient(top,#09f,#0067a6);
+    background-image: -ms-linear-gradient(top,#09f,#0067a6);
+    background-image: linear-gradient(top,#09f,#0067a6);
+    filter: progid:DXImageTransform.Microsoft.gradient(GradientType=0,StartColorStr='#0099ff',EndColorStr='#0067a6');
+    color: #fafafa;
+    outline: 1px solid #027dc8;
+}
+
+#sdcard_transfer_progressbar_completed:hover,button.wizard_action:hover,input.wizard_action:hover {
+    border-top-color: #5ac1fa;
+    border-bottom-color: #027dc8;
+    background-color: #008bd2;
+    background-image: -webkit-gradient(linear,left top,left bottom,from(#00b0ff),to(#0067a6));
+    background-image: -webkit-linear-gradient(top,#00b0ff,#0067a6);
+    background-image: -moz-linear-gradient(top,#00b0ff,#0067a6);
+    background-image: -ms-linear-gradient(top,#00b0ff,#0067a6);
+    background-image: linear-gradient(top,#00b0ff,#0067a6);
+    filter: progid:DXImageTransform.Microsoft.gradient(GradientType=0,StartColorStr='#00b0ff',EndColorStr='#0067a6');
+    color: #fafafa;
+    outline: 1px solid #0284e0;
+}
+
+#sd_card_media_transfer.edit_container_box>h2 {
+    margin-bottom: 16px;
+}
+
+#sd_card_transfer.edit_container_box>h2 {
+    margin-bottom: 19px;
+}
+
+#sdcard_transfer_in_progress_container {
+    width: 750px;
+}
+/*******/
+#connect_home_network_content {
+    position:relative;
+    z-index: 1000;
+    margin: 100px auto;
+}
+#connect_home_network_content {
+    width: 742px;
+    height:562px;
+    margin: 65px auto 0;
+    padding: 20px;
+    border: 1px solid #e6e6e6;
+    background-color: #EEE;
+    background-image: -webkit-gradient(linear,left top,left bottom,from(#f0f0f0),to(#ececec));
+    background-image: -webkit-linear-gradient(top,#f0f0f0,#ececec);
+    background-image: -moz-linear-gradient(top,#f0f0f0,#ececec);
+    background-image: -o-linear-gradient(top,#f0f0f0,#ececec);
+    background-image: -ms-linear-gradient(top,#f0f0f0,#ececec);
+    background-image: linear-gradient(top,#f0f0f0,#ececec);
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -ms-box-sizing: border-box;
+    box-sizing: border-box;
+}
+#wifi_access_point_edit_container_h,#wifi_client_ap_submit_container_h {
+    text-align: right;
+    padding-top: 8px;
+    padding-right: 10px;
+}
+#wifi_client_ap_submit_container_h{
+    display:none;	
+}
+#wifi_ap_list_off_h {
+    display: none;
+}
+#wifi_ap_list_off_msg_h {
+    padding: 70px 20px 0;
+    width: 500px;
+}
+#wifi_ap_list_content_h {
+    overflow: auto;
+}
+#wifi_ap_list_h {
+    width: 500px;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -ms-box-sizing: border-box;
+    box-sizing: border-box;
+}
+#wifi_ap_list_h>li {
+    padding-left: 0;
+    cursor:pointer;
+}
+
+#setup_plex_content form .white_bg {
+    height: 375px;
+}
+
+#setup_plex_content form .white_bg+.content_row {
+    width: 100%;
+    margin-top: 20px
+}
+
+#setup_plex_content{
+    width: 742px;
+    height:517px;
+    margin: 65px auto 0;
+    padding: 20px;
+    border: 1px solid #e6e6e6;
+    background-color: #EEE;
+    background-image: -webkit-gradient(linear,left top,left bottom,from(#f0f0f0),to(#ececec));
+    background-image: -webkit-linear-gradient(top,#f0f0f0,#ececec);
+    background-image: linear-gradient(top,#f0f0f0,#ececec);
+    -ms-box-sizing: border-box;
+    box-sizing: border-box
+}
+
+#setup_plex_content{
+    position: relative;
+    z-index: 2;
+    padding: 20px 20px 52px
+}
+
+#setup_plex_info_container {
+    /*height: 80px;
+    padding-bottom: 40px;
+    padding-top: 20px*/
+}
+
+#setup_plex_image_content {
+    position: absolute;
+    width: 67px;
+    height: 80px;
+    background: url('img/main_sprite.png?v=1.4.0-87') no-repeat -428px -473px
+}
+
+#setup_plex_info_text {
+    position: relative;
+    font-size: 18px;
+    display: inline-block;
+    margin-left:10px;
+    margin-right:10px;
+    line-height:1.3em;
+}
+
+#setup_plex_checkbox_box_cn{
+    padding-bottom: 5px;
+    padding-top: 20px;
+    text-align:center;
+}
+#setup_plex_checkbox_box span{
+    line-height:20px;
+}
+#setup_plex_checkbox_box .jquery-checkbox2{
+    top:-2px; 
+}
+#setup_plex_icon{
+    background: url('img/product_images_sprite.png?v=1.4.0-87') no-repeat 0px -477px;
+    width:150px;
+    height:150px;
+    margin:0 auto;
+}
+
+#setup_plex_auto_slurp_buttons .wizard_action {
+    float: right
+}
+#eulaView{
+	margin-top:100px;	
+	
+}
+#eulaView_left{
+	float:left;
+	width:180px;
+	
+}
+#eulaView_right{
+	width:500px;
+	float:right;
+	position:relative;
+}
+#eulaPrintBtn,#eulaCancelBtn{
+	float:left;
+	margin-right:5px;
+}
+#eulaAcceptBtn{
+	float:right;
+}
+#eula_iframe_btn{
+	overflow:hidden;
+	margin-top:20px;
+}
+.eula_popup_subtitle{
+	font-size:18px;
+	/*line-height:40px;*/
+	color:#4b5a68;
+}
+.eula_popup_subtitle_margin{
+    margin-bottom:30px;
+}
+#connect_home_network_content .eula_popup_subtitle_margin{
+    margin-bottom:20px;
+}
+.eula_popup_tip_word{
+	font-size:15px;
+	color:#4b5a68;
+}
+#create_network_password_form .eula_popup_tip_word_margin{
+    margin-bottom:50px;
+}
+.eula_popup_third_title{
+    font-size:15px;
+    color:#85939C;
+}
+.eula_popup_row_left{
+	float:left;	
+}
+#eula_firware_option .eula_popup_row_left,#product_improvement_onboarding_form>label{
+    width:320px;
+}
+#eula_popup_register{
+	/*display:none;*/	
+	padding-top:30px;
+}
+#eula_firware_option .eula_popup_subtitle{
+    padding-bottom:20px;
+}
+#eula_firware_option label{
+   
+}
+.eula_popup_row_right{
+	float:right;	
+}
+#setup_auto_firmware_update_form .content_row{
+	overflow:hidden;
+}
+#eula_firware_option .content_row{
+    width:550px;
+    display:block;
+}
+.eula_dialog_container{
+    display:none; 
+}
+.eula_dialog_content{
+    position:relative;
+    z-index:2;
+    padding:20px 20px 52px;
+    width:742px;
+    margin: 65px auto 0;
+    height:517px;
+    border:1px solid #e6e6e6;
+    background-color:#eee;
+    background-image: -webkit-gradient(linear,left top,left bottom,from(#f0f0f0),to(#ececec));
+    background-image: -webkit-linear-gradient(top,#f0f0f0,#ececec);
+    background-image: -moz-linear-gradient(top,#f0f0f0,#ececec);
+    background-image: -o-linear-gradient(top,#f0f0f0,#ececec);
+    background-image: -ms-linear-gradient(top,#f0f0f0,#ececec);
+    background-image: linear-gradient(top,#f0f0f0,#ececec);
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -ms-box-sizing: border-box;
+    box-sizing: border-box;
+}
+.eula_dialog_btn{
+    margin-top:20px; 
+}
+#eula_popup_register input[type="text"]{
+    width:190px;
+    height:32px;
+    border:1px solid #C8C8C8;
+}
+div.plex_icon {
+    display: inline-block;
+    width: 400px;
+    height: 120px;
+    background: url("img/plex.png") no-repeat transparent left
+}
+.plex_icon h2 {
+	margin-left: 75px;
+    margin-top: 50px;
+}
+#plex_info_container {
+	height: 60px;
+}
+
+#shutcut_onboarding_title .eula_popup_subtitle{
+    line-height: 18px;
+    margin:20px 0;  
+}
+.plex_update {
+	padding-top:10px;
+	padding-left:100px;
+}
+#shutcut_onboarding_title{
+    border-top:1px solid #ccc;
+    margin-top:40px;  
+    margin-bottom:30px;
+}
+#shortcut_form{
+    /*width:80%;*/  
+}
+#shortcut_form p{
+    float:left;
+    margin-top:3px;
+}
+#register_onboarding_form{
+    position:relative;
+}
+#register_onboarding_form .spacer,#register_onboarding_form .deletebutton{
+    display:none;
+}
+#register_onboarding_form input{
+    font: 14px Arial,"Helvetica Neue",Helvetica,sans-serif;
+    width:190px;
+    height:32px;
+    border:1px solid #C8C8C8;
+    padding-left: 12px;
+    padding-right: 4px;
+    /*border: 0px solid transparent;*/
+    background: #f0f0f0;
+    color: #4b5a68;
+    vertical-align: middle;
+    outline: 1px solid #C8C8C8;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -ms-box-sizing: border-box;
+    box-sizing: border-box
+}
+#register_onboarding_form input[disabled="disabled"]{
+    color:#C8C8C8;
+    border:1px solid #D2D2D2;
+}
+#register_grayout_txt{
+    margin-top:10px;  
+}
+.password_msg{
+    margin-left:230px;
+    color:red;
+  	font-size:12px;
+  	margin-bottom:10px;
+}
+#wifi_ap_list_onboarding_btn{
+    background: url('img/refresh_icon.png?v=1.4.0-87') no-repeat left center;
+    padding-left:20px;
+    color:#17b8ff;
+    line-height:24px;
+    display:block;
+    position:absolute;
+    right:0px;
+    top:10px;
+    cursor: pointer;
+}
+ 	
+.onboarding_style_container{
+    display:none;
+    width:742px;
+    height:562px;
+    margin:65px auto;
+    padding: 20px;
+    border: 1px solid #e6e6e6;
+    background-color: #EEE;
+    background-image: -webkit-gradient(linear,left top,left bottom,from(#f0f0f0),to(#ececec));
+    background-image: -webkit-linear-gradient(top,#f0f0f0,#ececec);
+    background-image: -moz-linear-gradient(top,#f0f0f0,#ececec);
+    background-image: -o-linear-gradient(top,#f0f0f0,#ececec);
+    background-image: -ms-linear-gradient(top,#f0f0f0,#ececec);
+    background-image: linear-gradient(top,#f0f0f0,#ececec);
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -ms-box-sizing: border-box;
+    box-sizing: border-box; 
+}
+.onboarding_style_title{
+    font-size:22px;
+    line-height:48px
+}
+.onbaording_style_white_bg{
+    height:420px;
+    padding:30px 40px;
+    background:#FFF;
+    box-sizing:border-box;
+    overflow-y: auto;
+}
+.onboarding_style_buttons{
+    margin-top:20px; 
+}
+#wifi_signin_overlay_h .show_advanced_options,#wifi_modify_overlay_h .show_advanced_options{
+    display:none;
+}
+#wifi_signin_form_ssid_h{
+    display:none;
+}
+#verify_wifi_signin_overlay_h .spinnerSunIcon{
+   	height: 40px;
+    background: url("img/loading40x40.gif") no-repeat center center;
+    width:100%;
+    margin-top:120px; 
+}
+#verify_wifi_signin_overlay_h .spinnerWording{
+   	font-size:18px;
+    line-height:40px;
+    text-align: center;
+}
+#wifi_signin_success_overlay_h .onboarding_style_inner_content p{
+    font-size:18px;
+    text-align:center;
+}
+#wifi_signin_success_overlay_h .onboarding_style_inner_content div{
+    font-size:24px;
+    color:#009bde;
+    background: url("img/success_icon.png") no-repeat left center;
+    padding-left:50px;
+    line-height:33px;
+    margin: 100px auto 0px auto;
+    display:table;
+}
+#register_error_massage{
+    display: none; 
+    margin-top:5px;
+    color:red;
+}
+#setup_auto_firmware_update_container div.white_bg{
+    height:430px; 
+}
+#support_register .content_row{
+    height:auto;
+    line-height:18px;
+}
+#support_register_btn{
+    /*margin-left:10px;*/ 
+}
+.support_warn{
+    color:red; 
+}
+#support_register_grayout_txt, #support_register_error_massage{
+    display:none; 
+}
+#support_register_form input{
+    font: 14px Arial,"Helvetica Neue",Helvetica,sans-serif;
+    width:190px;
+    height:32px;
+    border:1px solid #C8C8C8;
+    padding-left: 12px;
+    padding-right: 4px;
+    /*border: 0px solid transparent;*/
+    background: #f0f0f0;
+    color: #4b5a68;
+    vertical-align: middle;
+    outline: 1px solid #C8C8C8;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -ms-box-sizing: border-box;
+    box-sizing: border-box;
+    margin-right:5px;
+}
+#support_register_form input[disabled="disabled"]{
+    color:#C8C8C8;
+    border:1px solid #D2D2D2;
+}
+#SettingsSshPassword_form{
+    margin: 30px 0;  
+}
+#SshPasswordInfo{
+    padding: 10px 0;
+    line-height: 2em;
+}
+#SshPass_section{
+    display:none;  
+}
+#ssh_password_configer{
+    color:   #15abff !important;
+    cursor:pointer;
+    font-size:14px;
+    text-decoration: underline;
+    margin-left:10px;
+}
+#ssh_pass_erro,#ssh_renew_pass_erro{
+    color: red;
+}
+#ssh_password_configer_tip{
+    text-align:right;
+    margin-top:20px;  
+}
+@font-face {
+    font-family: "Helvetica Neue";
+    src: url(./font/HelveticaNeueLTW04-46LtIt.ttf);
+}
+
+#firmware_file {
+	display: none
+}

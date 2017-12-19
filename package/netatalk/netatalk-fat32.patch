@@ -1,0 +1,18 @@
+--- a/libatalk/acl/unix.c	2013-03-26 17:34:24.000000000 +0800
++++ b/libatalk/acl/unix.c	2014-03-13 14:31:41.101363900 +0800
+@@ -316,11 +316,13 @@
+      */
+     mode &= 0777;
+ #endif
+-    ret = chmod(name, mode);
++/*Jeff.Yao, 20140313, do not chmod check {*/
++/*    ret = chmod(name, mode);
+ 
+     if (ret)
+ 	goto done;
+-
++*/
++/*Jeff.Yao, 20140313, do not chmod check }*/
+     /* Check if the underlying filesystem supports ACLs. */
+     acl = acl_get_file(name, ACL_TYPE_ACCESS);
+ 

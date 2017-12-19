@@ -1,0 +1,12 @@
+--- wilink8-r8.a8.08/drivers/net/wireless/ti/wlcore/main.c	2014-08-16 23:06:59.808327183 +0800
++++ wilink8-r8.a8.08-mod/drivers/net/wireless/ti/wlcore/main.c	2014-08-16 23:38:42.348279444 +0800
+@@ -424,6 +424,9 @@
+ 
+ 		if (diff == 0)
+ 			continue;
++         /* something went wrong, but try aligning to it */
++        if (WARN_ON_ONCE(diff > lnk->allocated_pkts))
++            diff = lnk->allocated_pkts;
+ 
+ 		lnk->allocated_pkts -= diff;
+ 		lnk->prev_freed_pkts = status->counters.tx_lnk_free_pkts[i];

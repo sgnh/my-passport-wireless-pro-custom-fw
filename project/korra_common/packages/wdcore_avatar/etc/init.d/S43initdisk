@@ -1,0 +1,65 @@
+#!/bin/sh
+#
+#
+
+RETVAL=0
+
+start() {
+    if [ ! -d "/tmp/updateCounts" ]; then
+        mkdir -p /tmp/updateCounts
+        echo 1 > /tmp/updateCounts/alert
+        echo 1 > /tmp/updateCounts/data_volume_write
+        echo 1 > /tmp/updateCounts/firmware_update
+        echo 1 > /tmp/updateCounts/share
+        echo 1 > /tmp/updateCounts/system_state
+        echo 1 > /tmp/updateCounts/usb
+        echo 1 > /tmp/updateCounts/battery
+        echo 1 > /tmp/updateCounts/wifi_ap
+        echo 1 > /tmp/updateCounts/wifi_client_connection
+        echo 1 > /tmp/updateCounts/storage_transfer
+        echo 1 > /tmp/updateCounts/sd_card
+    fi
+    if [ ! -f "/var/lock/updateCounts" ]; then
+        touch /var/lock/updateCounts
+    fi
+    if [ ! -d "/media/sdb1/.wdmc" ]; then
+        mkdir -p /media/sdb1/.wdmc
+    fi
+    if [ ! -d "/media/sdb1/.USB" ]; then
+        mkdir -p /media/sdb1/.USB
+    fi
+    if [ ! -L "/shares/.wdmc" ]; then
+        echo "Setup Share wdmc database"
+        ln -sf /media/sdb1/.wdmc /shares/.wdmc
+    fi
+    if [ ! -L "/shares/.USB" ]; then
+        echo "Setup Share USB database"
+        ln -sf /media/sdb1/.USB /shares/.USB
+    fi
+}	
+
+stop() {
+	echo "Stop"
+}	
+
+restart() {
+	stop
+	start
+}	
+
+case "$1" in
+  start)
+  	start
+	;;
+  stop)
+  	stop
+	;;
+  restart)
+  	restart
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?

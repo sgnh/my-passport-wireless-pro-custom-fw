@@ -1,0 +1,5 @@
+config BR2_PACKAGE_WDPACKAGE_BASIC_KORRA_DOCK
+	bool "wdpackage(basic) for korra dock"
+	help
+	  The wd package(basic) korra dock setup required environment for WD packages
+

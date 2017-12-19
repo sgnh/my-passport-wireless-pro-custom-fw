@@ -1,0 +1,8 @@
+# convert to JPG and resize images
+#(c) 2008 by PacketVideo
+exec: convert-any-to-jpeg-wrapper $infile -sample $targetgeometry -auto-orient $outfile
+# capabilities
+from=image/all
+to=image/jpeg
+scale
+synchronous

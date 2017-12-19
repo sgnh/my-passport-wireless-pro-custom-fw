@@ -1,0 +1,17 @@
+[Storage]
+comment = 
+path = /shares/Storage
+browseable = yes
+available = yes
+public = yes
+guest ok = yes
+oplocks = yes
+map archive = no
+writable = yes
+read only = No
+valid users = 
+invalid users = 
+write list =
+read list = 
+# !!properties = "media_serving"
+

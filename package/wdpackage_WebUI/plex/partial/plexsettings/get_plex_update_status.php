@@ -1,0 +1,1 @@
+<div id="get_plex_update_status" style="display:none"><span ><?php echo exec('/usr/local/sbin/getPlexFirmwareUpdateStatus.sh'); ?></span></div>

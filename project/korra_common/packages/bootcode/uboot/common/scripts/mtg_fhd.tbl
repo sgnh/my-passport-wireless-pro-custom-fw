@@ -1,0 +1,9 @@
+rtd_outl(0xb8028100, 0x00000001);	// Main Display enable
+rtd_outl(0xb8028108, 0x0CD40000);	// Main Border Color
+rtd_outl(0xb802810C, 0x00000000);	// Main Background Color
+rtd_outl(0xb8028110, 0x00000780);	// Main DEN_H_str,Main DEN_H_end
+rtd_outl(0xb8028114, 0x00000438);	// Main DEN_V_str,Main DEN_V_end
+rtd_outl(0xb8028118, 0x00000780);	// Main Background_H_str,Main Background_H_end
+rtd_outl(0xb802811C, 0x00000438);	// Main Background_V_str,Main Background_V_end
+rtd_outl(0xb8028120, 0x00000780);	// Main Active_H_str,Main Active_H_end
+rtd_outl(0xb8028124, 0x00000438);	// Main Active_V_str,Main Active_V_end

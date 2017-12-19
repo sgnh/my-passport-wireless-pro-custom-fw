@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<root xmlns="urn:schemas-upnp-org:device-1-0">
+    <specVersion>
+        <major>1</major>
+        <minor>0</minor>
+    </specVersion>
+    <device>
+        <pnpx:X_hardwareId xmlns:pnpx="http://schemas.microsoft.com/windows/pnpx/2005/11">VEN_011A&amp;DEV_0309&amp;REV_01</pnpx:X_hardwareId>
+        <pnpx:X_deviceCategory xmlns:pnpx="http://schemas.microsoft.com/windows/pnpx/2005/11">Storage.NAS</pnpx:X_deviceCategory>
+        <pnpx:X_compatibleId xmlns:pnpx="http://schemas.microsoft.com/windows/pnpx/2005/11">urn:www-wdc-com:device:NetworkAttachedStorage</pnpx:X_compatibleId>
+        <df:X_modelId xmlns:df="http://schemas.microsoft.com/windows/2008/09/devicefoundation">{02BF98D2-1B50-4a1f-83D9-A85402783702}</df:X_modelId>
+        <df:X_containerId xmlns:df="http://schemas.microsoft.com/windows/2008/09/devicefoundation">{73656761-7465-7375-636b-0090a9f6F004}</df:X_containerId>
+        <modelURL>http://products.wd.com/MyPassportWireless</modelURL>
+        <deviceType>urn:schemas-wd-com:device:WdWifi-DEV_310:1</deviceType>
+        <friendlyName>WDMyPassport</friendlyName>
+        <manufacturer>Western Digital Corporation</manufacturer>
+        <manufacturerURL>http://www.wdc.com</manufacturerURL>
+        <modelDescription>My Passport Wireless Portable Storage</modelDescription>
+        <modelName>My Passport Wireless</modelName>
+        <modelNumber>AV1W</modelNumber>
+        <serialNumber>WCC1T1420670</serialNumber>
+        <UDN>uuid:73656761-7465-7375-636b-0090a9f6F004</UDN>
+        <serviceList>
+            <service>
+                <serviceType>urn:schemas-microsoft-com:service:NULL:1</serviceType>
+                <serviceId>urn:microsoft-com:serviceId:NULL</serviceId>
+                <SCPDURL>/empty.xml</SCPDURL>
+                <controlURL>/UD/?0</controlURL>
+                <eventSubURL/>
+            </service>
+        </serviceList>
+        <presentationURL>http://192.168.60.1</presentationURL>
+    </device>
+</root>
+

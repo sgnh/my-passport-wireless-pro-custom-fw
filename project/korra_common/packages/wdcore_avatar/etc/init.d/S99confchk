@@ -1,0 +1,94 @@
+#!/bin/sh
+#
+# Start conf check
+#
+
+source /etc/system.conf
+
+case "$1" in
+  start)
+	[ -f /usr/local/sbin/checkApacheConf.sh ] && checkApacheConf.sh
+	if [ "`/usr/local/sbin/getServiceStartup.sh twonky`" == "enabled" ]; then
+		/sbin/refresh_contentdirs.sh &
+	fi
+	isInternalDriveRegister=`/usr/local/sbin/getMediaCrawlerStatus.sh | wc -l`
+	if [ ${isInternalDriveRegister} -lt 6 ]; then
+		/etc/init.d/S85wdmcserverd restart
+	fi
+	
+	if [ -f /CacheVolume/version.update ]; then
+        mv /CacheVolume/version.update /etc/version.update
+	fi
+	isSMBDOn=`pidof smbd | wc -l`
+	isNMBDOn=`pidof nmbd | wc -l`
+	if [ $isSMBDOn -eq 0 ] || [ $isNMBDOn -eq 0 ]; then
+		isTBDFailed=`tdbdump /etc/samba/secrets.tdb | grep "Failed to open" | wc -l`
+		if [ $isTBDFailed -eq 1 ]; then
+			rm -f /etc/samba/secrets.tdb
+		fi
+		/etc/init.d/S75smb restart
+	fi
+	
+	chmod 644 /etc/logrotate.conf
+	chmod -R 644 /etc/logrotate.d
+	cat /usr/local/sbin/socStandby.sh
+	cat /usr/local/sbin/DisableWakeOnWifi.sh
+	cat /usr/local/sbin/ResumeWifi.sh
+	
+	status=`systemctl is-failed primax-smb.service`
+	if [ "$status" == "failed" ]; then
+		/etc/init.d/S75smb start
+	fi
+	status=`systemctl is-failed primax-netatalk.service`
+	if [ "$status" == "failed" ]; then
+		/etc/init.d/S55netatalk start
+	fi
+	/usr/local/sbin/sendHWCollect.sh 100 `cat /proc/uptime | cut -d " " -f 1` `cat /etc/version` ${modelNumber} `cat /tmp/HDSerial`
+	is24GEnable=`/usr/local/sbin/wifi_ap_get_config.sh INTERNAL_QUERY | grep "enabled=true" | wc -l`
+	if [ $is24GEnable -eq 1 ]; then
+		if [ -f /proc/net/rtl8189es/wlan2/ap_info ]; then
+			is24GAP_On=`cat /proc/net/rtl8189es/wlan2/ap_info | wc -l`
+			if [ $is24GAP_On -lt 2 ]; then
+				/usr/local/sbin/sendHWCollect.sh 106 WLANFail 24G
+			fi
+		else
+			/usr/local/sbin/sendHWCollect.sh 106 InsmodFail 24G
+		fi
+	fi
+	is5GEnable=`/usr/local/sbin/wifi_ap_get_config.sh INTERNAL_QUERY 5G | grep "enabled_5G=true" | wc -l`
+	if [ $is5GEnable -eq 1 ]; then
+		if [ -f /proc/net/rtl8821au/wlan0/ap_info ]; then
+			is5GAP_On=`cat /proc/net/rtl8821au/wlan0/ap_info | wc -l`
+			if [ $is5GAP_On -lt 2 ]; then
+				/usr/local/sbin/sendHWCollect.sh 106 WLANFail 5G
+			fi
+		else
+			/usr/local/sbin/sendHWCollect.sh 106 InsmodFail 5G
+		fi
+	fi
+	echo "31;0" > /tmp/MCU_Cmd
+	sleep 3
+	if [ -f /tmp/batteryCount ]; then
+		/usr/local/sbin/sendHWCollect.sh 105 `cat /tmp/batteryCount`
+	fi
+	
+	if [ "$FactoryFWVersion_Major" == "" ] || [ "$FactoryFWVersion_Major" == "" ]; then
+		if [ -f "/etc/FactoryFwVer" ]; then
+			majorver=`cat /etc/FactoryFwVer | awk -F. '{print $1}' | cut -d '_' -f 2`
+			minorver=`cat /etc/FactoryFwVer | awk -F. '{print $2}'`
+			sed -i 's/FactoryFWVersion_Major=.*/FactoryFWVersion_Major='${majorver}'/' /etc/system.conf
+			sed -i 's/FactoryFWVersion_Minor=.*/FactoryFWVersion_Minor='${minorver}'/' /etc/system.conf
+		fi
+	fi
+	;;
+  stop)
+	;;
+  restart|reload)
+	;;
+	
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?

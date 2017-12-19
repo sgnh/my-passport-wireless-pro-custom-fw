@@ -1,0 +1,124 @@
+diff -uNr iw-3.17/scan.c iw-3.17/scan.c
+--- iw-3.17/scan.c	2014-10-09 22:31:00.000000000 +0800
++++ iw-3.17/scan.c	2016-02-01 16:19:55.705336405 +0800
+@@ -1622,15 +1622,6 @@
+ 	if (bss[NL80211_BSS_BEACON_INTERVAL])
+ 		printf("\tbeacon interval: %d TUs\n",
+ 			nla_get_u16(bss[NL80211_BSS_BEACON_INTERVAL]));
+-	if (bss[NL80211_BSS_CAPABILITY]) {
+-		__u16 capa = nla_get_u16(bss[NL80211_BSS_CAPABILITY]);
+-		printf("\tcapability:");
+-		if (is_dmg)
+-			print_capa_dmg(capa);
+-		else
+-			print_capa_non_dmg(capa);
+-		printf(" (0x%.4x)\n", capa);
+-	}
+ 	if (bss[NL80211_BSS_SIGNAL_MBM]) {
+ 		int s = nla_get_u32(bss[NL80211_BSS_SIGNAL_MBM]);
+ 		printf("\tsignal: %d.%.2d dBm\n", s/100, s%100);
+@@ -1658,7 +1649,15 @@
+ 			  nla_len(bss[NL80211_BSS_BEACON_IES]),
+ 			  params->unknown, params->type);
+ 	}
+-
++	if (bss[NL80211_BSS_CAPABILITY]) {
++		__u16 capa = nla_get_u16(bss[NL80211_BSS_CAPABILITY]);
++		printf("\tcapability:");
++		if (is_dmg)
++			print_capa_dmg(capa);
++		else
++			print_capa_non_dmg(capa);
++		printf(" (0x%.4x)\n", capa);
++	}
+ 	return NL_SKIP;
+ }
+ 
+diff -uNr iw-3.17/station.c iw-3.17/station.c
+--- iw-3.17/station.c	2014-10-09 22:31:00.000000000 +0800
++++ iw-3.17/station.c	2016-02-01 16:18:04.665155822 +0800
+@@ -10,6 +10,8 @@
+ 
+ #include "nl80211.h"
+ #include "iw.h"
++#include "time.h"
++#include "stdio.h"
+ 
+ SECTION(station);
+ 
+@@ -120,6 +122,7 @@
+ 
+ static int print_sta_handler(struct nl_msg *msg, void *arg)
+ {
++	time_t lt, diffTime;
+ 	struct nlattr *tb[NL80211_ATTR_MAX + 1];
+ 	struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
+ 	struct nlattr *sinfo[NL80211_STA_INFO_MAX + 1];
+@@ -140,6 +143,7 @@
+ 		[NL80211_STA_INFO_PLINK_STATE] = { .type = NLA_U8 },
+ 		[NL80211_STA_INFO_TX_RETRIES] = { .type = NLA_U32 },
+ 		[NL80211_STA_INFO_TX_FAILED] = { .type = NLA_U32 },
++		[NL80211_STA_INFO_CONNECTED_TIME] = { .type = NLA_U32 },
+ 		[NL80211_STA_INFO_STA_FLAGS] =
+ 			{ .minlen = sizeof(struct nl80211_sta_flag_update) },
+ 		[NL80211_STA_INFO_LOCAL_PM] = { .type = NLA_U32},
+@@ -169,11 +173,20 @@
+ 		fprintf(stderr, "failed to parse nested attributes!\n");
+ 		return NL_SKIP;
+ 	}
+-
+-	mac_addr_n2a(mac_addr, nla_data(tb[NL80211_ATTR_MAC]));
+-	if_indextoname(nla_get_u32(tb[NL80211_ATTR_IFINDEX]), dev);
+-	printf("Station %s (on %s)", mac_addr, dev);
+-
++	lt =time(NULL);
++      
++    diffTime = lt - nla_get_u32(sinfo[NL80211_STA_INFO_CONNECTED_TIME]);
++    //printf("The Different Calendar Time now is %u\n",diffTime);
++       
++    mac_addr_n2a(mac_addr, nla_data(tb[NL80211_ATTR_MAC]));
++    if_indextoname(nla_get_u32(tb[NL80211_ATTR_IFINDEX]), dev);
++    printf("Station %s (on %s)", mac_addr, dev);
++ 
++    if (sinfo[NL80211_STA_INFO_CONNECTED_TIME])
++    	//printf("\n\tconnected time:\t%u s",
++        //      nla_get_u32(sinfo[NL80211_STA_INFO_CONNECTED_TIME]));
++        printf("\n\t%s connected time:\t%u",
++        mac_addr, diffTime);
+ 	if (sinfo[NL80211_STA_INFO_INACTIVE_TIME])
+ 		printf("\n\tinactive time:\t%u ms",
+ 			nla_get_u32(sinfo[NL80211_STA_INFO_INACTIVE_TIME]));
+diff -uNr iw-3.17/util.c iw-3.17/util.c
+--- iw-3.17/util.c	2014-10-09 22:31:00.000000000 +0800
++++ iw-3.17/util.c	2016-02-01 16:19:27.558497356 +0800
+@@ -314,15 +314,21 @@
+ {
+ 	int i;
+ 
+-	for (i = 0; i < len; i++) {
+-		if (isprint(data[i]) && data[i] != ' ' && data[i] != '\\')
+-			printf("%c", data[i]);
+-		else if (data[i] == ' ' &&
+-			 (i != 0 && i != len -1))
+-			printf(" ");
+-		else
+-			printf("\\x%.2x", data[i]);
+-	}
++    //for (i = 0; i < len; i++) {
++    //      if (isprint(data[i]) && data[i] != ' ' && data[i] != '\\')
++    //              printf("%c", data[i]);
++    //      else if (data[i] == ' ' &&
++    //               (i != 0 && i != len -1))
++    //              printf(" ");
++    //      else
++    //              printf("\\x%.2x", data[i]);
++    //}
++    char ssid[len+1];
++       
++    memset(ssid, 0x0, sizeof(ssid));
++	snprintf(ssid, sizeof(ssid), "%s", data);
++      
++    printf("%s", ssid);    
+ }
+ 
+ static int hex2num(char digit)

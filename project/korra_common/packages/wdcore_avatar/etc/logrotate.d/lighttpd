@@ -1,0 +1,9 @@
+/var/log/lighttpd-access.log /tmp/lighttpd-error.log  {
+	su root root
+	size=200k
+	missingok
+	copytruncate
+	rotate 2
+	compress
+	notifempty
+}

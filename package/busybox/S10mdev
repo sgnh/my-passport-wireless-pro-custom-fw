@@ -1,0 +1,81 @@
+#!/bin/sh
+#
+# Start mdev....
+#
+
+case "$1" in
+  start)
+	echo "Starting mdev..."
+	/sbin/intlmount.sh
+	/sbin/mdev -s
+	if [ -f "/bin/ghelper" ]; then
+	  /bin/ghelper&
+	fi
+	if [ ! -f /etc/standby.conf ]; then
+		echo "standby_enable=disable" > /etc/standby.conf
+		echo "standby_time=0" >> /etc/standby.conf
+	fi
+	echo 0 > /tmp/temp_state
+
+	capacity=`/usr/sbin/get_capacity.sh`
+	case ${capacity} in
+		1)
+			if [ -f /tmp/KLITE ]; then
+				modelNumber_line=`cat /etc/system.conf | grep "WDBZEC" | wc -l`
+				if [ "$modelNumber_line" == "0" ]; then
+				echo "restore system.conf"
+				cp /etc/system.conf.default /etc/system.conf
+				sed -i 's/modelNumber=.*/modelNumber=\"WDBZEC\"/' /etc/system.conf
+				fi
+			else
+				modelNumber_line=`cat /etc/system.conf | grep "WDBVPL" | wc -l`
+				if [ "$modelNumber_line" == "0" ]; then
+				echo "restore system.conf"
+				cp /etc/system.conf.default /etc/system.conf
+				sed -i 's/modelNumber=.*/modelNumber=\"WDBVPL\"/' /etc/system.conf
+				fi
+			fi
+		;;
+		2)
+			modelNumber_line=`cat /etc/system.conf | grep "WDBP2P" | wc -l`
+			if [ "$modelNumber_line" == "0" ]; then
+			echo "restore system.conf"
+			cp /etc/system.conf.default /etc/system.conf
+			sed -i 's/modelNumber=.*/modelNumber=\"WDBP2P\"/' /etc/system.conf
+			fi
+		;;
+		3)
+			modelNumber_line=`cat /etc/system.conf | grep "WDBSMT" | wc -l`
+			if [ "$modelNumber_line" == "0" ]; then
+			echo "restore system.conf"
+			cp /etc/system.conf.default /etc/system.conf
+			sed -i 's/modelNumber=.*/modelNumber=\"WDBSMT\"/' /etc/system.conf
+			fi
+		;;   		
+		*)
+			modelNumber_line=`cat /etc/system.conf | grep "WDBP2P" | wc -l`
+			if [ "$modelNumber_line" == "0" ]; then
+			echo "restore system.conf"
+			cp /etc/system.conf.default /etc/system.conf
+			sed -i 's/modelNumber=.*/modelNumber=\"WDBP2P\"/' /etc/system.conf
+			fi
+		;;
+	esac
+	;;
+  stop)
+	sync
+	sync
+	sync
+	umount /DataVolume
+	umount /shares/Storage
+	umount /media/sdb1
+	umount /var/ftp/Storage
+	;;
+  restart|reload)
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?

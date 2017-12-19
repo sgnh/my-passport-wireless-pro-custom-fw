@@ -1,0 +1,215 @@
+#!/bin/sh
+#
+# Start mdev....
+#
+
+HiddenV1=none
+HiddenV2=none
+HiddenV3=none
+BDVER=none
+Reboot=0
+
+exit_update()
+{
+    echo "$1"
+    exit
+}
+
+update_mbr()
+{
+    echo "Updating...MBR $2 to $1"
+    dd if=/etc/$2 of=/dev/$1 bs=1 count=512
+    Reboot=1
+}
+
+format_hdd()
+{
+    echo "Formating...$2 to $1"
+    [ $1 == "ext4" ] && mkfs.ext4 /dev/$2
+    [ $1 == "vfat" ] && mkfs.fat /dev/$2
+}
+
+check_bak_part()
+{
+    [ "$1" == "none" ] && echo "bak part not found"
+    isBak=`blkid /dev/"$1" | grep PTTYPE | wc -l`
+    if [ $isBak -eq 1 ]; then
+        echo "bak part is ready"
+    else
+        partNo=`ls -l /dev/"$1"* | wc -l`
+        if [ $partNo -eq 2 ]; then
+            fsType=`blkid /dev/"$1"1 | grep vfat | wc -l`
+            if [ $fsType -eq 1 ] ; then
+                echo "Backup Part: $1, Type: VFAT"
+            else
+                format_hdd vfat ${1}1
+            fi
+        else
+            (echo n;echo p;echo 1;echo;echo;echo w) | fdisk /dev/$1
+            sync
+            sync
+            sync
+            format_hdd vfat ${1}1
+        fi
+    fi
+}
+
+check_knl_part()
+{
+    if [ "$1" == "none" ]; then
+        exit_update "knl part incorrect, fix it"
+    fi
+    partNo=`ls -l /dev/"$1"* | wc -l`
+    partSize=`cat /proc/partitions | grep "$1"1 | grep 524288 | wc -l`
+    if [ $partNo -eq 3 ] && [ $partSize -eq 1 ]; then
+        fsType=`blkid /dev/"$1"1 | grep vfat | wc -l`
+        if [ $fsType -eq 1 ] ; then
+            echo "Kernel Part: $1, Type:VFAT $1"
+        else
+            format_hdd vfat ${1}1
+        fi
+    else
+        dd if=/dev/zero of=/dev/$1 bs=1M
+        sync
+        (echo n;echo p;echo 1;echo;echo +512M;echo n;echo p;echo 2;echo;echo;echo w) | fdisk /dev/$1
+        sync
+        sync
+        sync
+        format_hdd vfat ${1}1
+    fi
+}
+
+check_sys_part()
+{
+    if [ "$1" == "none" ]; then
+        exit_update "sys part incorrect, fix it"
+    fi
+    partNo=`ls -l /dev/"$1"* | wc -l`
+    if [ $partNo -eq 3 ]; then
+        fsType1=`blkid /dev/"$1"1 | grep ext4 | wc -l`
+        if [ $fsType1 -eq 1 ] ; then
+            echo "System Part: ${1}1, Type: EXT4"
+        else
+            format_hdd ext4 ${1}1
+        fi
+        fsType2=`blkid /dev/"$1"2 | grep ext4 | wc -l`
+        if [ $fsType2 -eq 1 ] ; then
+            echo "System Part: ${1}2, Type:EXT4"
+        else
+            format_hdd ext4 ${1}2
+        fi
+
+    else
+        dd if=/dev/zero of=/dev/$1 bs=1M
+        sync
+        (echo n;echo p;echo 1;echo;echo +1024M;echo n;echo p;echo 2;echo;echo;echo w) | fdisk /dev/$1
+        sync
+        sync
+        sync
+        format_hdd ext4 ${1}1
+        format_hdd ext4 ${1}2
+    fi
+
+}
+
+probe_hdd()
+{
+    vol=0
+    HDD_MOD="My Passport $1"
+    for diskV in /sys/block/sd*; do
+        vendor=`cat $diskV/device/vendor | awk '{print $1}'`
+        model=`cat $diskV/device/model`
+        #Temp for Korra
+        [ "$model" == "My Passport 25AF" ] && HDD_MODEL="My Passport 25AF"
+            if [ "$vendor" == "WD" ] && [ "$model" == "$HDD_MODEL" ]; then
+                size=`cat $diskV/size`
+                if [ $size -gt 4194304 ]; then
+                    UserV=$diskV
+                    #echo "$diskV is user space"
+                    #echo "/dev/${UserV}" > /tmp/HDDDevNode
+                else
+                    #[ $minor -eq 0 ] && UserV=$diskV && echo "$diskV is user space"
+                    vol=`expr $vol + 1`
+                    if [ $vol -eq 1 ] && [ $size -eq 2097152 ]; then
+                        HiddenV1=`echo $diskV | cut -d "/" -f 4` 
+                        #echo "$diskV is 1st hidden"
+                    fi
+				
+                    if [ $vol -eq 2 ] && [ $size -eq 2097152 ]; then
+                        HiddenV2=`echo $diskV | cut -d "/" -f 4`
+                        #echo "$diskV is 2nd hidden"
+                    fi
+				
+                    if [ $vol -eq 3 ] && [ $size -eq 4194304 ]; then
+                        HiddenV3=`echo $diskV | cut -d "/" -f 4` 
+                        #echo "$diskV is 3th hidden"
+                    fi
+
+                fi
+            fi
+    done
+}
+
+probe_boardver()
+{	
+    BType="Korra"
+    #check Board version
+    #gpio50 gpio45 gpio44
+    echo "50" > /sys/class/gpio/export
+    echo "45" > /sys/class/gpio/export
+    echo "44" > /sys/class/gpio/export
+    gpio50=`cat /sys/class/gpio/gpio50/value`
+    gpio45=`cat /sys/class/gpio/gpio45/value`
+    gpio44=`cat /sys/class/gpio/gpio44/value`
+	
+    if [ $gpio50 == '0' ] && [ $gpio45 == '0' ] && [ $gpio44 == '0' ]; then
+        BDVER=$BType"_SA"
+    fi
+    if [ $gpio50 == '0' ] && [ $gpio45 == '0' ] && [ $gpio44 == '1' ]; then
+        BDVER=$BType"_SB"
+    fi
+    if [ $gpio50 == '0' ] && [ $gpio45 == '1' ] && [ $gpio44 == '0' ]; then
+        BDVER=$BType"_D1"
+    fi
+    if [ $gpio50 == '0' ] && [ $gpio45 == '1' ] && [ $gpio44 == '1' ]; then
+        BDVER=$BType"_D2"
+    fi
+    if [ $gpio50 == '1' ] && [ $gpio45 == '0' ] && [ $gpio44 == '0' ]; then
+        BDVER=$BType"_V1"
+    fi
+    echo "Board version is $BDVER"
+}
+
+
+check_hdd_layout()
+{
+    probe_boardver
+
+    echo "This is Korra board"
+    probe_hdd 25AF
+    if [ "$HiddenV2" == "none" ] || [ "$HiddenV3" == "none" ]; then
+        sleep 5
+        fdisk -l
+        probe_hdd 25AF
+    fi
+    check_knl_part $HiddenV2
+    check_sys_part $HiddenV3
+    mdev -s
+}
+
+case "$1" in
+  start)
+	touch /tmp/RecoverMode
+	#check_hdd_layout
+	nas-loader_a &
+	;;
+  stop)
+	;;
+  restart|reload)
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?

@@ -1,0 +1,5 @@
+config BR2_PACKAGE_PMXPACKAGE_MPTOOL
+	bool "pmxpackage(mptool)"
+	help
+	  The primax package(mptool) MP tools for Avatar device
+

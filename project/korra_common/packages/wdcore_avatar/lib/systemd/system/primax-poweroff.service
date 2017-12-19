@@ -1,0 +1,13 @@
+[Unit]
+Description=Primax Poweroff
+Before=shutdown.target poweroff.target
+DefaultDependencies=no
+
+[Service]
+ExecStart=/bin/sh -c "/etc/init.d/rcK"
+Type=oneshot
+RemainAfterExit=yes
+TimeoutSec=120s
+
+[Install]
+WantedBy=poweroff.target

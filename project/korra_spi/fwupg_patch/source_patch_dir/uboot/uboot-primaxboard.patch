@@ -1,0 +1,120 @@
+diff -Nur uboot-custom/board/ti/am335x/board.c u-boot-2013.01.01-psp06.00.00.00/board/ti/am335x/board.c
+--- uboot-custom/board/ti/am335x/board.c	2013-06-26 05:41:14.000000000 +0800
++++ u-boot-2013.01.01-psp06.00.00.00/board/ti/am335x/board.c	2013-09-10 18:26:49.768559675 +0800
+@@ -603,7 +603,7 @@
+ 	pll_init();
+ 
+ 	/* Enable RTC32K clock */
+-	rtc32k_enable();
++	//rtc32k_enable();
+ 
+ 	/* UART softreset */
+ 	u32 regVal;
+@@ -654,41 +654,42 @@
+ 	enable_i2c0_pin_mux();
+ 	i2c_init(CONFIG_SYS_I2C_SPEED, CONFIG_SYS_I2C_SLAVE);
+ #ifndef CONFIG_NOR_BOOT
+-	if (read_eeprom() < 0)
+-		puts("Could not get board ID.\n");
++//	if (read_eeprom() < 0)
++//		puts("Could not get board ID.\n");
+ #endif
+ 
+ 	/* Check if baseboard eeprom is available */
+-	if (i2c_probe(CONFIG_SYS_I2C_EEPROM_ADDR)) {
+-		puts("Could not probe the EEPROM; something fundamentally "
+-			"wrong on the I2C bus.\n");
+-	}
++//	if (i2c_probe(CONFIG_SYS_I2C_EEPROM_ADDR)) {
++//		puts("Could not probe the EEPROM; something fundamentally "
++//			"wrong on the I2C bus.\n");
++//	}
+ 
+ 	/* read the eeprom using i2c */
+-	if (i2c_read(CONFIG_SYS_I2C_EEPROM_ADDR, 0, 2, (uchar *)&header,
+-							sizeof(header))) {
+-		puts("Could not read the EEPROM; something fundamentally"
+-			" wrong on the I2C bus.\n");
+-	}
+-
+-	if (header.magic != 0xEE3355AA) {
+-		/*
+-		 * read the eeprom using i2c again,
+-		 * but use only a 1 byte address
+-		 */
+-		if (i2c_read(CONFIG_SYS_I2C_EEPROM_ADDR, 0, 1,
+-					(uchar *)&header, sizeof(header))) {
+-			puts("Could not read the EEPROM; something "
+-				"fundamentally wrong on the I2C bus.\n");
+-			hang();
+-		}
+-
+-		if (header.magic != 0xEE3355AA) {
+-			printf("Incorrect magic number (0x%x) in EEPROM\n",
+-					header.magic);
+-			hang();
+-		}
+-	}
++//	if (i2c_read(CONFIG_SYS_I2C_EEPROM_ADDR, 0, 2, (uchar *)&header,
++//							sizeof(header))) {
++//		puts("Could not read the EEPROM; something fundamentally"
++//			" wrong on the I2C bus.\n");
++//	}
++	strcpy(header.name,"A335BNLT");
++	
++//	if (header.magic != 0xEE3355AA) {
++//		/*
++//		 * read the eeprom using i2c again,
++//		 * but use only a 1 byte address
++//		 */
++//		if (i2c_read(CONFIG_SYS_I2C_EEPROM_ADDR, 0, 1,
++//					(uchar *)&header, sizeof(header))) {
++//			puts("Could not read the EEPROM; something "
++//				"fundamentally wrong on the I2C bus.\n");
++//			hang();
++//		}
++//
++//		if (header.magic != 0xEE3355AA) {
++//			printf("Incorrect magic number (0x%x) in EEPROM\n",
++//					header.magic);
++//			hang();
++//		}
++//	}
+ 
+ 	enable_board_pin_mux(&header);
+ 	if (!strncmp("A335X_SK", header.name, HDR_NAME_LEN)) {
+@@ -728,8 +729,8 @@
+ int board_init(void)
+ {
+ 	i2c_init(CONFIG_SYS_I2C_SPEED, CONFIG_SYS_I2C_SLAVE);
+-	if (read_eeprom() < 0)
+-		puts("Could not get board ID.\n");
++//	if (read_eeprom() < 0)
++//		puts("Could not get board ID.\n");
+ 
+ 	gd->bd->bi_boot_params = PHYS_DRAM_1 + 0x100;
+ 
+diff -Nur uboot-custom/board/ti/am335x/mux.c u-boot-2013.01.01-psp06.00.00.00/board/ti/am335x/mux.c
+--- uboot-custom/board/ti/am335x/mux.c	2013-06-26 05:41:14.000000000 +0800
++++ u-boot-2013.01.01-psp06.00.00.00/board/ti/am335x/mux.c	2013-09-10 18:27:00.755365926 +0800
+@@ -134,6 +134,11 @@
+ 	{-1},
+ };
+ 
++static struct module_pin_mux gpio2_23_pin_mux[] = {
++	{OFFSET(lcd_hsync), (MODE(7) | PULLUP_EN)},	/* GPIO2_23 */
++	{-1},
++};
++
+ static struct module_pin_mux rgmii1_pin_mux[] = {
+ 	{OFFSET(mii1_txen), MODE(2)},			/* RGMII1_TCTL */
+ 	{OFFSET(mii1_rxdv), MODE(2) | RXACTIVE},	/* RGMII1_RCTL */
+@@ -359,6 +364,8 @@
+ 		configure_module_pin_mux(mii1_pin_mux);
+ 		configure_module_pin_mux(mmc0_pin_mux);
+ 		configure_module_pin_mux(mmc1_pin_mux);
++		configure_module_pin_mux(nand_pin_mux);
++		configure_module_pin_mux(gpio2_23_pin_mux); //USB Carder Power Enable
+ 	} else {
+ 		puts("Unknown board, cannot configure pinmux.");
+ 		hang();

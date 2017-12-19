@@ -1,0 +1,401 @@
+--- linux-kernel.orig/drivers/mmc/host/rtksd_export.h	1970-01-01 08:00:00.000000000 +0800
++++ linux-kernel.mod/drivers/mmc/host/rtksd_export.h	2016-06-22 18:51:17.000000000 +0800
+@@ -0,0 +1,40 @@
++#include <linux/module.h>
++#include <linux/init.h>
++#include <linux/io.h>
++#include <linux/platform_device.h>
++#include <linux/mbus.h>
++#include <linux/delay.h>
++#include <linux/interrupt.h>
++#include <linux/dma-mapping.h>
++#include <linux/scatterlist.h>
++#include <linux/irq.h>
++#include <linux/gpio.h>
++#include <linux/mmc/host.h>
++#include <asm/unaligned.h>
++
++#include <linux/sched.h>                //liao
++#include <linux/wait.h>                 //liao
++#include <linux/slab.h>                 //liao
++#include <linux/semaphore.h>            //liao
++#include <linux/mmc/card.h>             //liao
++#include <linux/mmc/mmc.h>              //liao
++#include <linux/mmc/sd.h>               //liao
++#include <linux/mmc/sdio.h>               //liao
++#include <linux/workqueue.h>            //liao
++#include <linux/completion.h>           //liao
++#include <rbus/reg_mmc.h>               //liao
++#include <rbus/reg_iso.h>               //liao
++#include <rbus/reg_sys.h>               //liao
++#include "rtksd.h"                  //liao
++#include "rtk_crsd_ops.h"                  //liao
++#include "../mmc_debug.h"               //liao
++
++#include <linux/of.h>
++#include <linux/of_irq.h>
++#include <linux/of_address.h>
++#include <linux/of_device.h>
++#include <linux/of_gpio.h>
++
++
++
++void sdcard_remove(struct mmc_host *host);
+--- linux-kernel.orig/drivers/mmc/host/Makefile	2015-05-18 15:08:14.000000000 +0800
++++ linux-kernel.mod/drivers/mmc/host/Makefile	2016-06-22 18:59:49.765074435 +0800
+@@ -71,6 +71,7 @@
+ obj-$(CONFIG_MMC_RTKEMMC)       	+= rtkemmc.o
+ obj-$(CONFIG_MMC_BLOCK)         	+= rtksd_ops.o
+ endif
++obj-y                                   += rtksd_export.o
+ 
+ rtksd_mod-y += rtk_crsd_ops.o rtksd.o
+ obj-$(CONFIG_MMC_RTKSD) += rtksd_mod.o
+--- linux-kernel.orig/drivers/mmc/host/rtksd_export.c	1970-01-01 08:00:00.000000000 +0800
++++ linux-kernel.mod/drivers/mmc/host/rtksd_export.c	2016-06-23 11:27:36.000000000 +0800
+@@ -0,0 +1,54 @@
++#include "rtksd_export.h"
++
++
++void sdcard_remove(struct mmc_host *host) 
++{
++	struct rtk_crsd_host *sdport;
++        volatile unsigned int reg_tmp;
++    	volatile unsigned long timeend=0;
++
++        sdport = mmc_priv(host);
++	sdport->wp          = 0;
++	sdport->ins_event = EVENT_REMOV;
++        sdport->rtflags &= ~RTKCR_FCARD_DETECTED;
++        u32 det_time = 1;
++
++                        /*crsd reset*/
++        timeend = jiffies + msecs_to_jiffies(100);
++
++        /* Check EMMC resource exist ? jamestai20150721*/
++        if(crsd_readl(sdport->base_pll_io + 0x01fc) == 0){
++             	while(time_before(jiffies, timeend))
++                {
++                	if((crsd_readb(sdport->base_sdio+SDIO_NORML_INT_STA)&0x2));
++                        	break;
++                       	RTKSDPRINTF_DBG(".");
++                }
++        }else{
++        	while(time_before(jiffies, timeend))
++                {
++                	if((!(crsd_readl(sdport->base_emmc+EMMC_DMA_CTL3)&0x1)) && (crsd_readb(sdport->base_sdio+SDIO_NORML_INT_STA)&0x2));
++                        break;
++                        RTKSDPRINTF_DBG(".");
++               	}
++       	}
++
++        reg_tmp = crsd_readl(sdport->base_pll+CR_SOFT_RESET2);
++        crsd_writel((reg_tmp & (~0x400)) , sdport->base_pll+CR_SOFT_RESET2 );           // SD Card module transfer stop and idle state
++        udelay(10);
++        crsd_writel((reg_tmp | 0x400) , sdport->base_pll+CR_SOFT_RESET2 );      // SD Card module transfer stop and idle state
++        udelay(10);
++
++       	crsd_writel(0x0, sdport->base_io+CR_DMA_CTL3);  //stop dma control
++        crsd_writeb( 0xff, sdport->base_io+CR_CARD_STOP );      // SD Card module transfer stop and idle state
++
++	sdport->ops->card_power(sdport, 0); //power off, Jim add
++	
++	crsd_writel(0x0, sdport->base_sysbrdg_io+CR_SYNC);
++
++        sdport->rtflags &= ~RTKCR_FCARD_SELECTED;
++        mmc_detect_change(sdport->mmc, msecs_to_jiffies(det_time));
++	sdport->int_status_old = 0x20;
++	udelay(100);
++}
++EXPORT_SYMBOL(sdcard_remove);
+--- linux-kernel.orig/drivers/mmc/core/core.c	2015-05-18 15:08:13.000000000 +0800
++++ linux-kernel.mod/drivers/mmc/core/core.c	2016-06-28 17:31:21.000000000 +0800
+@@ -1733,7 +1733,8 @@
+ 		card->erase_shift = ffs(card->ssr.au) - 1;
+ 	} else if (card->ext_csd.hc_erase_size) {
+ 		card->pref_erase = card->ext_csd.hc_erase_size;
+-	} else {
++//	} else {
++	}else if (card->erase_size) {
+ 		sz = (card->csd.capacity << (card->csd.read_blkbits - 9)) >> 11;
+ 		if (sz < 128)
+ 			card->pref_erase = 512 * 1024 / 512;
+@@ -1751,6 +1752,7 @@
+ 				card->pref_erase += card->erase_size - sz;
+ 		}
+ 	}
++	else card->pref_erase=0;
+ }
+ 
+ static unsigned int mmc_mmc_erase_timeout(struct mmc_card *card,
+--- linux-kernel.orig/drivers/mmc/core/sd.c	2015-05-18 15:08:13.000000000 +0800
++++ linux-kernel.mod/drivers/mmc/core/sd.c	2016-06-21 19:31:41.000000000 +0800
+@@ -24,7 +24,8 @@
+ #include "mmc_ops.h"
+ #include "sd.h"
+ #include "sd_ops.h"
+-
++#include "../host/rtksd_export.h"
++void sdcard_remove(struct mmc_host *host);
+ static const unsigned int tran_exp[] = {
+ 	10000,		100000,		1000000,	10000000,
+ 	0,		0,		0,		0
+@@ -664,7 +665,7 @@
+ 	if (!mmc_host_is_spi(card->host) && card->host->ops->execute_tuning) {
+ 		mmc_host_clk_hold(card->host);
+ 		err = card->host->ops->execute_tuning(card->host,
+-						      MMC_SEND_TUNING_BLOCK);
++						      MMC_SEND_TUNING_BLOCK);
+ 		mmc_host_clk_release(card->host);
+ 	}
+ 
+@@ -1225,9 +1226,11 @@
+ 	WARN_ON(!host->claimed);
+ 
+ 	err = mmc_send_app_op_cond(host, 0, &ocr);
+-	if (err)
++	if (err) {
++		printk(KERN_ERR "DBG: mmc_send_app_op_cond error\n");
+ 		return err;
+-
++	}
++	printk(KERN_INFO "DBG: after mmc_send_app_op_cond, ocr=%x\n",ocr);
+ 	mmc_sd_attach_bus_ops(host);
+ 	if (host->ocr_avail_sd)
+ 		host->ocr_avail = host->ocr_avail_sd;
+@@ -1239,8 +1242,10 @@
+ 		mmc_go_idle(host);
+ 
+ 		err = mmc_spi_read_ocr(host, 0, &ocr);
+-		if (err)
++		if (err) {
++			printk(KERN_ERR "DBG: mmc_spi_read_ocr error\n");
+ 			goto err;
++		}
+ 	}
+ 
+ 	/*
+@@ -1269,6 +1274,7 @@
+ 	 */
+ 	if (!host->ocr) {
+ 		err = -EINVAL;
++		printk(KERN_ERR "DBG: mmc_select_voltage error\n");
+ 		goto err;
+ 	}
+ 
+@@ -1293,16 +1299,19 @@
+ 	}
+ #else
+ 	err = mmc_sd_init_card(host, host->ocr, NULL);
+-	if (err)
++	if (err) {
++		printk(KERN_ERR "DBG: mmc_sd_init_card error, host->ocr=%x\n",host->ocr);
+ 		goto err;
++	}
+ #endif
+ 
+ 	mmc_release_host(host);
+ 	err = mmc_add_card(host->card);
+ 	mmc_claim_host(host);
+-	if (err)
++	if (err) {
++		printk(KERN_ERR "DBG: go to remove card error\n");
+ 		goto remove_card;
+-
++	}
+ 	return 0;
+ 
+ remove_card:
+@@ -1315,7 +1324,8 @@
+ 
+ 	pr_err("%s: error %d whilst initialising SD card\n",
+ 		mmc_hostname(host), err);
+-
++	printk(KERN_ERR "Re-initialize the SD card\n");
++	sdcard_remove(host);
+ 	return err;
+ }
+ 
+--- linux-kernel.orig/drivers/mmc/host/rtk_crsd_ops.c	2016-05-18 19:41:41.775624079 +0800
++++ linux-kernel.mod/drivers/mmc/host/rtk_crsd_ops.c	2016-06-28 17:38:03.668242264 +0800
+@@ -38,8 +38,10 @@
+ #include "rtk_crsd_ops.h"                    //liao
+ #include "../mmc_debug.h"               //liao
+ 
++#include "rtksd_export.h"
+ //static unsigned char g_cmd[6]={0};
+ 
++void sdcard_remove(struct mmc_host *host);
+ #ifdef GPIO_DEBUG
+ void trans_db_gpio(void)
+ {
+@@ -103,7 +105,7 @@
+         rtk_crsd_sync(sdport);
+ 
+         wait_for_completion(sdport->int_waiting);
+-
++        //rtk_crsd_sync(sdport);    //jim add code
+     }
+ 
+ }
+@@ -139,12 +141,15 @@
+     volatile int err=CR_TRANS_OK;
+     volatile unsigned long timeend = 0;
+     volatile unsigned int sd_trans = 0;
++    
++    unsigned long timeout = 0;
++    unsigned long old_jiffles = jiffies;
+ 
+     err = CR_TRANSFER_TO;
+ 
+     rtk_crsd_sync(sdport);
+ 
+-    rtk_crsd_int_enable_and_waitfor(sdport, cmdcode, 6000, 0);
++    rtk_crsd_int_enable_and_waitfor(sdport, cmdcode, 500, 0);
+ 
+     sd_trans = readb(sdport->base_io + SD_TRANSFER);
+ 
+@@ -153,10 +158,21 @@
+ 	if ((sd_trans & (END_STATE | IDLE_STATE)) == (END_STATE | IDLE_STATE)) {
+ 		err = CR_TRANS_OK;
+ 	}
++        //add this section to fix the kingston long response
++        else {
++            timeout=600;
++            while(time_before(jiffies, old_jiffles + timeout)) {
++                rtk_crsd_sync(sdport);
++                sd_trans = readb(sdport->base_io + SD_TRANSFER);
++                if ((sd_trans & (END_STATE | IDLE_STATE)) == (END_STATE | IDLE_STATE)) {
++                    err = CR_TRANS_OK;
++                    break;
++                }
++
++		else if ((sd_trans & (ERR_STATUS)) == (ERR_STATUS)) {
+ 
+-	if ((sd_trans & (ERR_STATUS)) == (ERR_STATUS)) {
+-		err = CR_TRANSFER_FAIL;
+-		printk( KERN_ERR "%s - trans error 5 :\ncfg1 : 0x%02x, cfg2 : 0x%02x, cfg3 : 0x%02x, trans : 0x%08x, st1 : 0x%08x, st2 : 0x%08x, bus : 0x%08x\n",
++			err = CR_TRANSFER_FAIL;
++			printk( KERN_ERR "%s - trans error 5 :\ncfg1 : 0x%02x, cfg2 : 0x%02x, cfg3 : 0x%02x, trans : 0x%08x, st1 : 0x%08x, st2 : 0x%08x, bus : 0x%08x\n",
+ 				drv_name,
+ 				crsd_readb(sdport->base_io + SD_CONFIGURE1),
+ 				crsd_readb(sdport->base_io + SD_CONFIGURE2),
+@@ -165,6 +181,13 @@
+ 				crsd_readb(sdport->base_io + SD_STATUS1),
+ 				crsd_readb(sdport->base_io + SD_STATUS2),
+ 				crsd_readb(sdport->base_io + SD_BUS_STATUS));
++                         break;
++		}
++                else if(!(sdport->rtflags & RTKCR_FCARD_DETECTED)){
++                    err = CR_TRANSFER_FAIL;
++                    break;
++                }
++            }
+ 	}
+ 
+ 	if (err == CR_TRANSFER_TO){
+@@ -172,7 +195,6 @@
+ 		err = CR_TRANSFER_TO;
+ 
+ 		if ((sd_trans & (END_STATE | IDLE_STATE)) == (END_STATE | IDLE_STATE)) {
+-			//printk(KERN_ERR "CR_TRANS_OK\n");
+ 			err = CR_TRANS_OK;
+ 		}else{
+ 			printk( KERN_ERR "\n%s - trans error 3 :\ntrans : 0x%08x, st1 : 0x%08x, st2 : 0x%08x, bus : 0x%08x\n",
+@@ -181,8 +203,9 @@
+ 					crsd_readb(sdport->base_io + SD_STATUS1),
+ 					crsd_readb(sdport->base_io + SD_STATUS2),
+ 					crsd_readb(sdport->base_io + SD_BUS_STATUS));
+-			printk(KERN_ERR "CR_TRANSFER_TO : cmd->opcode = %d\n", sdport->mrq->cmd->opcode);
+-
++			if(sdport!=NULL && sdport->mrq!=NULL && sdport->mrq->cmd!=NULL) printk(KERN_ERR "CR_TRANSFER_TO : cmd->opcode = %d\n", sdport->mrq->cmd->opcode);
++			printk(KERN_ERR "Re-initialize SD card\n");
++			sdcard_remove(sdport->mmc);
+ 		}
+ 
+ 		return err;
+--- linux-kernel.orig/drivers/mmc/host/rtksd.c	2016-05-18 19:41:43.951624138 +0800
++++ linux-kernel.mod/drivers/mmc/host/rtksd.c	2016-07-01 20:00:41.870134675 +0800
+@@ -2776,6 +2776,8 @@
+ 			udelay(10);
+ 			crsd_writel((reg_tmp | 0x400) , sdport->base_pll+CR_SOFT_RESET2 );     	// SD Card module transfer stop and idle state
+ 			udelay(10);
++			//crsd_writeb( 0x3b, sdport->base_io+CARD_CLOCK_EN_CTL );	
++			//udelay(10);
+ 
+ 			crsd_writel(0x0, sdport->base_io+CR_DMA_CTL3);	//stop dma control
+ 			crsd_writeb( 0xff, sdport->base_io+CR_CARD_STOP );     	// SD Card module transfer stop and idle state
+@@ -3393,9 +3395,10 @@
+ 
+ 	rtk119x_crsd_node = pdev->dev.of_node;
+ 
+-	if (!rtk119x_crsd_node)
+-		panic("No irda of node found");
+-
++	if (!rtk119x_crsd_node){
++		/*panic*/printk(KERN_ERR "No irda of node found\n");
++		return -ENXIO;
++	}
+ 	/* Request IRQ */
+ 	irq = irq_of_parse_and_map(rtk119x_crsd_node, 0);
+ 	if (!irq) {
+@@ -3423,25 +3426,35 @@
+ 
+ ///////mmap io
+ 	sdport->base_pll = of_iomap(rtk119x_crsd_node, 0);
+-	if (!sdport->base_pll )
+-		panic("Can't map sdport->base_pll for %s", rtk119x_crsd_node->name);
+-
++	if (!sdport->base_pll ) {
++		/*panic*/printk(KERN_ERR "Can't map sdport->base_pll for %s", rtk119x_crsd_node->name);
++		ret = -ENOMEM;
++        	goto out;
++	}
+ 	sdport->base_crsd = of_iomap(rtk119x_crsd_node, 1);
+-	if (!sdport->base_crsd)
+-		panic("Can't map sdport->base for %s", rtk119x_crsd_node->name);
+-
++	if (!sdport->base_crsd){
++		/*panic*/printk(KERN_ERR "Can't map sdport->base for %s", rtk119x_crsd_node->name);
++		ret = -ENOMEM;
++        	goto out;
++	}
+ 	sdport->base_sysbrdg = of_iomap(rtk119x_crsd_node, 2);
+-	if (!sdport->base_sysbrdg)
+-		panic("Can't map sdport->base_sysbrdg for %s", rtk119x_crsd_node->name);
+-
++	if (!sdport->base_sysbrdg) {
++		/*panic*/printk(KERN_ERR "Can't map sdport->base_sysbrdg for %s", rtk119x_crsd_node->name);
++		ret = -ENOMEM;
++        	goto out;
++	}
+ 	sdport->base_emmc = of_iomap(rtk119x_crsd_node, 3);
+-	if (!sdport->base_emmc)
+-		panic("Can't map sdport->base_emmc for %s", rtk119x_crsd_node->name);
+-
++	if (!sdport->base_emmc) {
++		/*panic*/printk(KERN_ERR "Can't map sdport->base_emmc for %s", rtk119x_crsd_node->name);
++		ret = -ENOMEM;
++        	goto out;
++	}
+ 	sdport->base_sdio = of_iomap(rtk119x_crsd_node, 4);
+-	if (!sdport->base_sdio)
+-		panic("Can't map sdport->base_sdio for %s", rtk119x_crsd_node->name);
+-
++	if (!sdport->base_sdio) {
++		/*panic*/printk(KERN_ERR "Can't map sdport->base_sdio for %s", rtk119x_crsd_node->name);
++		ret = -ENOMEM;
++        	goto out;
++	}
+ 
+ 	RTKSDPRINTF(" sdport->base_pll = %x \n", (u32)sdport->base_pll);	 
+ 	RTKSDPRINTF(" sdport->base_crsd = %x \n",(u32)sdport->base_crsd);	 
+@@ -3487,7 +3500,7 @@
+               | MMC_CAP_UHS_SDR12
+               | MMC_CAP_UHS_SDR25
+               | MMC_CAP_UHS_SDR50
+-              | MMC_CAP_UHS_DDR50
++//              | MMC_CAP_UHS_DDR50
+ //              | MMC_CAP_1_8V_DDR;
+               | MMC_CAP_MMC_HIGHSPEED;
+ //            | MMC_CAP_NONREMOVABLE;

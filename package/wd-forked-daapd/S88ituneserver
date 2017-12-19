@@ -1,0 +1,118 @@
+#!/bin/sh
+
+### BEGIN INIT INFO
+# Provides:        itunes
+# Short-Description: Start itunes server daemon
+### END INIT INFO
+
+DAEMON=/usr/sbin/forked-daapd
+PIDFILE=/var/run/forked-daapd.pid
+FDCGROUP=/sys/fs/cgroup/forked-daapd
+test -x $DAEMON || exit 5
+
+LOCKFILE=/var/lock/itunes_lock
+
+lock_itunes() {
+	if [ -x /usr/bin/lockfile-create ]; then
+		lockfile-create $LOCKFILE
+		lockfile-touch $LOCKFILE &
+		LOCKTOUCHPID="$!"
+	fi
+}
+
+unlock_itunes() {
+	if [ -x /usr/bin/lockfile-create ] ; then
+		kill $LOCKTOUCHPID
+		lockfile-remove $LOCKFILE
+	fi
+}
+
+case $1 in
+	start)
+		#log_daemon_msg "Starting itunes server" "forked-daapd"
+		#if [ "`/usr/local/sbin/getServiceStartup.sh itunes`" == "disabled" ]; then
+		#	log_progress_msg "disabled";
+		#	log_end_msg 0
+		#	exit 0
+		#fi  
+		if [ -d "/CacheVolume/forked-daapd" ]; then
+			rm -rf /CacheVolume/forked-daapd
+		fi
+		mkdir -p /CacheVolume/forked-daapd
+		chmod 777 /CacheVolume/forked-daapd
+		#genItunesConfig.sh
+		renice 0 -p $$
+		start-stop-daemon --start --quiet --oknodo --pidfile $PIDFILE --exec $DAEMON -- 2> /dev/null
+		sleep 5
+		#pidofproc -p $PIDFILE $DAEMON >/dev/null
+		status=$?
+		if [ $status -ne 0 ]; then
+			echo "."
+			echo "attempt to fix corrupted itunes db..."
+			rm -f /CacheVolume/forked-daapd/songs3.db
+			rm -f $PIDFILE
+			start-stop-daemon --start --quiet --oknodo --pidfile $PIDFILE --exec $DAEMON -- 2> /dev/null
+			status=$?
+		fi
+		#log_end_msg $status
+		
+		
+		#if [ ! -d "$FDCGROUP" ]; then
+        #        mkdir $FDCGROUP
+        #fi
+        #echo 80M > $FDCGROUP/memory.limit_in_bytes
+        #echo 80M > $FDCGROUP/memory.memsw.limit_in_bytes
+        #echo "1" > $FDCGROUP/memory.oom_control
+        #cat $PIDFILE > $FDCGROUP/tasks
+  		;;
+	stop)
+		#log_daemon_msg "Stopping itunes server" "forked-daapd"
+		start-stop-daemon --stop --quiet --pidfile $PIDFILE
+		# Wait a little and remove stale PID file
+		sleep 1
+		if [ -f $PIDFILE ] && ! ps h `cat $PIDFILE` > /dev/null
+		then
+			# Stale PID file (nmbd was succesfully stopped),
+			# remove it (should be removed by nmbd itself IMHO.)
+			rm -f $PIDFILE
+		fi
+		#log_end_msg 0
+  		;;
+	rescan)
+		# remove db and restart itunes
+		lock_itunes
+		$0 stop && rm -rf /CacheVolume/forked-daapd && sleep 2 && $0 start
+		unlock_itunes
+  		;;
+	restart|force-reload)
+		lock_itunes
+		$0 stop && sleep 2 && $0 start
+		unlock_itunes
+  		;;
+	try-restart)
+		if $0 status >/dev/null; then
+			$0 restart
+		else
+			exit 0
+		fi
+		;;
+	reload)
+			#log_daemon_msg "Reloading /etc/forked-daapd.conf"
+			start-stop-daemon --stop --signal HUP --pidfile $PIDFILE
+			#log_end_msg 0
+		;;
+	status)
+		#pidofproc -p $PIDFILE $DAEMON >/dev/null
+		#status=$?
+		#if [ $status -eq 0 ]; then
+		#	log_success_msg "itunes server is running."
+		#else
+		#	log_failure_msg "itunes server is not running."
+		#fi
+		#exit $status
+		;;
+	*)
+		echo "Usage: $0 {start|stop|restart|rescan|try-restart|force-reload|status}"
+		exit 2
+		;;
+esac

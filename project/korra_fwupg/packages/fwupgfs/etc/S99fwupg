@@ -1,0 +1,166 @@
+#!/bin/sh
+#
+# Start fwupg....
+#
+
+BDVER=none
+
+
+updatelog="/tmp/pmxupd.log"
+
+# post entries to updatelog
+
+uplog()
+{
+    logtext=${@}
+    logtag="`basename $0`:`date -u +"%D %T"`:"
+    echo "${logtag}${logtext}" 2>&1 | tee -a ${updatelog}
+}
+
+exit_update()
+{
+    echo "$1"
+    exit
+}
+
+probe_boardver()
+{	
+    BType="Korra"
+    #check Board version
+    #gpio50 gpio45 gpio44
+    echo "50" > /sys/class/gpio/export
+    echo "45" > /sys/class/gpio/export
+    echo "44" > /sys/class/gpio/export
+    gpio50=`cat /sys/class/gpio/gpio50/value`
+    gpio45=`cat /sys/class/gpio/gpio45/value`
+    gpio44=`cat /sys/class/gpio/gpio44/value`
+	
+    if [ $gpio50 == '0' ] && [ $gpio45 == '0' ] && [ $gpio44 == '0' ]; then
+        BDVER=$BType"_SA"
+    fi
+    if [ $gpio50 == '0' ] && [ $gpio45 == '0' ] && [ $gpio44 == '1' ]; then
+        BDVER=$BType"_SB"
+    fi
+    if [ $gpio50 == '0' ] && [ $gpio45 == '1' ] && [ $gpio44 == '0' ]; then
+        BDVER=$BType"_D1"
+    fi
+    if [ $gpio50 == '0' ] && [ $gpio45 == '1' ] && [ $gpio44 == '1' ]; then
+        BDVER=$BType"_D2"
+    fi
+    if [ $gpio50 == '1' ] && [ $gpio45 == '0' ] && [ $gpio44 == '0' ]; then
+        BDVER=$BType"_D3"
+    fi
+    if [ ${gpio50} == '1' ] && [ ${gpio45} == '0' ] && [ ${gpio44} == '1' ]; then
+        BDVER=$BType"_D4"
+    fi
+    if [ ${gpio50} == '1' ] && [ ${gpio45} == '1' ] && [ ${gpio44} == '0' ]; then
+        BDVER=$BType"_D5"
+    fi
+    uplog "Board version is $BDVER"
+}
+
+probe_mcuver()
+{
+    if [ ! -f /tmp/MCU_Version ]; then
+        echo "1;0;" > /tmp/MCU_Cmd
+        sleep 5
+    fi
+    if [ ! -f /tmp/MCU_Version ]; then
+        echo "1;0;" > /tmp/MCU_Cmd
+        sleep 5
+    fi
+    if [ -f /tmp/MCU_Version ]; then
+        MCUVER=`cat /tmp/MCU_Version | cut -c 0-4`
+    fi
+    uplog "-$MCUVER-"
+}
+
+probe_asmver()
+{
+    sleep 10
+    ASMVER=`asmupdate -v /dev/sda | cut -c 23-26`
+    uplog "=$ASMVER="
+}
+
+copyMCUfw()
+{
+    #check mcu fw 
+    for mfw in $1/MCU*; do
+        mfind=`echo "${mfw}" | grep "${BDVER}" | wc -l`
+        vfind=`echo "${mfw}" | grep "${MCUVER}" | wc -l`
+        uplog "${mfw} ${mfind} ${vfind}..."
+        if [ ${mfind} -eq 1 ] && [ ${vfind} -eq 0 ]; then
+            cp -a ${mfw} /tmp/mcufw.bin
+            break
+        fi
+    done
+}
+
+copyASMfw()
+{
+    #check mcu fw 
+    for afw in $1/Release-CFU*; do
+        uplog "${afw} ${ASMVER}..."
+        afind=`echo ${afw} | grep "${ASMVER}" | wc -l`
+        if [ ${afind} -eq 0 ]; then
+            cp -a ${afw} /tmp/asmfw.bin
+            break
+        fi
+    done
+}
+
+updateASMfw()
+{
+    if [ -f "/tmp/asmfw.bin" ]; then
+        uplog "update ASMedia fw"
+        asmupdate -u /dev/sda /tmp/asmfw.bin
+        sleep 5
+    fi
+}
+
+updateMCUfw()
+{
+    if [ -f "/tmp/mcufw.bin" ]; then
+        hdparm -Y /dev/sda
+        hdparm -Y /dev/sdb
+        if [ -f "/sbin/fwupgled.sh" ]; then
+            time /sbin/fwupgled.sh &
+        fi
+        sleep 2
+        uplog "update MCU fw"
+        killall mcu_daemon
+        stm32isp /tmp/mcufw.bin
+        sleep 3
+        mcu_daemon &
+        sleep 1
+        echo "28;0;" > /tmp/MCU_Cmd
+        sleep 2
+        if [ -f "/sbin/fwupgledoff.sh" ]; then
+            /sbin/fwupgledoff.sh &
+        fi
+    fi
+}
+
+case "$1" in
+  start)
+        touch /tmp/FwupgMode
+        probe_boardver
+        probe_asmver
+        copyASMfw /etc/firmware	
+        probe_mcuver
+        copyMCUfw /etc/firmware
+        updateASMfw
+        updateASMfw
+        updateMCUfw
+        reboot
+	;;
+  stop)
+	;;
+  restart|reload)
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?

@@ -1,0 +1,5 @@
+config BR2_PACKAGE_WDPACKAGE_DISPATCHER
+	bool "wdpackage(Dispatcher)"
+	help
+	  The wd package(Dispatcher) package
+

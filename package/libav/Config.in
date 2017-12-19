@@ -1,0 +1,190 @@
+menuconfig BR2_PACKAGE_LIBAV
+	bool "libav"
+	#depends on BR2_LARGEFILE
+	#depends on BR2_INET_IPV6
+	select BR2_PACKAGE_LIBAV_AVCODEC
+    select BR2_PACKAGE_LIBAV_SWSCALE
+	select BR2_PACKAGE_LIBAV_AVFORMAT
+	select BR2_PACKAGE_LIBAV_AVFILTER
+	select BR2_PACKAGE_LIBAV_AVDEVICE
+	help
+         Libav is a complete, cross-platform solution to record, convert
+         and stream audio and video.
+
+	 http://www.libav.org
+
+if BR2_PACKAGE_LIBAV
+
+config BR2_PACKAGE_LIBAV_GPL
+	bool "Enable GPL code"
+	help
+         allow use of GPL code, the resulting libs and binaries will
+         be under GPL
+
+config BR2_PACKAGE_LIBAV_NONFREE
+	bool "Enable nonfree code"
+	help
+         allow use of nonfree code, the resulting libs and binaries
+         will be unredistributable
+
+# not suit for libav-9.12, but available for libavl-0.8.15
+#config BR2_PACKAGE_LIBAV_FFMPEG
+#	bool "Build ffmpeg (the command line application)"
+#	select BR2_PACKAGE_LIBAV_SWSCALE
+#	select BR2_PACKAGE_LIBAV_AVCODEC
+#	select BR2_PACKAGE_LIBAV_AVFORMAT
+#	select BR2_PACKAGE_LIBAV_AVFILTER
+#	select BR2_PACKAGE_LIBAV_AVDEVICE
+#	default y
+#	help
+#         FFmpeg is a very fast video and audio converter.
+#         It can also grab from a live audio/video source.
+#
+#         It is not needed if you want to link the Libav libraries
+#         to your application.
+
+#config BR2_PACKAGE_LIBAV_FFPLAY
+#	bool "Build ffplay"
+#	select BR2_PACKAGE_SDL
+#	help
+#        FFplay is a very simple and portable media player using the
+#        Libav libraries and the SDL library.
+#        It is mostly used as a testbed for the various Libav APIs.
+
+#config BR2_PACKAGE_LIBAV_FFSERVER
+#	bool "Build ffserver"
+#	help
+#         FFserver is a streaming server for both audio and video.
+
+# not suit for libav-9.12, but available for libavl-0.8.15
+#config BR2_PACKAGE_LIBAV_POSTPROC
+#	bool "Build libpostproc"
+#	depends on BR2_PACKAGE_LIBAV_GPL
+#	help
+#	  Postproc is a library of video postprocessing routines.
+
+config BR2_PACKAGE_LIBAV_SWSCALE
+	bool "Build libswscale"
+	default y
+    help
+	  Swscale is a library of video scaling routines.
+	  
+config BR2_PACKAGE_LIBAV_AVCODEC
+	bool "Build libavcodec"
+	default y
+    help
+	  libavcodec is a free and open-source library of codecs for encoding and decoding video and audio data.
+
+config BR2_PACKAGE_LIBAV_AVFORMAT
+	bool "Build libavformat"
+	default y
+    help
+	  The libavformat library provides a generic framework for multiplexing and demultiplexing (muxing and demuxing) audio, video and subtitle streams. It encompasses multiple muxers and demuxers for multimedia container formats.
+
+config BR2_PACKAGE_LIBAV_AVFILTER
+	bool "Build libavfilter"
+	default y
+    help
+	  The libavfilter library provides a generic audio/video filtering framework containing several filters, sources and sinks.
+
+config BR2_PACKAGE_LIBAV_AVDEVICE
+	bool "Build libavdevice"
+	help
+	  The libavdevice library provides a generic framework for grabbing from and rendering to many common multimedia input/output devices, and supports several input and output devices, including Video4Linux2, VfW, DShow, and ALSA.
+
+config BR2_PACKAGE_LIBAV_ENCODERS
+	string "Enabled encoders"
+	default "all"
+	help
+	 Space-separated list of encoders to build in Libav,
+	 or "all" to build all of them.
+
+	 Run ./configure --list-encoders in the Libav sources
+	 directory to know the available options.
+
+config BR2_PACKAGE_LIBAV_DECODERS
+	string "Enabled decoders"
+	default "all"
+	help
+	 Space-separated list of decoders to build in Libav,
+	 or "all" to build all of them.
+
+	 Run ./configure --list-decoders in the Libav sources
+	 directory to know the available options.
+
+config BR2_PACKAGE_LIBAV_MUXERS
+	string "Enabled muxers"
+	default "all"
+	help
+	 Space-separated list of muxers to build in Libav,
+	 or "all" to build all of them.
+
+	 Run ./configure --list-muxers in the Libav sources
+	 directory to know the available options.
+
+config BR2_PACKAGE_LIBAV_DEMUXERS
+	string "Enabled demuxers"
+	default "all"
+	help
+	 Space-separated list of demuxers to build in Libav,
+	 or "all" to build all of them.
+
+	 Run ./configure --list-demuxers in the Libav sources
+	 directory to know the available options.
+
+config BR2_PACKAGE_LIBAV_PARSERS
+	string "Enabled parsers"
+	default "all"
+	help
+	 Space-separated list of parsers to build in Libav,
+	 or "all" to build all of them.
+
+	 Run ./configure --list-parsers in the Libav sources
+	 directory to know the available options.
+
+config BR2_PACKAGE_LIBAV_BSFS
+	string "Enabled bitstreams"
+	default "all"
+	help
+	 Space-separated list of bitstream filters to build in Libav,
+	 or "all" to build all of them.
+
+	 Run ./configure --list-bsfs in the Libav sources
+	 directory to know the available options.
+
+config BR2_PACKAGE_LIBAV_PROTOCOLS
+	string "Enabled protocols"
+	default "all"
+	help
+	 Space-separated list of protocols to build in Libav,
+	 or "all" to build all of them.
+
+	 Run ./configure --list-protocols in the Libav sources
+	 directory to know the available options.
+
+config BR2_PACKAGE_LIBAV_FILTERS
+	string "Enabled filters"
+	default "all"
+	help
+	 Space-separated list of filters to build in Libav,
+	 or "all" to build all of them.
+
+	 Run ./configure --list-filters in the Libav sources
+	 directory to know the available options.
+
+config BR2_PACKAGE_LIBAV_INDEVS
+	bool "Enable input devices"
+	default y
+
+config BR2_PACKAGE_LIBAV_OUTDEVS
+	bool "Enable output devices"
+	default y
+
+config BR2_PACKAGE_LIBAV_EXTRACONF
+	string "Additional parameters for ./configure"
+	default ""
+	help
+	 Extra parameters that will be appended to Libav's
+	 ./configure commandline.
+
+endif

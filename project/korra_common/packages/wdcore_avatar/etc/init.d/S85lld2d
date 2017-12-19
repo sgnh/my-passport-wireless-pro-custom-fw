@@ -1,0 +1,47 @@
+#!/bin/bash
+#
+# Starts lld2d.
+#
+source /etc/nas/config/wifinetwork-param.conf
+start(){
+    echo -n "Starting LLD2D: "
+    if [ "$AP_CHANNEL_LITE" == "0" ]; then
+        /sbin/lld2d wlan1
+        /sbin/lld2d br0
+    elif [ "$AP_CHANNEL_LITE" == "2" ]; then	
+        /sbin/lld2d $STA2G4_IFACE
+        /sbin/lld2d $AP_IFACE
+    elif [ "$AP_CHANNEL_LITE" == "5" ]; then	
+        /sbin/lld2d $STA_IFACE
+        /sbin/lld2d $AP5G_IFACE
+    fi
+  
+    echo "OK"    
+}
+stop(){
+    echo -n "Stopping LLD2D: "
+    killall lld2d
+    rm /var/run/lld2d*
+    echo "OK";
+    
+}
+restart(){
+    stop
+    start
+}
+case $1 in
+    start)
+        start
+        ;;
+    stop)
+        stop
+        ;;
+    restart|reload)
+        restart
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart}"
+        exit 1
+esac
+
+exit $?

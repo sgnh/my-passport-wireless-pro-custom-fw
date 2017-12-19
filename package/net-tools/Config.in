@@ -1,0 +1,55 @@
+config BR2_PACKAGE_NET_TOOLS
+	bool "net-tools"
+	select BR2_PACKAGE_NCURSES
+	help
+      The NET-3 networking toolkit
+
+      http://net-tools.berlios.de/
+
+config BR2_PACKAGE_NET_TOOLS_ARP
+    bool "arp"
+    depends on BR2_PACKAGE_NET_TOOLS
+    help
+      manipulate the system ARP cache
+
+config BR2_PACKAGE_NET_TOOLS_IFCONFIG
+    bool "ifconfig"
+    depends on BR2_PACKAGE_NET_TOOLS
+    help
+      configure a network interface
+
+config BR2_PACKAGE_NET_TOOLS_NAMEIF
+    bool "nameif"
+    depends on BR2_PACKAGE_NET_TOOLS
+    help
+      name network interfaces based on MAC addresses
+
+config BR2_PACKAGE_NET_TOOLS_NETSTAT
+    bool "netstat"
+    depends on BR2_PACKAGE_NET_TOOLS
+    help
+      Print network connections, routing tables, interface statistics, masquerade connections, and multicast memberships
+
+config BR2_PACKAGE_NET_TOOLS_PLIPCONFIG
+    bool "plipconfig"
+    depends on BR2_PACKAGE_NET_TOOLS
+    help
+      fine tune PLIP device parameters
+
+config BR2_PACKAGE_NET_TOOLS_RARP
+    bool "rarp"
+    depends on BR2_PACKAGE_NET_TOOLS
+    help
+      manipulate the system RARP table
+
+config BR2_PACKAGE_NET_TOOLS_ROUTE
+    bool "route"
+    depends on BR2_PACKAGE_NET_TOOLS
+    help
+      show manipulate the IP routing table
+
+config BR2_PACKAGE_NET_TOOLS_SLATTACH
+    bool "slattach"
+    depends on BR2_PACKAGE_NET_TOOLS
+    help
+      attach a network interface to a serial line 

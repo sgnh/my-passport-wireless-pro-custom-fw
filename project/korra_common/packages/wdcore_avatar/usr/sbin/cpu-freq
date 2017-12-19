@@ -1,0 +1,27 @@
+#!/bin/sh
+
+if [ $# -ne 1 ]; then
+    echo "$0 powersave | ondemand | performance"
+    exit 1
+fi
+
+case $1 in 
+    powersave )
+        echo $1 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
+        echo $1 > /sys/devices/system/cpu/cpu1/cpufreq/scaling_governor
+        ;;
+    ondemand )
+        echo $1 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
+        echo $1 > /sys/devices/system/cpu/cpu1/cpufreq/scaling_governor
+        ;;
+    performance )
+        echo $1 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
+        echo $1 > /sys/devices/system/cpu/cpu1/cpufreq/scaling_governor
+        ;;
+    * )
+        echo "please enter \"$0 powersave|performance\""
+        ;;
+esac
+
+echo "Now, CPU0 freq is \"$(cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_cur_freq)\""
+echo "Now, CPU1 freq is \"$(cat /sys/devices/system/cpu/cpu1/cpufreq/cpuinfo_cur_freq)\""

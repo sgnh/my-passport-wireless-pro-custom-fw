@@ -1,0 +1,167 @@
+#!/bin/sh
+#
+# Start fwupf....
+#
+
+ubifs=`df | grep "ubi0:rootfs " | wc -l`
+firmware_updated=0
+
+primax_fwupg()
+{
+    if [ $ubifs -eq 1 ]; then
+	  for volume_path in /media/sd*; do
+	    echo "Searching $volume_path"
+	    if [ -d "$volume_path/update"  ]; then
+	      echo "Found update folder in $volume_path"
+	      if [ -f "$volume_path/update/UpdateDone" ]; then
+	        echo "Already Updated"
+	        return
+	      fi
+	      update_images=`find $volume_path/update -name "My_Cloud_Mobile*"`
+	      for update_image in $update_images; do
+	      	echo "Update from $update_image"
+	      	kexec -l $update_image --atags
+	      	echo "" > $volume_path/update/UpdateDone
+	      	kexec -e
+	      done
+	    fi
+	  done
+	fi
+    /bin/mcu_daemon &
+    sleep 2
+    echo "10;0" >/tmp/MCU_Cmd &
+    echo "1;0" >/tmp/MCU_Cmd &
+    #sleep 2
+    #killall mcu_daemon
+	if [ -f "/media/sda1/update/MyPassportWireless-recover.bin" ]; then
+		size=`ls -la "/media/sda1/update/MyPassportWireless-recover.bin" | awk '{print $5}'`
+#		mtd_debug read /dev/mtd9 0 $size /tmp/test.bin
+        nanddump /dev/mtd9 -l $size -f /tmp/temp.bin
+        head -c $size /tmp/temp.bin > /tmp/test.bin
+		md5_org=`md5sum /tmp/test.bin | awk '{print $1}'`
+		md5_new=`md5sum /media/sda1/update/MyPassportWireless-recover.bin | awk '{print $1}'`
+		if [ "${md5_org}" == "${md5_new}" ]; then
+			mv /media/sda1/update/MyPassportWireless-recover.bin /media/sda1/update/MyPassportWireless-recover-noupdate.bin
+			echo "No update for recovery image"
+		else
+			echo "Update for recovry image"
+		fi
+        rm -f /tmp/temp.bin
+        rm -f /tmp/test.bin
+	fi
+	ubiattach /dev/ubi_ctrl -m 7
+	mount -t ubifs ubi0_0 /media/
+	cp /media/etc/saveconfigfiles.tar /tmp/
+	cp /media/etc/device_security.conf /etc/device_security.conf
+	cp /media/FWupgfrom* /
+	umount /media/
+	ubidetach /dev/ubi_ctrl -m 7
+	if [ -f "/media/sda1/update/rootfs.ubi" ]; then
+		ubiformat /dev/mtd7 -f /media/sda1/update/rootfs.ubi -s 2048 -O 2048 -y
+		sync
+		ubiattach /dev/ubi_ctrl -m 7
+		mount -t ubifs ubi0_0 /media/
+		tar xvf /tmp/saveconfigfiles.tar -C /media/
+		echo success > /media/fwupg
+		cp /FWupgfrom* /media/
+		date +%s > /media/etc/version.update
+		sync
+		umount /media/
+		ubidetach /dev/ubi_ctrl -m 7
+		firmware_updated=1
+		sync
+		sleep 5
+	fi
+	if [ -f "/media/sda1/update/MyPassportWireless-recover.bin" ]; then
+        killall mcu_daemon
+        sleep 1
+        flash_erase /dev/mtd9 0 0
+		sleep 1
+		nandwrite -p /dev/mtd9 /media/sda1/update/MyPassportWireless-recover.bin
+		firmware_updated=1
+		sync
+		sleep 1
+        /bin/mcu_daemon & 
+        sleep 2
+    fi
+    MCU_version_org=`cat /tmp/MCU_Version | cut -c 2-`
+    MCU_version_new=`cat /media/sda1/update/WD_AVATAR.version | cut -c 2-`
+    if [ "${MCU_version_org}" == "${MCU_version_new}" ]; then
+        echo "28;0;" > /tmp/MCU_Cmd
+        sleep 5
+        echo "28;0;" > /tmp/MCU_Cmd
+        sleep 5
+        if [ $firmware_updated -eq 1 ]; then
+            reboot
+        fi
+        exit 0
+    fi
+    if [ -f "/media/sda1/update/WD_AVATAR.bin" ]; then
+	time /sbin/fwupgled.sh &
+	newMCU=`cat /tmp/MCU_Version | grep "2\." | wc -l`
+	echo 40 > /sys/class/gpio/export
+	echo 41 > /sys/class/gpio/export
+	echo 89 > /sys/class/gpio/export
+	HWID0=`cat /sys/class/gpio/gpio40/value`
+	HWID1=`cat /sys/class/gpio/gpio41/value`
+	HWID2=`cat /sys/class/gpio/gpio89/value`
+	HWVER=0
+	if [ "$HWID0" == 1 ] && [ "$HWID1" == 1 ]; then
+		HWVER=1
+	fi
+	if [ "$HWID0" == 1 ] && [ "$HWID1" == 0 ]; then
+		HWVER=2
+	fi
+	if [ "$HWID0" == 0 ] && [ "$HWID1" == 1 ] && [ "$HWID2" == 1 ]; then
+		HWVER=3
+	fi
+	killall mcu_daemon
+	sleep 1
+       if [ "$newMCU" == 0 ] && [ "$HWVER" == 0 ]; then
+		/sbin/stm32isp /media/sda1/update/WD_AVATAR.bin
+	fi
+	if [ "$newMCU" == 1 ] || [ "$HWVER" == 1 ]; then
+		/sbin/stm32isp /media/sda1/update/WD_AVATARD2.bin
+	fi
+	if [ "$newMCU" == 0 ] && [ "$HWVER" == 2 ]; then
+		/sbin/stm32isp /media/sda1/update/WD_AVATARD3.bin
+	fi
+    if [ "$newMCU" == 0 ] && [ "$HWVER" == 3 ]; then
+        /sbin/stm32isp /media/sda1/update/WD_AVATARD4.bin
+    fi
+
+	firmware_updated=1
+	sleep 1
+	/bin/mcu_daemon &
+	sleep 2
+	if [ -f /etc/device_security.conf ]; then
+		source /etc/device_security.conf
+		if [ "${device_security}" == "true" ]; then
+			echo "29;0" > /tmp/MCU_Cmd 2>/dev/null
+		fi
+	fi
+	echo "28;0;" > /tmp/MCU_Cmd
+	sleep 5
+        echo "28;0;" > /tmp/MCU_Cmd
+        sleep 5
+	fi
+	if [ $firmware_updated -eq 1 ]; then
+		reboot
+	fi
+}
+
+case "$1" in
+  start)
+	echo "Starting fwupg..."
+	primax_fwupg
+	;;
+  stop)
+	;;
+  restart|reload)
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?

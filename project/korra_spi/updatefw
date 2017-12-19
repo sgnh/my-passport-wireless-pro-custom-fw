@@ -1,0 +1,1014 @@
+#!/bin/sh
+# This script is used for updating firmware in WiFi NAS
+
+PATH=/sbin:/usr/sbin:/bin:/usr/bin
+
+DevNode=none
+
+#Board version
+BDVER=none
+#MCU version
+MCUVER=none
+#ASM version
+ASMVER=none
+#Bootcode version
+BOOTCODEVER=none
+#New FW version
+NFWVER=none
+#User space
+UserV=none
+#Backup volume
+HiddenV1=none
+#kernel image volume
+HiddenV2=none
+#rootfs volume
+HiddenV3=none
+#Current rootfs part
+CurFP=0
+NxtFP=0
+hasCacheVolume=0
+supportKexec=0
+NormalLinuxOFF=0
+NormalDTBOFF=0
+BlueAudioOFF=0
+RescueLinuxOFF=0
+RescueDTBOFF=0
+#RecoveryFWversion
+RecoveryFWversion=none
+
+updatelog="/tmp/pmxupd.log"
+
+# post entries to updatelog
+
+uplog()
+{
+    logtext=${@}
+    logtag="`basename $0`:`date -u +"%D %T"`:"
+    echo "${logtag}${logtext}" 2>&1 | tee -a ${updatelog}
+}
+
+exit_update()
+{
+    echo "$1"
+    echo "$1" > /tmp/fw_update_status
+    echo "11;0;" > /tmp/MCU_Cmd
+    exit
+}
+
+update_Done()
+{
+    echo "$1"
+    echo "$1" > /tmp/fw_update_status
+    echo "11;0;" > /tmp/MCU_Cmd
+}
+
+round_up()
+{
+    RoundSize=0
+    remain=`expr $1 % $2`
+    if [ ${remain} -eq 0 ]; then
+        RoundSize=$1
+    else
+        addup=`expr $2 - $remain`
+	total=`expr $1 + $addup`
+	RoundSize=${total}
+    fi
+}
+
+cleanup_twonky_settings()
+{
+    uplog "Cleanup Twonky Settings"
+    if [ -f /CacheVolume/.twonkymedia/twonkyserver.ini ]; then
+        rm -f /CacheVolume/.twonkymedia/twonkyserver.ini
+    fi
+    if [ -f /CacheVolume/.twonkymedia/twonky-locations-70.db ]; then
+        rm -f /CacheVolume/.twonkymedia/twonky-locations-70.db
+    fi
+    if [ -d /CacheVolume/.twonkymedia/db ]; then
+        rm -Rf /CacheVolume/.twonkymedia/db/*
+    fi
+    if [ -d /CacheVolume/Upload ]; then
+        rm -Rf /CacheVolume/Upload/*
+    fi
+    if [ -d /CacheVolume/.twonkymedia/db ]; then
+        uplog "Cleanup Twonky Settings failed!!!"
+    else
+        uplog "Cleanup Twonky Settings sucessful"
+    fi
+}
+
+
+probe_hdd()
+{
+    vol=0
+    HDD_MODEL="My Passport 25AF"
+    for diskV in /sys/block/sd*; do
+        vendor=`cat ${diskV}/device/vendor | awk '{print $1}'`
+        model=`cat ${diskV}/device/model`
+        [ "${model}" == "My Passport 25AF" ] && HDD_MODEL="My Passport 25AF" && echo "This is Korra HDD"
+        if [ "${vendor}" == "WD" ] && [ "${model}" == "${HDD_MODEL}" ]; then
+            size=`cat ${diskV}/size`
+            if [ ${size} -gt 4194304 ]; then
+                UserV=`echo ${diskV} | cut -d "/" -f 4`
+                uplog "${diskV} is user space"
+                #echo "/dev/${UserV}" > /tmp/HDDDevNode
+            else
+                vol=`expr $vol + 1`
+                [ ${vol} -eq 1 ] && HiddenV1=`echo ${diskV} | cut -d "/" -f 4` && uplog "${diskV} is 1st hidden"
+                [ ${vol} -eq 2 ] && HiddenV2=`echo ${diskV} | cut -d "/" -f 4` && uplog "${diskV} is 2nd hidden"
+                [ ${vol} -eq 3 ] && HiddenV3=`echo ${diskV} | cut -d "/" -f 4` && uplog "${diskV} is 3th hidden"
+            fi
+        fi
+    done
+}
+
+probe_boardver()
+{	
+    #check Board version
+    #gpio50 gpio45 gpio44
+    echo "50" > /sys/class/gpio/export
+    echo "45" > /sys/class/gpio/export
+    echo "44" > /sys/class/gpio/export
+    gpio50=`cat /sys/class/gpio/gpio50/value`
+    gpio45=`cat /sys/class/gpio/gpio45/value`
+    gpio44=`cat /sys/class/gpio/gpio44/value`
+	
+    if [ ${gpio50} == '0' ] && [ ${gpio45} == '0' ] && [ ${gpio44} == '0' ]; then
+        BDVER="Korra_SA"
+    fi
+    if [ ${gpio50} == '0' ] && [ ${gpio45} == '0' ] && [ ${gpio44} == '1' ]; then
+        BDVER="Korra_SB"
+    fi
+    if [ ${gpio50} == '0' ] && [ ${gpio45} == '1' ] && [ ${gpio44} == '0' ]; then
+        BDVER="Korra_D1"
+    fi
+    if [ ${gpio50} == '0' ] && [ ${gpio45} == '1' ] && [ ${gpio44} == '1' ]; then
+        BDVER="Korra_D2"
+    fi
+    if [ ${gpio50} == '1' ] && [ ${gpio45} == '0' ] && [ ${gpio44} == '0' ]; then
+        BDVER="Korra_D3"
+    fi
+    if [ ${gpio50} == '1' ] && [ ${gpio45} == '0' ] && [ ${gpio44} == '1' ]; then
+        BDVER="Korra_D4"
+    fi
+    if [ ${gpio50} == '1' ] && [ ${gpio45} == '1' ] && [ ${gpio44} == '0' ]; then
+        BDVER="Korra_D5"
+    fi
+    uplog "Board version is ${BDVER}"
+
+}
+
+probe_drivelock()
+{
+    device_security=`/usr/local/sbin/device_security_get_config.sh`
+    if [ "${device_security}" == "true" ]; then
+        echo "63" > /sys/class/gpio/export
+        echo out > /sys/class/gpio/gpio63/direction
+        echo 1 > /sys/class/gpio/gpio63/value
+    else
+        echo "63" > /sys/class/gpio/export
+        echo out > /sys/class/gpio/gpio63/direction
+        echo 0 > /sys/class/gpio/gpio63/value       
+    fi
+}
+
+probe_cmdline()
+{
+    isSDD1=`cat /proc/cmdline | grep sdd1 | wc -l`
+    if [ ${isSDD1} -eq 1 ]; then
+        CurFP=1
+        NxtFP=2
+    fi
+    isSDD2=`cat /proc/cmdline | grep sdd2 | wc -l`
+    if [ ${isSDD2} -eq 1 ]; then
+        CurFP=2
+        NxtFP=1
+    fi
+    if [ ${CurFP} -eq 0 ] || [ ${NxtFP} -eq 0 ]; then
+        exit_update "failed 200 \"current firmware block is not found\""
+    fi
+}
+
+probe_mcuver()
+{
+    if [ ! -f /tmp/MCU_Version ]; then
+        echo "1;0;" > /tmp/MCU_Cmd
+        sleep 5
+    fi
+    if [ ! -f /tmp/MCU_Version ]; then
+        echo "1;0;" > /tmp/MCU_Cmd
+        sleep 5
+    fi
+    if [ -f /tmp/MCU_Version ]; then
+        MCUVER=`cat /tmp/MCU_Version | cut -c 0-4`
+    fi
+    uplog "Current MCU FW: -$MCUVER-"
+}
+
+probe_asmver()
+{
+    ASMVER=`asmupdate -v /dev/${HiddenV1} | cut -c 23-26`
+    uplog "Current ASMedia FW: =$ASMVER="
+}
+
+probe_bootcodever()
+{
+    bootcodeverfind=`cat /proc/cmdline | grep "ubv=[K|L]\w\w_\w\w" | wc -l`
+    if [ ${bootcodeverfind} -eq 1 ]; then
+        BOOTCODEVER=`cat /proc/cmdline | sed 's/.*ubv=//g' | cut -c 0-6`
+    fi
+    uplog "Current BootCode FW: *$BOOTCODEVER*"
+}
+
+check_fw()
+{
+    if [ -f $1/fw.md5 ]; then
+        cd $1
+        md5sum -c fw.md5
+        isFAIL=`md5sum -c fw.md5 | grep FAILED | wc -l`
+        if [ ${isFAIL} -eq 0 ]; then
+            uplog "FW MD5 check passed"
+        else
+            uplog "FW MD5 check failed"
+            exit_update "failed 200 \"invalid firmware package\""
+        fi
+    else
+        uplog "Missing FW MD5 file"
+        exit_update "failed 200 \"invalid firmware package\""
+    fi
+}
+
+save_curcfg()
+{
+    if [ -f /etc/saveconfigfiles.txt ]; then
+        uplog "Saving current config"
+        autofw=`cat /etc/saveconfigfiles.txt | grep "auto_update.conf"`
+        if [ "${autofw}" == "" ]; then
+            echo "/etc/auto_update.conf" >> /etc/saveconfigfiles.txt
+        fi
+        cat /etc/saveconfigfiles.txt | xargs tar cvf /tmp/saveconfigfiles.tar
+    fi
+}
+
+restore_curcfg()
+{
+    if [ -f /etc/saveconfigfiles.tar ]; then
+        uplog "Restoring current config"
+        tar xvf /etc/saveconfigfiles.tar -C /mnt/
+        rm -f /mnt/etc/wd-alert/wd-alert-desc.db
+    fi
+}
+
+save_curpackages()
+{
+    if [ ! -f "/tmp/RecoverMode" ]; then
+        packages=`ls /etc/installed_packages/`
+        for package in ${packages}; do
+            isInstalled=`/usr/local/sbin/getPackagesStatus.sh ${package}`
+            if [ "${isInstalled}" == "installed" ]; then
+                tar cvf /CacheVolume/${package}-installed.tar /usr/local/${package}
+	        fi
+        done
+    fi
+}
+
+restore_curpackages()
+{
+    if [ ! -f "/tmp/RecoverMode" ]; then
+        packages=`ls /etc/installed_packages/`
+        for package in ${packages}; do
+            isInstalled=`/usr/local/sbin/getPackagesStatus.sh ${package}`
+            if [ "${isInstalled}" == "installed" ]; then
+                tar xvf /CacheVolume/${package}-installed.tar -C /mnt/
+                if [ -f /usr/local/sbin/packages/${package}-postinstall.sh ]; then
+                    /usr/local/sbin/packages/${package}-postinstall.sh
+                fi
+	        fi
+        done
+    fi
+}
+
+copyMCUfw()
+{
+    #check mcu fw 
+    for mfw in $1/MCU*; do
+        mfind=`echo ${mfw} | grep ${BDVER} | wc -l`
+        vfind=`echo ${mfw} | grep ${MCUVER} | wc -l`
+        uplog "${mfw} ${mfind} ${vfind}..."
+        if [ ${mfind} -eq 1 ] && [ ${vfind} -eq 0 ]; then
+            uplog "Copying ${mfw} to /tmp/mcufw.bin"
+            cp -a ${mfw} /tmp/mcufw.bin
+            break
+        fi
+    done
+}
+
+copyASMfw()
+{
+    #check mcu fw 
+    for afw in $1/Release-CFU*; do
+        uplog "${afw} ${ASMVER}..."
+        afind=`echo ${afw} | grep ${ASMVER} | wc -l`
+        if [ ${afind} -eq 0 ]; then
+            uplog "Copying ${afind} to /tmp/asmfw.bin"
+            cp -a ${afw} /tmp/asmfw.bin
+            break
+        fi
+    done
+}
+
+copyBootcodefw()
+{
+    BCFILE="bootcode.img"
+    if [ ! $1/${BCFILE} ]; then
+        uplog "Can not find correct uboot in FW package"
+    else
+        #check bootcode fw
+        if [ "${BOOTCODEVER}" == "none" ]; then
+            uplog "Bootcode version doesn't exist"
+        else
+            tar -xf $1/${BCFILE} bcver -C /tmp/
+            bfind=`cat /tmp/bcver | grep ${BOOTCODEVER} | wc -l`
+            if [ ${bfind} -eq 0 ]; then
+                uplog "Copying ${BCFILE} to /tmp/bootcode.img"
+                cp -a bootcodefw/${BCFILE} /tmp/bootcode.img
+            fi
+        fi
+    fi
+}
+
+copyRescuetotalfw()
+{
+    cp $1 /mnt/rescuetotalfw.bin
+    sync
+    if [ $hasCacheVolume -eq 1 ]; then
+        uplog "Copying $1 to /CacheVolume/rescuetotalfw.bin"
+        cp $1 /CacheVolume/rescuetotalfw.bin
+        sync
+    fi
+}
+
+verifyRescuetotalfw()
+{
+    IMAGEMD5SUM=`md5sum $1 | cut -c 1-32`
+    NEWIMAGEMD5SUM=`md5sum /mnt/rescuetotalfw.bin | cut -c 1-32`
+    if [ "$IMAGEMD5SUM" != "$NEWIMAGEMD5SUM" ]; then
+        uplog "verifyRescuetotalfw: Verify rescuetotalfw.bin failed [$IMAGEMD5SUM:$NEWIMAGEMD5SUM]"
+        exit_update "failed 200 \"invalid firmware package\""
+    fi
+    if [ $hasCacheVolume -eq 1 ]; then
+        NEWIMAGEBACKUPMD5SUM=`md5sum /CacheVolume/rescuetotalfw.bin | cut -c 1-32`
+        if [ "$IMAGEMD5SUM" != "$NEWIMAGEBACKUPMD5SUM" ]; then
+            uplog "verifyRescuetotalfw: Verify rescuetotalfw.bin(Backup) failed [$IMAGEMD5SUM:$NEWIMAGEBACKUPMD5SUM]"
+            exit_update "failed 200 \"invalid firmware package\""
+        fi
+    fi
+}
+
+copy_verifyRescuetoNormal()
+{
+    cp $FWPATH/rescue.knl /mnt/normal.knl
+    cp $FWPATH/rescue.dtb /mnt/normal.dtb
+    cp $FWPATH/bluecore.audio /mnt/bluecore.audio
+    sync
+    RESCUEMD5SUM=`md5sum $FWPATH/rescue.knl | cut -c 1-32`
+    NEWRESCUEMD5SUM=`md5sum /mnt/normal.knl | cut -c 1-32`
+    DTBMD5SUM=`md5sum $FWPATH/rescue.dtb | cut -c 1-32`
+    NEWDTBMD5SUM=`md5sum /mnt/normal.dtb | cut -c 1-32`
+    BLUECOREMD5SUM=`md5sum $FWPATH/bluecore.audio | cut -c 1-32`
+    NEWBLUECOREMD5SUM=`md5sum /mnt/bluecore.audio | cut -c 1-32`
+    if [ "$RESCUEMD5SUM" != "$NEWRESCUEMD5SUM" ]; then
+        uplog "copy_verifyRescuetoNormal: Verify rescue.knl failed [$RESCUEMD5SUM:$NEWRESCUEMD5SUM]"
+        exit_update "failed 200 \"invalid firmware package\""
+    fi
+    if [ "$DTBMD5SUM" != "$NEWDTBMD5SUM" ]; then
+        uplog "copy_verifyRescuetoNormal: Verify rescue.dtb failed [$DTBMD5SUM:$NEWDTBMD5SUM]"
+        exit_update "failed 200 \"invalid firmware package\""
+    fi
+    if [ "$BLUECOREMD5SUM" != "$NEWBLUECOREMD5SUM" ]; then
+        uplog "copy_verifyRescuetoNormal: Verify bluecore.audio failed [$BLUECOREMD5SUM:$NEWBLUECOREMD5SUM]"
+        exit_update "failed 200 \"invalid firmware package\""
+    fi
+}
+
+cleanup_Normal_flash64MbitSPIROM()
+{
+    is64MbitSPIROM=`cat /proc/mtd | grep "00800000" | wc -l`
+    if [ $is64MbitSPIROM -eq 1 ]; then
+        uplog "Clean up Normal Kernel and DTB in SPIROM"
+        flash_erase /dev/mtd0 1032192 4
+	update_progress 75
+	flash_erase /dev/mtd0 1048576 256
+	update_progress 80
+	flash_erase /dev/mtd0 2097152 256
+	update_progress 85
+	flash_erase /dev/mtd0 3145728 256
+    fi
+}
+
+
+erase_Normal_Kernel_DTB_flash64MbitSPIROM()
+{
+    is64MbitSPIROM=`cat /proc/mtd | grep "00800000" | wc -l`
+    if [ $is64MbitSPIROM -eq 1 ]; then
+        uplog "Erase Normal Kernel and DTB in SPIROM"
+        flash_erase /dev/mtd0 1032192 4
+	update_progress 35
+	flash_erase /dev/mtd0 1048576 256
+	update_progress 40
+	flash_erase /dev/mtd0 2097152 256
+	update_progress 45
+	flash_erase /dev/mtd0 3145728 256
+    fi
+}
+
+copy_Normal_Kernel_flash64MbitSPIROM()
+{
+    is64MbitSPIROM=`cat /proc/mtd | grep "00800000" | wc -l`
+    if [ $is64MbitSPIROM -eq 1 ]; then
+        uplog "Update Normal Kernel in SPIROM"
+        dd if=$FWPATH/normal.knl of=/dev/mtd0 bs=1048576 seek=1
+        NormalLinuxOFF=1048576
+    fi
+}
+
+copy_Normal_DTB_flash64MbitSPIROM()
+{
+    is64MbitSPIROM=`cat /proc/mtd | grep "00800000" | wc -l`
+    if [ $is64MbitSPIROM -eq 1 ]; then
+        uplog "Update Normal DTB in SPIROM"
+        dd if=$FWPATH/normal.dtb of=/dev/mtd0 bs=16 seek=258048
+        NormalDTBOFF=4128768
+    fi
+}
+
+erase_Rescue_Kernel_DTB_flash64MbitSPIROM()
+{
+    is64MbitSPIROM=`cat /proc/mtd | grep "00800000" | wc -l`
+    if [ $is64MbitSPIROM -eq 1 ]; then
+        uplog "Erase Rescue Kernel and DTB in SPIROM"
+	flash_erase /dev/mtd0 5242880 256
+	update_progress 60
+	flash_erase /dev/mtd0 6291456 256
+	update_progress 65
+	flash_erase /dev/mtd0 7340032 256
+    fi
+}
+
+copy_Rescue_Kernel_flash64MbitSPIROM()
+{
+    is64MbitSPIROM=`cat /proc/mtd | grep "00800000" | wc -l`
+    if [ $is64MbitSPIROM -eq 1 ]; then
+        uplog "Update Rescue Kernel in SPIROM"
+        dd if=$FWPATH/rescue.knl of=/dev/mtd0 bs=1048576 seek=5
+        RescueLinuxOFF=5242880
+    fi
+}
+
+copy_Rescue_DTB_flash64MbitSPIROM()
+{
+    is64MbitSPIROM=`cat /proc/mtd | grep "00800000" | wc -l`
+    if [ $is64MbitSPIROM -eq 1 ]; then
+        uplog "Update Rescue DTB in SPIROM"
+        dd if=$FWPATH/rescue.dtb of=/dev/mtd0 bs=16 seek=520192
+        RescueDTBOFF=8323072
+    fi
+}
+
+erase_BlueCore_Audio_flash64MbitSPIROM()
+{
+    is64MbitSPIROM=`cat /proc/mtd | grep "00800000" | wc -l`
+    if [ $is64MbitSPIROM -eq 1 ]; then
+        uplog "Erase BlueCore Audio in SPIROM"
+	flash_erase /dev/mtd0 4194304 256
+	update_progress 85
+    fi
+}
+
+copy_BlueCore_Audio_flash64MbitSPIROM()
+{
+    is64MbitSPIROM=`cat /proc/mtd | grep "00800000" | wc -l`
+    if [ $is64MbitSPIROM -eq 1 ]; then
+        uplog "Update BlueCore Audio in SPIROM"
+        dd if=$FWPATH/bluecore.audio of=/dev/mtd0 bs=1048576 seek=4
+        BlueAudioOFF=4194304
+    fi
+}
+
+mount_to_mnt()
+{
+    mnt_usage=`mount | grep mnt| wc -l`
+    if [ ${mnt_usage} -ne 0 ] ; then
+        uplog "Unmounting /mnt before mount"
+        sync
+        umount /mnt
+        sleep 1
+    fi
+    uplog "mount $2 with $1"
+    mount -t $1 /dev/$2 /mnt
+}
+
+check_recoveryFW_version()
+{
+	mount_to_mnt ext4 "${HiddenV1}"1
+	if [ ! -f "/etc/FactoryFwVer" ]; then
+		RecoveryFWversion=`ls /mnt/MyPassport* | awk -F\/ '{print $NF}'`
+		uplog "RecoveryFWversion: "$RecoveryFWversion" "
+	else
+		tmpRFWV=`cat /etc/FactoryFwVer`
+		if [ "$tmpRFWV" == "none" ]; then
+			RecoveryFWversion=`ls /mnt/MyPassport* | awk -F\/ '{print $NF}'`
+			uplog "get RecoveryFWversion again: "$RecoveryFWversion" "
+		else
+			uplog "Recovery fw version exist "$tmpRFWV" "
+			RecoveryFWversion="$tmpRFWV"
+		fi
+	fi
+	umount /mnt
+}
+
+restore_knl_part()
+{
+    uplog "restore_knl_part: "$1"1 Detect for Restore orignal FW"
+    mount_to_mnt vfat "$1"1
+    if [ -f /tmp/Backupmnt.tar ]; then
+        tar xvf /tmp/Backupmnt.tar -C /
+        uplog "restore_knl_part: "$1"1 Restored orignal FW"
+    fi
+    sync
+    umount /mnt
+}
+
+backup_knl_part()
+{
+    uplog "backup_knl_part: "$1"1 Backup orignal FW"
+    mount_to_mnt vfat "$1"1
+    tar cvf /tmp/Backupmnt.tar /mnt
+    sync
+    umount /mnt
+}
+
+check_knl_part()
+{
+    if [ "$1" == "none" ]; then
+        uplog "Kernel part: $1 not enough space on device for upgrade"
+        exit_upate "failed 201 \"not enough space on device for upgrade\""
+    fi
+    partNo=`ls -l /dev/"$1"* | wc -l`
+    partSize=`cat /proc/partitions | grep "$1"1 | grep 524288 | wc -l`
+    if [ ${partNo} -eq 3 ] && [ ${partSize} -eq 1 ]; then
+        fsType=`blkid /dev/"$1"1 | grep vfat | wc -l`
+        if [ ${fsType} -eq 1 ] ; then
+            uplog "Try to mount $1"
+        else
+            uplog "Kernel part: $1 need to format"
+            if [ -f /sbin/mkfs.fat ]; then
+                mkfs.fat /dev/"$1"1
+            else
+                mkdosfs /dev/"$1"1
+            fi
+        fi
+    else
+        uplog "Kernel part: $1 different layout, need to repart"
+        backup_knl_part $1
+        devnode=$1
+        major_minor=`cat /proc/partitions | grep "$devnode"1 | awk 'BEGIN { FS = "[ \t]+" } ; { print $2 " " $3}'`
+        dd if=/dev/zero of=/dev/$1 bs=1M
+        sync
+        (echo n;echo p;echo 1;echo;echo +512M;echo n;echo p;echo 2;echo;echo;echo w) | fdisk /dev/$1
+        sync
+        sync
+        sync
+        sleep 3
+        mknod /dev/"$1"1 b $major_minor
+        if [ -f /sbin/mkfs.fat ]; then
+            mkfs.fat /dev/"$1"1
+        else
+            mkdosfs /dev/"$1"1
+        fi
+        restore_knl_part $1
+    fi
+}
+
+check_sys_part()
+{
+    if [ "$1" == "none" ]; then
+        exit_upate "failed 201 \"not enough space on device for upgrade\""
+    fi
+    partNo=`ls -l /dev/"$1"* | wc -l`
+    if [ ${partNo} -eq 3 ]; then
+        fsType=`blkid /dev/"$1"${CurFP} | grep ext4 | wc -l`
+        if [ ${fsType} -eq 1 ] ; then
+            uplog "Try to mount $1"
+        else
+            uplog "SYS part: $1 need to format"
+            echo y | mkfs.ext4 /dev/"$1"${CurFP}
+        fi
+    else
+        devnode=$1
+        major_minor1=`cat /proc/partitions | grep "$devnode"1 | awk 'BEGIN { FS = "[ \t]+" } ; { print $2 " " $3}'`
+        major_minor2=`cat /proc/partitions | grep "$devnode"2 | awk 'BEGIN { FS = "[ \t]+" } ; { print $2 " " $3}'`
+        dd if=/dev/zero of=/dev/$1 bs=1M
+        sync
+        (echo n;echo p;echo 1;echo;echo +1024M;echo n;echo p;echo 2;echo;echo;echo w) | fdisk /dev/$1
+        sync
+        sync
+        sync
+        sleep 3
+        mknod /dev/"$1"1 b $major_minor
+        mknod /dev/"$1"2 b $major_minor
+        echo y | mkfs.ext4 /dev/"$1"1
+        echo y | mkfs.ext4 /dev/"$1"2
+    fi
+
+}
+
+check_bak_part()
+{
+    uplog "check bakup partition"
+}
+
+update_progress()
+{
+    echo "upgrading $1" > /tmp/fw_update_status
+    sleep 1
+    cat /tmp/fw_update_status
+}
+
+probe_batterylevel()
+{
+    if [ ! -f /tmp/battery ]; then
+        echo "12;0;" > /tmp/MCU_Cmd
+        sleep 2
+    fi
+    if [ ! -f /tmp/battery ]; then
+        echo "12;0;" > /tmp/MCU_Cmd
+        sleep 2
+    fi
+    AC=`cat /tmp/battery  | awk '{print $1}'`
+    BatLevel=`cat /tmp/battery  | awk '{print $2}'`
+    if [ ${BatLevel} -lt 50 ]; then
+        if [ ${AC} == "discharging" ]; then
+            uplog "Battery level below 50 percent, stop FW update process"
+            error="failed 206 \"Upgrade failure due to Insufficient Power\""
+            exit_update $error
+        fi
+    fi
+}
+
+if [ "$1" = "" ]; then
+    uplog "No FW, stop FW update process"
+    exit_update "failed 200 \"invalid firmware package\""
+fi
+uplog "Starting FW update process"
+echo "10;0;" > /tmp/MCU_Cmd
+probe_batterylevel
+probe_boardver
+probe_hdd
+probe_cmdline
+probe_mcuver
+probe_asmver
+probe_bootcodever
+check_recoveryFW_version
+
+FWPATH=
+if [ -d /CacheVolume ] ; then
+    #echo "cache volume found"
+    avasz=`df | grep DataVolume | awk '{print $4}'`
+    if [ ${avasz} -gt 200000 ]; then
+        [ -d /CacheVolume/updtmp ] && rm -rf /CacheVolume/updtmp
+        mkdir -p /CacheVolume/updtmp
+        tar xvf $1 -C /CacheVolume/updtmp
+        FWPATH=/CacheVolume/updtmp
+        hasCacheVolume=1
+    else
+        uplog "Cache Size is not enough"
+        tar xvf $1 -C /tmp/ || exit_update "failed 201 \"not enough space on device for upgrade\""
+        FWPATH=/tmp
+    fi
+else
+    tar xvf $1 -C /tmp/
+    FWPATH=/tmp
+fi
+
+check_fw ${FWPATH}
+
+if [ -d ${FWPATH}/mcufw ]; then
+    copyMCUfw ${FWPATH}/mcufw
+fi
+
+if [ -d ${FWPATH}/asmfw ]; then
+    copyASMfw ${FWPATH}/asmfw
+fi
+
+if [ -d ${FWPATH}/bootcodefw ]; then
+    uplog "!!!COPYing bootcodefw"
+    copyBootcodefw ${FWPATH}/bootcodefw
+fi
+
+supportKexec=`cat /proc/kallsyms | grep kernel_kexec | wc -l`
+
+NFWVER=`cat ${FWPATH}/fw.version`
+#FW update start
+if [ ! -f "/tmp/RecoverMode" ] && [ ${supportKexec} -eq 0 ]; then
+    if [ -f "/tmp/asmfw.bin" ] || [ -f "/tmp/mcufw.bin" ] || [ -f "/tmp/bootcode.img" ]; then
+        uplog "ASM,MCU or Bootcode need to update"
+        #if update include mcu or asm, we should switch to rescue mode 
+        if [ -f $FWPATH/rescue.dtb ] && [ -f $FWPATH/rescue.knl ]; then
+            update_progress 10
+            check_knl_part $HiddenV2
+            update_progress 20
+            mount_to_mnt vfat ${HiddenV2}1
+            update_progress 25
+            copyRescuetotalfw $1
+            update_progress 45
+            verifyRescuetotalfw $1
+            update_progress 60
+            copy_verifyRescuetoNormal
+            update_progress 70
+            cleanup_Normal_flash64MbitSPIROM
+            update_progress 90
+            cleanup_twonky_settings            
+            update_progress 100
+            /usr/local/sbin/sendAlert.sh 2004 $NFWVER
+            idx=`echo $1 | grep -o "/" | wc -l`
+            index=`expr $idx + 1`
+            target=`echo $1 | cut -d "/" -f $index`
+            outputFile=`echo $1 | sed "s/${target}/UpdateDone/g"`
+            echo "$outputFile" > $outputFile
+
+            [ ! -f $FWPATH/setDefault ] && save_curcfg
+            cp /tmp/saveconfigfiles.tar /mnt/saveconfigfiles.tar  #nas-loader_a
+            sync
+            uplog "Fw update is going to rescue mode....."
+            cat /tmp/pmxupd.log >> /mnt/pmxupd.log
+            sync
+            sync
+            sync
+            umount /mnt
+            sync
+            reboot
+            exit
+        fi
+    fi
+fi
+update_progress 10
+check_knl_part $HiddenV2
+check_sys_part $HiddenV3
+update_progress 15
+
+echo y | mkfs.ext4 /dev/${HiddenV3}${NxtFP}
+update_progress 20
+mount_to_mnt ext4 ${HiddenV3}${NxtFP}
+
+if [ -f $FWPATH/rootfs.tar.gz ]; then
+    cleanup_twonky_settings
+    save_curpackages
+    update_progress 25
+    tar zxvf $FWPATH/rootfs.tar.gz -C /mnt/ 2>/dev/null 1> $FWPATH/install.log
+    #date +%s > /mnt/etc/version.update
+    restore_curpackages
+    if [ -f "/tmp/RecoverMode" ]; then
+     	touch /mnt/etc/.device_Unconfigured
+     	update_progress 28
+    fi
+    update_progress 30
+else
+    exit_update "failed 200 \"invalid firmware package\""
+fi
+
+restore_curcfg
+
+if [ ! -f "/mnt/etc/FactoryFwVer" ]; then
+    echo "$RecoveryFWversion" > /mnt/etc/FactoryFwVer
+    uplog "put recovery fw into etc FactoryFwVer $RecoveryFWversion"
+else
+	tmpRFWV=`cat /mnt/etc/FactoryFwVer`
+	if [ "$tmpRFWV" == "none" ]; then
+		echo "$RecoveryFWversion" > /mnt/etc/FactoryFwVer
+		uplog "put recovery fw from etc FactoryFwVer again: $tmpRFWV $RecoveryFWversion"
+	fi
+	uplog "check FactoryFwVer: $tmpRFWV $RecoveryFWversion"
+fi
+
+sync
+mount_to_mnt vfat ${HiddenV2}1
+
+if [ -f $FWPATH/normal.knl ] && [ -f $FWPATH/normal.dtb ]; then
+    erase_Normal_Kernel_DTB_flash64MbitSPIROM
+else
+    uplog "normal knl or dtb not found"
+    exit_update "failed 200 \"invalid firmware package\""
+fi
+
+if [ -f $FWPATH/normal.knl ]; then
+    copy_Normal_Kernel_flash64MbitSPIROM
+    cp $FWPATH/normal.knl /mnt/normal.knl
+    update_progress 50
+else
+    uplog "normal knl not found"
+    exit_update "failed 200 \"invalid firmware package\""
+fi
+
+if [ -f $FWPATH/normal.dtb ]; then
+    copy_Normal_DTB_flash64MbitSPIROM
+    cp $FWPATH/normal.dtb /mnt/normal.dtb
+    update_progress 55
+else
+    uplog "normal dtb not found"
+    exit_update "failed 200 \"invalid firmware package\""
+fi
+
+if [ -f $FWPATH/rescue.dtb ] && [ -f $FWPATH/rescue.knl ]; then
+    erase_Rescue_Kernel_DTB_flash64MbitSPIROM
+fi
+
+if [ -f $FWPATH/rescue.dtb ]; then
+    copy_Rescue_DTB_flash64MbitSPIROM
+    cp $FWPATH/rescue.dtb /mnt/rescue.dtb
+    update_progress 70
+else
+    uplog "rescue knl not found"
+fi
+if [ -f $FWPATH/rescue.knl ]; then
+    copy_Rescue_Kernel_flash64MbitSPIROM
+    cp $FWPATH/rescue.knl /mnt/rescue.knl
+    update_progress 80
+else
+    uplog "rescue dtb not found"
+fi
+
+if [ -f $FWPATH/bluecore.audio ]; then
+    erase_BlueCore_Audio_flash64MbitSPIROM
+    copy_BlueCore_Audio_flash64MbitSPIROM
+    cp $FWPATH/bluecore.audio /mnt/bluecore.audio
+    update_progress 90
+else
+    uplog "bluecore audio not found"
+fi
+
+if [ -f $FWPATH/loader.bin ]; then
+    cp $FWPATH/loader.bin /mnt/loader.bin
+    update_progress 95
+else
+    uplog "Loader not found"
+fi
+
+if [ -f $FWPATH/bin/fwdescriptor ]; then
+    is64MbitSPIROM=`cat /proc/mtd | grep "00800000" | wc -l`
+    if [ $is64MbitSPIROM -eq 1 ]; then
+        FWVERSION=`cat $FWPATH/fw.version`
+        NormalLinuxSize=`stat -c %s $FWPATH/normal.knl`
+        round_up ${NormalLinuxSize} 4
+        NormalLinuxSize=${RoundSize}
+        NormalDTBSize=`stat -c %s $FWPATH/normal.dtb`
+        round_up ${NormalDTBSize} 4
+        NormalDTBSize=${RoundSize}
+        BlueAudioSize=`stat -c %s $FWPATH/bluecore.audio`
+        round_up ${BlueAudioSize} 4
+        BlueAudioSize=${RoundSize}
+        RescueLinuxSize=`stat -c %s $FWPATH/rescue.knl`
+        round_up ${RescueLinuxSize} 4
+        RescueLinuxSize=${RoundSize}
+        RescueDTBSize=`stat -c %s $FWPATH/rescue.dtb`
+        round_up ${RescueDTBSize} 4
+        RescueDTBSize=${RoundSize}
+        uplog "fwdescriptor ${FWVERSION} ${NormalLinuxOFF} ${NormalLinuxSize} ${NormalDTBOFF} ${NormalDTBSize} ${BlueAudioOFF} ${BlueAudioSize} ${RescueLinuxOFF} ${RescueLinuxSize} ${RescueDTBOFF} ${RescueDTBSize} ${NxtFP}"
+        $FWPATH/bin/fwdescriptor "${FWVERSION}" ${NormalLinuxOFF} ${NormalLinuxSize} ${NormalDTBOFF} ${NormalDTBSize} ${BlueAudioOFF} ${BlueAudioSize} ${RescueLinuxOFF} ${RescueLinuxSize} ${RescueDTBOFF} ${RescueDTBSize} ${NxtFP}
+        dd if=/tmp/fwdesc.bin of=/dev/mtd0 bs=16 seek=65280
+        update_progress 98
+    fi
+else
+    uplog "----fwdescriptor not found----"
+fi
+
+sleep 1
+isSuccess=`cat $FWPATH/install.log | grep CacheVolume | wc -l`
+
+if [ $isSuccess -eq 1 ]; then
+    UserDisk=`cat /tmp/HDDDevNode`
+    BackupTotal="/tmp/hddmounts/$UserDisk/.wdcache/rescuetotalfw.bin"
+    echo $BackupTotal
+    if [ -f "/tmp/RecoverMode" ] && [ "$1" == "/mnt/rescuetotalfw.bin" ]; then
+        cp /mnt/rescuetotalfw.bin /tmp/hddmounts/$UserDisk/.wdcache/MyPassportWirelessGen2.bin
+        sync
+        rm -f /mnt/rescuetotalfw.bin
+        rm -f $BackupTotal
+    fi
+    if [ -f "/tmp/RecoverMode" ] && [ "$1" == "$BackupTotal" ]; then
+        cp $BackupTotal /tmp/hddmounts/$UserDisk/.wdcache/MyPassportWirelessGen2.bin
+        sync
+        rm -f $BackupTotal
+    fi
+    update_progress 100
+    rm -f /mnt/$CurFP
+    echo "$NxtFP" > /mnt/$NxtFP
+    touch /mnt/$NxtFP
+    echo 1 > /mnt/$NxtFP
+    sleep 1
+    uplog "Fw update done, rbooting....."
+    cp -f $FWPATH/install.log /mnt/install.log 
+    cat /tmp/pmxupd.log >> /mnt/pmxupd.log
+    sync
+    umount /mnt
+	
+    #remove FW source
+
+    idx=`echo $1 | grep -o "/" | wc -l`
+    index=`expr $idx + 1`
+    target=`echo $1 | cut -d "/" -f $index`
+    outputFile=`echo $1 | sed "s/${target}/UpdateDone/g"`
+    echo "$outputFile" > $outputFile
+	
+    if [ ! -f "/tmp/RecoverMode" ]; then
+        /usr/local/sbin/sendAlert.sh 2004 $NFWVER
+        date +%s > /CacheVolume/version.update
+        save_curcfg
+        cp /tmp/saveconfigfiles.tar /etc/saveconfigfiles.tar
+        mount_to_mnt ext4 ${HiddenV3}${NxtFP}
+        restore_curcfg
+        cp $1 /CacheVolume/MyPassportWirelessGen2.bin
+        sync
+        umount /mnt
+        ASMediaPIDupdate=`lsusb  | grep "1058:25af" | wc -l`
+        if [ ${ASMediaPIDupdate} -eq 0 ]; then
+            asmupdate -p /dev/sda -k
+        fi
+        /usr/local/sbin/sendHWCollect.sh 102 UpdateFW Completed $NFWVER
+    fi
+    
+    if [ ! -f "/tmp/RecoverMode" ] && [ ${supportKexec} -eq 1 ]; then
+        if [ -f "/tmp/bootcode.img" ]; then
+            echo "update Bootcode firmware"
+            tar -xf /tmp/bootcode.img bootcode1.bin bootcode2.bin -C /tmp
+            #flash_erase /dev/mtd0 49152 116
+            #dd if=/tmp/bootcode1.bin of=/dev/mtd0 bs=16 seek=3072
+            flash_erase /dev/mtd0 524288 96
+            dd if=/tmp/bootcode2.bin of=/dev/mtd0 bs=16 seek=32768
+            flash_erase /dev/mtd0 984064 1
+        fi
+        if [ -f "/tmp/asmfw.bin" ] || [ -f "/tmp/mcufw.bin" ]; then
+            probe_drivelock
+            cp $FWPATH/fwupg.knl /tmp/fwupg.knl
+            cp $FWPATH/fwupg.dtb /tmp/fwupg.dtb
+            /usr/local/sbin/killService.sh hdd
+            killall mcu_daemon
+            echo 0 >  /sys/devices/system/cpu/cpu1/online
+            ifconfig wlan0 down
+            ifconfig wlan1 down
+            ifconfig wlan2 down
+            rmmod ohci_hcd ehci_rtk ehci_platform 8189es 8811au avplg ufsd
+            rmmod ehci_hcd rtksd_mod pmxcache jnl
+            kexec --debug --mem-min=0x100000 --dtb=/tmp/fwupg.dtb -l /tmp/fwupg.knl --command-line="console=ttyS0,115200 earlyprintk debug loglevel=7 root=/dev/ram rw"
+            kexec -d -e
+        fi
+    fi
+    
+    if [ -f "/tmp/RecoverMode" ]; then
+        #Start Bootcode firmware update
+        /usr/local/sbin/sendHWCollect.sh 102 UpdateFW Completed $NFWVER
+        if [ -f "/tmp/bootcode.img" ]; then
+            echo "update Bootcode firmware"
+            tar -xf /tmp/bootcode.img bootcode1.bin bootcode2.bin -C /tmp
+            #flash_erase /dev/mtd0 49152 116
+            #dd if=/tmp/bootcode1.bin of=/dev/mtd0 bs=16 seek=3072
+            flash_erase /dev/mtd0 524288 96
+            dd if=/tmp/bootcode2.bin of=/dev/mtd0 bs=16 seek=32768
+            flash_erase /dev/mtd0 984064 1
+        fi
+        #Start ASM firmware update
+        if [ -f "/tmp/asmfw.bin" ]; then
+            hdparm -y /dev/${UserV}
+            echo "update ASMedia fw"
+            asmupdate -u /dev/$HiddenV2 /tmp/asmfw.bin
+        fi
+        #Start MCU Firmware update
+        if [ -f "/tmp/mcufw.bin" ]; then
+            if [ -f "/sbin/fwupgled.sh" ]; then
+                time /sbin/fwupgled.sh &
+            fi
+            sleep 2
+            echo "update MCU fw"
+            killall mcu_daemon
+            stm32isp /tmp/mcufw.bin
+            sleep 3
+            mcu_daemon &
+            sleep 1
+            echo "28;0;" > /tmp/MCU_Cmd
+            sleep 2
+            if [ -f "/sbin/fwupgledoff.sh" ]; then
+                /sbin/fwupgledoff.sh &
+            fi
+        fi
+        sync
+        hdparm -y /dev/${UserV}
+    fi
+    sync
+    sleep 3
+    update_Done "Done"
+    sync
+    reboot
+fi
+
+exit_update "failed 200 \"Firmware update fail\""
+

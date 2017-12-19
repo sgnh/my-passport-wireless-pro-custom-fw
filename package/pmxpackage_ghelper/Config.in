@@ -1,0 +1,5 @@
+config BR2_PACKAGE_PMXPACKAGE_GHELPER
+	bool "pmxpackage(ghelper)"
+	help
+	  The primax package(ghelper) button and gpio for Avatar device
+

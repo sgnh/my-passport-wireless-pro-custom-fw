@@ -1,0 +1,4 @@
+#!/bin/sh
+nohup /sbin/queueHalt.sh&
+exit 0
+

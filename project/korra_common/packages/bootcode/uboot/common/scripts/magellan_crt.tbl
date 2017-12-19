@@ -1,0 +1,192 @@
+rtd_outl(0xb8060050,0x00000001); //ST_BUS = 27 MHz
+ScalerTimer_DelayXms(1);
+rtd_outl(0xb8000200,0x00000001); //SCPU_clk=27 MHz
+ScalerTimer_DelayXms(1);
+rtd_outl(0xb8000204,0x00000001); //Main UART Clock Source Select = 27 MHz
+ScalerTimer_DelayXms(1);
+
+rtd_outl(0xB801a808,0xf);
+
+//rtd_outl(0xb801a674,0x000000ff); 
+//rtd_inl(0xb801a60c);	//0x00000000
+//rtd_outl(0xb801a60c,0xb801a60c); 
+//rtd_outl(0xb801a070,0x00000001); 
+//rtd_outl(0xb801a808,0x00000006); 
+//rtd_outl(0xb801a814,0x00000000); 
+
+
+//-------- PLL ACPU -------------------------------------------------
+//rtd_outl(0xb8000408,0x0024e613);	//720MHz 
+//rtd_outl(0xb8000408,0x0001c613);		//810MHz
+//rtd_outl(0xb800040c,0x00000005);
+//rtd_outl(0xb800040c,0x00000007);
+//ScalerTimer_DelayXms(1);
+rtd_outl(0xb800040c,0x00000003);
+
+//-------- PLL BUS -------------------------------------------------
+rtd_outl(0xb8000420,0x00350b52);	//405MHz  
+//rtd_outl(0xb8000420,0x06191b52);	//27MHz  
+//rtd_outl(0xb8000420,0x00411b52);	//test  
+rtd_outl(0xb8000424,0x0001102b);
+rtd_outl(0xb8000428,0x00000005);
+rtd_outl(0xb8000428,0x00000007);
+ScalerTimer_DelayXms(1);
+rtd_outl(0xb8000428,0x00000003);
+
+//-------- PLL BUSH -------------------------------------------------
+rtd_outl(0xb8000430,0x06d91b52);  //378MHz
+//rtd_outl(0xb8000430,0x00350b52);	//405MHz  
+//rtd_outl(0xb8000430,0x00411b52);	//test  
+
+rtd_outl(0xb8000434,0x0001102b);
+rtd_outl(0xb8000438,0x00000005);
+rtd_outl(0xb8000438,0x00000007);
+ScalerTimer_DelayXms(1);
+rtd_outl(0xb8000438,0x00000003);  // Div2
+
+//-------- PLL BUS2 -------------------------------------------------
+//rtd_outl(0xb8000440,0x04a91352);	//396MHz 
+//rtd_outl(0xb8000444,0x0001102b);
+//rtd_outl(0xb8000448,0x00000005);
+//rtd_outl(0xb8000448,0x00000007);
+//ScalerTimer_DelayXms(1);
+//rtd_outl(0xb8000448,0x00000003); 
+
+//-------- PLL SCPU -------------------------------------------------
+rtd_outl(0xb8000400,0x00a62413);	//900MHz
+rtd_outl(0xb8000400,0x00000005);
+rtd_outl(0xb8000400,0x00000007);
+ScalerTimer_DelayXms(1);
+rtd_outl(0xb8000404,0x00000003); 
+
+//-------- PLL VCPU -------------------------------------------------
+rtd_outl(0xb8000410,0x00009613);	//297MHz 
+rtd_outl(0xb8000414,0x00000005);
+rtd_outl(0xb8000414,0x00000007);
+ScalerTimer_DelayXms(1);
+rtd_outl(0xb8000414,0x00000003); 
+
+//-------- PLL DISP -------------------------------------------------
+rtd_outl(0xb8000490,0x01f0142a);	//297M 
+rtd_outl(0xb8000494,0x0000000d); 
+rtd_outl(0xb8000494,0x0152000f);
+ScalerTimer_DelayXms(1);
+rtd_outl(0xb8000494,0x01520003);
+rtd_outl(0xb8000494,0x01520042); 
+
+//-------- PLL DIF -------------------------------------------------
+rtd_outl(0xb80004c0,0x00e5a000);	//SYS 172.8MHz	ADC 28.8MHz
+rtd_outl(0xb80004c4,0x00000001); 
+rtd_outl(0xb80004c8,0x0000000e); 
+rtd_outl(0xb80004c8,0x00000007); 
+
+//-------- PLL GPU -------------------------------------------------
+rtd_outl(0xb8000450,0x00339693);	//199.125MHz 
+rtd_outl(0xb8000454,0x00000005);
+rtd_outl(0xb8000454,0x00000007);
+ScalerTimer_DelayXms(1);
+rtd_outl(0xb8000454,0x00000003);
+
+//-------- PLL GPU_L2 -------------------------------------------------
+rtd_outl(0xb8000458,0x00339693);	//199.125MHz
+rtd_outl(0xb800045c,0x00000005);
+rtd_outl(0xb800045c,0x00000007);
+ScalerTimer_DelayXms(1); 
+rtd_outl(0xb800045c,0x00000003);
+
+//-------- PLL VODMA -------------------------------------------------
+rtd_outl(0xb8000464,0x00000005);
+rtd_outl(0xb8000464,0x00000007);
+ScalerTimer_DelayXms(1); 
+rtd_outl(0xb8000464,0x00000003); 
+
+//-------- PLL DDS -------------------------------------------------
+rtd_outl(0xb8000478,0x02080005);
+rtd_outl(0xb800047c,0x00000005);
+rtd_outl(0xb800047c,0x00000007);
+ScalerTimer_DelayXms(1); 
+rtd_outl(0xb800047c,0x00000003); 
+
+//-------- PLL 512FS -------------------------------------------------
+rtd_outl(0xb80004b4,0x00000005);
+rtd_outl(0xb80004b4,0x00000007);
+ScalerTimer_DelayXms(1); 
+rtd_outl(0xb80004b4,0x00000003); 
+
+//-------- PLL AUD -------------------------------------------------
+rtd_outl(0xb80004e4,0x0000000c);	//196MHz 
+
+//-------- PLL 27X -------------------------------------------------
+rtd_outl(0xb80004d0,0x02250012);	//540MHz 
+rtd_outl(0xb80004d4,0x00006500); 
+rtd_outl(0xb80004dc,0x00000000); 
+rtd_outl(0xb80004d8,0x00000007); 
+
+
+//-------- PLL VBY1 -------------------------------------------------
+rtd_outl(0xb8000498,0x01f0142a);	//297M 
+rtd_outl(0xb800049c,0x0152000d); 
+rtd_outl(0xb800049c,0x0152000f);
+ScalerTimer_DelayXms(1);
+rtd_outl(0xb800049c,0x01520003);
+rtd_outl(0xb800049c,0x01520042); 
+
+//-------- Module Clock & Reset --------------------------------------
+rtd_outl(0xb8000104,0x02000000); 
+rtd_outl(0xb800010c,0x02000000); 
+rtd_outl(0xb8000114,0x02000000); 
+rtd_outl(0xb800011c,0x02000000); 
+rtd_outl(0xb8000100,0x0000008b); 
+
+//-------- ACPU clock source select to PLLACPU ------------------------
+rtd_outl(0xb8000200,0x00000000); 
+//-------- BUS clock source select to PLLBUS ------------------------
+rtd_outl(0xb8060050,0x00000000); 
+
+
+//-------- DDR clock source select to PLLDDR ------------------------
+rtd_outl(0xb8000500,0x000000fc); 
+rtd_outl(0xb8000504,0xfe013018); 
+rtd_outl(0xb8000508,0x03081810); 
+rtd_outl(0xb800050c,0x23001803); 
+//rtd_outl(0xb8000514,0x01e00000);	//432MHz 
+//rtd_outl(0xb8000514,0x01c00000);	//405MHz 
+//rtd_outl(0xb8000514,0x01800000);	//351MHz 
+//rtd_outl(0xb8000514,0x01600000);	//324MHz 
+//rtd_outl(0xb8000514,0x01400000);	//297MHz 
+rtd_outl(0xb8000514,0x01000000);	//test
+rtd_outl(0xb8000518,0x030d00c0); 
+rtd_outl(0xb8000500,0x000000fe); 
+rtd_outl(0xb8000500,0x000000ff); 
+rtd_outl(0xb8000500,0x00000003); 
+
+
+//-------- Module Clock Enable --------------------------------------
+rtd_outl(0xb8000110,0x00000331); 
+rtd_outl(0xb8000114,0xffffffff); 
+rtd_outl(0xb8000118,0xffffffff); 
+rtd_outl(0xb800011c,0xffffffff); 
+rtd_outl(0xb8000110,0x00000001); 
+rtd_outl(0xb8000114,0x00000000); 
+rtd_outl(0xb8000118,0x00000000); 
+rtd_outl(0xb800011c,0x00000000); 
+rtd_outl(0xb8000100,0xffffffff); 
+rtd_outl(0xb8000104,0xffffffff); 
+rtd_outl(0xb8000108,0xffffffff); 
+rtd_outl(0xb800010c,0xffffffff); 
+rtd_outl(0xb8060044,0xffffffff); 
+rtd_outl(0xb8000114,0xffffffff); 
+rtd_outl(0xb8000118,0xffffffff); 
+rtd_outl(0xb800011c,0xffffffff); 
+//rtd_outl(0xb8000110,0xfffffffd); 
+
+rtd_inl(0xb8060040);	//0x00000000
+rtd_inl(0xb8060030);	//0x000000ff 
+//rtd_outl(0xb8060040,0x00000000); 
+rtd_outl(0xb8060030,0x0000007f); 
+rtd_outl(0xb8060030,0x000000ff); 
+rtd_outl(0xb8060040,0x000001ff);
+
+rtd_outl(0xB8000910,0x0000000b); // ip sel crt = 0xb
+rtd_outl(0xB8000854,0xE0000000); // dbg pin0
+rtd_outl(0xB8000310,0x0003000b); // crt dbg enable

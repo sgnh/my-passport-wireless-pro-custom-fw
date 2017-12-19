@@ -1,0 +1,10 @@
+#!/bin/bash
+
+configFile="/etc/default/factory.conf"
+
+if [ -f $configFile ]; then
+	exit 0
+else
+	cat /etc/saveconfigfiles.txt | xargs tar cvf $configFile
+fi
+

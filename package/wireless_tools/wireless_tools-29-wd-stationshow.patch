@@ -1,0 +1,309 @@
+diff -uNr wireless_tools-29/iwlist.c wireless_tools-29_patch/iwlist.c
+--- wireless_tools-29/iwlist.c	2007-06-30 09:11:09.000000000 +0800
++++ wireless_tools-29_patch/iwlist.c	2015-04-17 08:39:42.477181791 +0800
+@@ -231,6 +231,9 @@
+   printf("\n");
+ }
+ 
++const unsigned char		wpa1_oui[3] = {0x00, 0x50, 0xf2};
++const unsigned char		wpa2_oui[3] = {0x00, 0x0f, 0xac};
++
+ /*------------------------------------------------------------------*/
+ /*
+  * Parse, and display the results of a WPA or WPA2 IE.
+@@ -242,9 +245,10 @@
+ {
+   int			ielen = iebuf[1] + 2;
+   int			offset = 2;	/* Skip the IE id, and the length. */
+-  unsigned char		wpa1_oui[3] = {0x00, 0x50, 0xf2};
+-  unsigned char		wpa2_oui[3] = {0x00, 0x0f, 0xac};
+-  unsigned char *	wpa_oui;
++  //unsigned char		wpa1_oui[3] = {0x00, 0x50, 0xf2};
++  //unsigned char		wpa2_oui[3] = {0x00, 0x0f, 0xac};
++  //unsigned char *	wpa_oui;
++  const unsigned char *	wpa_oui;
+   int			i;
+   uint16_t		ver = 0;
+   uint16_t		cnt = 0;
+@@ -291,6 +295,7 @@
+       break;
+ 
+     default:
++      iw_print_ie_unknown(iebuf, buflen);
+       return;
+     }
+   
+@@ -402,6 +407,196 @@
+  
+ /*------------------------------------------------------------------*/
+ /*
++ * Parse, and display the results of a WPS IE.
++ *
++ */
++static inline void 
++iw_print_ie_wps(unsigned char *	buf,
++		int		buflen)
++{
++  int			ielen = buf[1] + 2;
++  int			offset = 2;	/* Skip the IE id, and the length. */
++  const unsigned char *	wpa_oui;
++  int                   i;
++
++  if(ielen > buflen)
++    ielen = buflen;
++
++#ifdef DEBUG
++  /* Debugging code. In theory useless, because it's debugged ;-) */
++  printf("IE raw value %d [%02X", buflen, buf[0]);
++  for(i = 1; i < buflen; i++)
++    printf(":%02X", buf[i]);
++  printf("]\n");
++#endif
++
++  switch(buf[0])
++    {
++    case 0xdd:		/* WPA1 or WPS */
++      wpa_oui = wpa1_oui;
++ 
++       /* check that the OUI is valid. Note : offset==2 */
++      if((ielen < 6)
++	 || (memcmp(&buf[offset], wpa_oui, 3) != 0)
++	 || (buf[offset + 3] != 0x04))
++ 	{
++	  iw_print_ie_unknown(buf, buflen);
++ 	  return;
++ 	}
++
++      /* Skip the OUI type */
++      offset += 4;
++      break;
++
++    default:
++      iw_print_ie_unknown(buf, buflen);
++      return;
++    }
++  
++  //printf("WPS information element:\n");
++  /* From here, everything is technically optional. */
++  buf += offset;
++  buflen -= offset;
++  for (;;) {
++    /* Look at subelements */
++    int elemid;
++    int elemlen;
++    int elemidx;
++    int value;
++    if (buflen == 0) {
++      break;
++    }
++    if (buflen < 4) {
++      //printf("Warning: %d extra bytes in WPS information element\n", buflen);
++      break;
++    }
++    elemid = (*buf++) << 8;
++    elemid |= *buf++;
++    elemlen = (*buf++) << 8;
++    elemlen |= *buf++;
++    buflen -= 4;
++    if (elemlen > buflen) {
++      //printf("Warning: missing %d bytes in WPS information element\n",
++      //  elemlen-buflen);
++      break;
++    }
++    switch(elemid) {
++      /* These are just some of the possiblities... */
++      case 0x1012 :     /* DevicePasswordId */
++        if (elemlen < 2) {
++          printf("Warning: invalid element length for elemid 0x%x\n", elemid);
++        } else {
++          value = (buf[0]<<8) | buf[1];
++          printf("                        Device Password Id: 0x%x\n", value);
++          switch (value) {
++            case 0x0: printf("                        (PIN)\n"); break;
++            case 0x1: printf("                        (User-spec)\n"); break;
++            case 0x2: printf("                        (Mach-spec)\n"); break;
++            case 0x3: printf("                        (Rekey)\n"); break;
++            case 0x4: printf("                        (Push Button)\n"); break;
++            case 0x5: printf("                        (Reg-spec)\n"); break;
++          }
++        }
++      break;
++      case 0x103c :     /* RFBands */
++        if (elemlen < 1) {
++          printf("Warning: invalid element length for elemid 0x%x\n", elemid);
++        } else {
++          value = buf[0];
++          printf("                        RF Bands: 0x%x\n", value);
++          if ((value & 0x1) != 0) 
++            printf("                        (1 = 2.4GHz)\n"); break;
++          if ((value & 0x2) != 0) 
++            printf("                        (2 = 5.0GHz)\n"); break;
++        }
++      break;
++      case 0x1041 :    /* SelectedRegistar */
++        if (elemlen < 1) {
++          printf("Warning: invalid element length for elemid 0x%x\n", elemid);
++        } else {
++          value = buf[0];
++          printf("                        Selected Registar: 0x%x\n", value);
++        }
++      break;
++      case 0x1044 :     /* WiFiProtectedSetupState */
++        if (elemlen < 1) {
++          printf("Warning: invalid element length for elemid 0x%x\n", elemid);
++        } else {
++          value = buf[0];
++          printf("                        WPS State: 0x%x\n", value);
++          if (value == 1) printf("                        1 = unconfigured\n");
++          if (value == 2) printf("                        2 = configured\n");
++        }
++      break;
++      case 0x1047 :     /* UuidE */
++        printf("                        UuidE: ");
++        for (i = 0; i < elemlen; i++) printf("%02x", buf[i]);
++        printf("\n");
++      break;
++      case 0x104a :     /* Version */
++        if (elemlen < 1) {
++          printf("Warning: invalid element length for elemid 0x%x\n", elemid);
++        } else {
++          value = buf[0];
++          printf("WPS Version: 0x%x\n", value);
++        }
++      break;
++      case 0x1053 :     /* SelectedRegistarConfigMethods */
++        if (elemlen < 2) {
++          printf("Warning: invalid element length for elemid 0x%x\n", elemid);
++        } else {
++          value = (buf[0]<<8) | buf[1];
++          printf("                        Selected Registrar Config Methods: 0x%x\n", value);
++          if ((value & 0x1) != 0) 
++            printf("                        0x01 = USBA/flash-drive\n");
++          if ((value & 0x2) != 0) 
++            printf("                        0x02 = Ethernet\n");
++          if ((value & 0x4) != 0) 
++            printf("                        0x04 = Label\n");
++          if ((value & 0x8) != 0) 
++            printf("                        0x08 = Display\n");
++          if ((value & 0x10) != 0) 
++            printf("                        0x10 = External NFC token\n");
++          if ((value & 0x20) != 0) 
++            printf("                        0x20 = Internal NFC token\n");
++          if ((value & 0x40) != 0) 
++            printf("                        0x40 = NFC interface\n");
++          if ((value & 0x80) != 0) 
++            printf("                        0x80 = Push button\n");
++          if ((value & 0x100) != 0) 
++            printf("                        0x100 = Keypad\n");
++        }
++      break;
++      case 0x1057 :     /* ApSetupLocked */
++        if (elemlen < 1) {
++          printf("Warning: invalid element length for elemid 0x%x\n", elemid);
++        } else {
++          value = buf[0];
++          printf("                        Ap Setup Locked: 0x%x\n", value);
++          if (value == 0)
++            printf("                        0 = Ap Setup NOT locked\n");
++          else
++            printf("                        1 = Ap Setup IS locked\n");
++        }
++      break;
++      default:
++        printf("                        Unknown elemid==0x%x: 0x", elemid);
++        for (elemidx = 0; elemidx < elemlen; elemidx++) {
++          printf(" %02x", buf[elemidx]);
++        }
++        printf("\n");
++      break;
++    }
++    buflen -= elemlen;
++    buf += elemlen;
++  }
++  return;     
++}
++ 
++
++ 
++/*------------------------------------------------------------------*/
++/*
+  * Process a generic IE and display the info in human readable form
+  * for some of the most interesting ones.
+  * For now, we only decode the WPA IEs.
+@@ -415,12 +610,30 @@
+   /* Loop on each IE, each IE is minimum 2 bytes */
+   while(offset <= (buflen - 2))
+     {
++      int ietype = buffer[offset+0];
++      int ielen = buffer[offset+1];
++
+       printf("                    IE: ");
+ 
+       /* Check IE type */
+       switch(buffer[offset])
+ 	{
+ 	case 0xdd:	/* WPA1 (and other) */
++		
++         if (memcmp(buffer+offset+2, wpa1_oui, 3) == 0 && buffer[offset+5] == 0x01) {
++            /* WPA1 */
++           iw_print_ie_wpa(buffer+offset, buflen-offset);
++         }
++         else if (memcmp(buffer+offset+2, wpa1_oui, 3) == 0 && buffer[offset+5] == 0x04) {
++          /* WPS == WiFi Protected Setup */
++          iw_print_ie_wps(buffer+offset, buflen-offset);
++         }
++        
++         else {
++          	iw_print_ie_unknown(buffer+offset, buflen-offset);
++        	}
++         //iw_print_ie_wpa(buffer + offset, buflen);
++          break; 
+ 	case 0x30:	/* WPA2 */
+ 	  iw_print_ie_wpa(buffer + offset, buflen);
+ 	  break;
+@@ -592,8 +805,13 @@
+       break;
+ #endif	/* WE_ESSENTIAL */
+     case IWEVCUSTOM:
++    case IWEVASSOCREQIE:        /* HACK in driver to get around size limit */
+       {
++        #if 0   /* WAS, before hack */
+ 	char custom[IW_CUSTOM_MAX+1];
++        #else
++	char custom[IW_GENERIC_IE_MAX+1];
++        #endif
+ 	if((event->u.data.pointer) && (event->u.data.length))
+ 	  memcpy(custom, event->u.data.pointer, event->u.data.length);
+ 	custom[event->u.data.length] = '\0';
+@@ -786,7 +1004,7 @@
+ 	  if(newbuf == NULL)
+ 	    {
+ 	      if(buffer)
+-		free(buffer);
++			free(buffer);
+ 	      fprintf(stderr, "%s: Allocation failed\n", __FUNCTION__);
+ 	      return(-1);
+ 	    }
+@@ -799,7 +1017,8 @@
+ 	  if(iw_get_ext(skfd, ifname, SIOCGIWSCAN, &wrq) < 0)
+ 	    {
+ 	      /* Check if buffer was too small (WE-17 only) */
+-	      if((errno == E2BIG) && (range.we_version_compiled > 16))
++	      //if((errno == E2BIG) && (range.we_version_compiled > 16))
++	      if((errno == E2BIG) && (range.we_version_compiled > 16) && (buflen < 65535))
+ 		{
+ 		  /* Some driver may return very large scan results, either
+ 		   * because there are many cells, or because they have many
+@@ -814,7 +1033,9 @@
+ 		    buflen = wrq.u.data.length;
+ 		  else
+ 		    buflen *= 2;
+-
++			
++			 if(buflen > 65535)
++			 	buflen = 65535;	
+ 		  /* Try again */
+ 		  goto realloc;
+ 		}
+
+

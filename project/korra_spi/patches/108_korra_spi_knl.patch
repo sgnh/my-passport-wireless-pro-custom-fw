@@ -1,0 +1,4474 @@
+diff -Nur linux-kernel/drivers/mmc/host/rtk_crsd_ops.c linux-custom/drivers/mmc/host/rtk_crsd_ops.c
+--- linux-kernel/drivers/mmc/host/rtk_crsd_ops.c	2015-05-18 15:08:14.000000000 +0800
++++ linux-custom/drivers/mmc/host/rtk_crsd_ops.c	2015-07-14 14:37:53.184829800 +0800
+@@ -1,540 +1,516 @@
+-/*
+- * Realtek MMC/SD/SDIO driver
+- *
+- * Authors:
+- * Copyright (C) 2008-2013 Realtek Ltd.
+- *
+- * This program is free software; you can redistribute it and/or modify
+- * it under the terms of the GNU General Public License version 2 as
+- * published by the Free Software Foundation.
+- */
+-
+-#include <linux/module.h>
+-#include <linux/init.h>
+-#include <linux/io.h>
+-#include <linux/platform_device.h>
+-#include <linux/mbus.h>
+-#include <linux/delay.h>
+-#include <linux/interrupt.h>
+-#include <linux/dma-mapping.h>
+-#include <linux/scatterlist.h>
+-#include <linux/irq.h>
+-#include <linux/gpio.h>
+-#include <linux/mmc/host.h>
+-#include <asm/unaligned.h>
+-
+-#include <linux/sched.h>                //liao
+-#include <linux/wait.h>                 //liao
+-#include <linux/slab.h>                 //liao
+-#include <linux/semaphore.h>           //liao
+-#include <linux/mmc/card.h>             //liao
+-#include <linux/mmc/mmc.h>              //liao
+-#include <linux/mmc/sd.h>               //liao
+-#include <linux/workqueue.h>            //liao
+-#include <linux/completion.h>           //liao
+-#include <rbus/reg_mmc.h>               //liao
+-#include <rbus/reg_iso.h>               //liao
+-#include "rtksd.h"                    //liao
+-#include "rtk_crsd_ops.h"                    //liao
+-#include "../mmc_debug.h"               //liao
+-
+-//static unsigned char g_cmd[6]={0};
+-
+-#ifdef GPIO_DEBUG
+-void trans_db_gpio(void)
+-{
+-    //set debug GPIO
+-    u32 reginfo;
+-    RTKSDPRINTF( "\n");
+-	
+-    //1. 0xB800_0804[31:28] = F    --> pin share as gpio
+-    //2. 0x1801_BC00[4] = 1  --> output mode
+-    //3. 0x1801_BC18[4]   is output data
+-    crsd_writel(crsd_readl(GP0DIR_reg)|0x10,GP0DIR_reg);
+-
+-    reginfo = crsd_readl(GP0DATO_reg);
+-    if(reginfo & 0x10){
+-        mmcrtk("GP HI\n");
+-        crsd_writel(reginfo & ~0x10,GP0DATO_reg);
+-    }else{
+-        mmcrtk("GP LO\n");
+-        crsd_writel(reginfo | 0x10,GP0DATO_reg);
+-    }
+-
+-}
+-
+-void trans_rst_gpio(void)
+-{
+-    //set rst GPIO
+-    u32 reginfo;
+-    RTKSDPRINTF( "\n");
+-	
+-    crsd_writel(crsd_readl(GP0DIR_reg) |  0x00100000, GP0DIR_reg);
+-    reginfo = crsd_readl(GP0DATO_reg);
+-
+-    if(reginfo & 0x00100000){
+-        crsd_writel(reginfo & ~0x00100000, GP0DATO_reg);
+-    }else{
+-        crsd_writel(reginfo |  0x00100000, GP0DATO_reg);
+-    }
+-
+-}
+-#else
+-#define trans_db_gpio()
+-#define trans_rst_gpio()
+-#endif
+-
+-void rtk_crsd_sync(struct rtk_crsd_host *sdport){
+-    crsd_writel(0x0, sdport->base_sysbrdg_io+CR_SYNC);
+-}
+-
+-EXPORT_SYMBOL_GPL(rtk_crsd_sync);
+-
+-DECLARE_COMPLETION(rtk_crsd_wait);
+-void rtk_int_waitfor_test(struct rtk_crsd_host *sdport, u8 cmdcode, unsigned long msec,unsigned long dma_msec)
+-{
+-
+-	rtk_crsd_sync(sdport);
+-
+-    if (sdport->int_waiting){
+-
+-        rtk_crsd_sync(sdport);
+-
+-        crsd_writeb((u8) (cmdcode|START_EN), sdport->base_io+SD_TRANSFER ); //cmd fire
+-        rtk_crsd_sync(sdport);
+-
+-        wait_for_completion(sdport->int_waiting);
+-
+-    }
+-
+-}
+-EXPORT_SYMBOL_GPL(rtk_int_waitfor_test);
+-
+-void rtk_int_enable_and_waitfor_test(struct rtk_crsd_host *sdport, u8 cmdcode, unsigned long msec, unsigned long dma_msec)
+-{
+-    unsigned long timeend=0;
+-
+-    sdport->int_status  = 0;
+-    sdport->sd_trans    = -1;
+-    sdport->sd_status1   = 0;
+-    sdport->sd_status2   = 0;
+-    sdport->bus_status   = 0;
+-    sdport->dma_trans   = 0;
+-
+-
+-    sdport->int_waiting = &rtk_crsd_wait;
+-
+-    /* timeout timer fire */
+-    if (&sdport->timer){
+-        timeend = msecs_to_jiffies(msec)+sdport->tmout;
+-        mod_timer(&sdport->timer, (jiffies + timeend) );
+-    }
+-
+-    rtk_int_waitfor_test(sdport,cmdcode,msec,dma_msec); //wait for
+-    smp_wmb();
+-
+-}
+-EXPORT_SYMBOL_GPL(rtk_int_enable_and_waitfor_test);
+-
+-void rtk_op_complete_test(struct rtk_crsd_host *sdport){
+-
+-	if (sdport->int_waiting) {
+-        struct completion *waiting = sdport->int_waiting;
+-        complete(waiting);
+-        rtk_crsd_sync(sdport);
+-    }else{
+-        printk("int wait not complete\n");
+-    }
+-}
+-EXPORT_SYMBOL_GPL(rtk_op_complete_test);
+-
+-int rtk_crsd_wait_opt_end_test(char* drv_name, struct rtk_crsd_host *sdport,u8 cmdcode,u8 cpu_mode){
+-
+-    volatile int err=CR_TRANS_OK;
+-    volatile unsigned long timeend = 0;
+-    volatile unsigned int sd_trans = 0;
+-
+-    err = CR_TRANSFER_TO;
+-    rtk_crsd_sync(sdport);
+-
+-	//printk("\n%s - info4 :\ncmd0 : 0x%02x,cmd1 : 0x%02x,cmd2 : 0x%02x,cmd3 : 0x%02x,cmd4: 0x%02x\n", drv_name, g_cmd[0], g_cmd[1], g_cmd[2], g_cmd[3], g_cmd[4]);
+-	rtk_int_enable_and_waitfor_test(sdport, cmdcode, 6000, 0);
+-	sd_trans = readb(sdport->base_io + SD_TRANSFER);
+-	//sd_trans = sdport->sd_trans;
+-	rtk_crsd_sync(sdport);
+-
+-	if ((sd_trans & (END_STATE | IDLE_STATE)) == (END_STATE | IDLE_STATE)) {
+-		err = CR_TRANS_OK;
+-	}
+-
+-	if ((sd_trans & (ERR_STATUS)) == (ERR_STATUS)) {
+-		//printk("CR_TRANSFER_FAIL\n");
+-		err = CR_TRANSFER_FAIL;
+-		printk( KERN_ERR "%s - trans error 5 :\ncfg1 : 0x%02x, cfg2 : 0x%02x, cfg3 : 0x%02x, trans : 0x%08x, st1 : 0x%08x, st2 : 0x%08x, bus : 0x%08x\n",
+-				drv_name,
+-				crsd_readb(sdport->base_io + SD_CONFIGURE1),
+-				crsd_readb(sdport->base_io + SD_CONFIGURE2),
+-				crsd_readb(sdport->base_io + SD_CONFIGURE3),
+-				crsd_readb(sdport->base_io + SD_TRANSFER),
+-				crsd_readb(sdport->base_io + SD_STATUS1),
+-				crsd_readb(sdport->base_io + SD_STATUS2),
+-				crsd_readb(sdport->base_io + SD_BUS_STATUS));
+-	}
+-
+-	if (err == CR_TRANSFER_TO){
+-
+-		err = CR_TRANSFER_TO;
+-
+-		if ((sd_trans & (END_STATE | IDLE_STATE)) == (END_STATE | IDLE_STATE)) {
+-			//printk(KERN_ERR "CR_TRANS_OK\n");
+-			err = CR_TRANS_OK;
+-		}else{
+-			printk( KERN_ERR "\n%s - trans error 3 :\ntrans : 0x%08x, st1 : 0x%08x, st2 : 0x%08x, bus : 0x%08x\n",
+-					drv_name,
+-					crsd_readb(sdport->base_io + SD_TRANSFER),
+-					crsd_readb(sdport->base_io + SD_STATUS1),
+-					crsd_readb(sdport->base_io + SD_STATUS2),
+-					crsd_readb(sdport->base_io + SD_BUS_STATUS));
+-			printk(KERN_ERR "CR_TRANSFER_TO : cmd->opcode = %d\n", sdport->mrq->cmd->opcode);
+-
+-		}
+-
+-		return err;
+-	}
+-
+-
+-    RTKSDPRINTF("%s : register settings(base=0x%08x,0x%08x)\n", drv_name, sdport->base_io, sdport->base_io+SD_CMD0);
+-    RTKSDPRINTF(" cmd0:0x%02x cmd1:0x%02x cmd2:0x%02x cmd3:0x%02x cmd4:0x%02x cmd5:0x%02x\n",crsd_readb(sdport->base_io+SD_CMD0),crsd_readb(sdport->base_io+SD_CMD1),crsd_readb(sdport->base_io+SD_CMD2),crsd_readb(sdport->base_io+SD_CMD3),crsd_readb(sdport->base_io+SD_CMD4),crsd_readb(sdport->base_io+SD_CMD5));
+-    RTKSDPRINTF(" trans:0x%02x status1:0x%02x status2:0x%02x bus_status:0x%02x\n",crsd_readb(sdport->base_io+SD_TRANSFER),crsd_readb(sdport->base_io+SD_STATUS1),crsd_readb(sdport->base_io+SD_STATUS2),crsd_readb(sdport->base_io+SD_BUS_STATUS));
+-    RTKSDPRINTF(" configure1:0x%02x configure2:0x%02x configure3:0x%02x\n",crsd_readb(sdport->base_io+SD_CONFIGURE1),crsd_readb(sdport->base_io+SD_CONFIGURE2),crsd_readb(sdport->base_io+SD_CONFIGURE3));
+-    RTKSDPRINTF(" byteH:0x%02x byteL:0x%02x blkH:0x%02x blkL:0x%02x\n",crsd_readb(sdport->base_io+SD_BYTE_CNT_H),crsd_readb(sdport->base_io+SD_BYTE_CNT_L),crsd_readb(sdport->base_io+SD_BLOCK_CNT_H),crsd_readb(sdport->base_io+SD_BLOCK_CNT_L));
+-    RTKSDPRINTF(" dma_ctl1:0x%08x dma_ctl2:0x%08x dma_ctl3:0x%08x\n",crsd_readl(sdport->base_io+CR_DMA_CTL1),crsd_readl(sdport->base_io+CR_DMA_CTL2),crsd_readl(sdport->base_io+CR_DMA_CTL3));
+-
+-    return err;
+-}
+-EXPORT_SYMBOL_GPL(rtk_crsd_wait_opt_end_test);
+-
+-int rtk_crsd_wait_opt_end(char* drv_name, struct rtk_crsd_host *sdport,u8 cmdcode,u8 cpu_mode)
+-{
+-    volatile int err=CR_TRANS_OK;
+-    volatile unsigned long timeend=0;
+-    rtk_crsd_sync(sdport);
+-
+-    RTKSDPRINTF("%s : register settings(base=0x%08x,0x%08x)\n", drv_name, sdport->base_io, sdport->base_io+SD_CMD0);
+-    RTKSDPRINTF(" cmd0:0x%02x cmd1:0x%02x cmd2:0x%02x cmd3:0x%02x cmd4:0x%02x cmd5:0x%02x\n",crsd_readb(sdport->base_io+SD_CMD0),crsd_readb(sdport->base_io+SD_CMD1),crsd_readb(sdport->base_io+SD_CMD2),crsd_readb(sdport->base_io+SD_CMD3),crsd_readb(sdport->base_io+SD_CMD4),crsd_readb(sdport->base_io+SD_CMD5));
+-    RTKSDPRINTF(" trans:0x%02x status1:0x%02x status2:0x%02x bus_status:0x%02x\n",crsd_readb(sdport->base_io+SD_TRANSFER),crsd_readb(sdport->base_io+SD_STATUS1),crsd_readb(sdport->base_io+SD_STATUS2),crsd_readb(sdport->base_io+SD_BUS_STATUS));
+-    RTKSDPRINTF(" configure1:0x%02x configure2:0x%02x configure3:0x%02x\n",crsd_readb(sdport->base_io+SD_CONFIGURE1),crsd_readb(sdport->base_io+SD_CONFIGURE2),crsd_readb(sdport->base_io+SD_CONFIGURE3));
+-    RTKSDPRINTF(" byteH:0x%02x byteL:0x%02x blkH:0x%02x blkL:0x%02x\n",crsd_readb(sdport->base_io+SD_BYTE_CNT_H),crsd_readb(sdport->base_io+SD_BYTE_CNT_L),crsd_readb(sdport->base_io+SD_BLOCK_CNT_H),crsd_readb(sdport->base_io+SD_BLOCK_CNT_L));
+-    RTKSDPRINTF(" dma_ctl1:0x%08x dma_ctl2:0x%08x dma_ctl3:0x%08x\n",crsd_readl(sdport->base_io+CR_DMA_CTL1),crsd_readl(sdport->base_io+CR_DMA_CTL2),crsd_readl(sdport->base_io+CR_DMA_CTL3));
+-    
+-    crsd_writeb((u8) (cmdcode|START_EN), sdport->base_io+SD_TRANSFER );
+-    rtk_crsd_sync(sdport);
+-    //spin_unlock_irqrestore(&sdport->lock, flags);
+-    rtk_crsd_int_enable(sdport,100);
+-    rtk_crsd_sync(sdport);
+-    rtk_crsd_int_waitfor(sdport);
+-    rtk_crsd_sync(sdport);
+-
+-    if (sdport->sd_trans & ERR_STATUS) //transfer error
+-    {
+-    	printk(KERN_ERR "%s trans error 1  trans:0x%08x, st1:0x%08x, st2:0x%08x, bus:0x%08x\n",drv_name,crsd_readb(sdport->base_io+SD_TRANSFER),crsd_readb(sdport->base_io+SD_STATUS1),crsd_readb(sdport->base_io+SD_STATUS2),crsd_readb(sdport->base_io+SD_BUS_STATUS));
+-		//return CR_TRANSFER_FAIL;
+-	}
+-
+-    err = CR_TRANSFER_TO;
+-    timeend = jiffies + msecs_to_jiffies(1000);
+-    while(time_before(jiffies, timeend))
+-    {
+-    	if ((crsd_readb(sdport->base_io+SD_STATUS2) & 0x01) == 1){
+-    		err = CR_TRANSFER_FAIL;
+-    		break;
+-    	}
+-    	if (!(sdport->rtflags & RTKCR_FCARD_DETECTED)){
+-    		err = CR_TRANSFER_FAIL;
+-    		break;
+-    	}
+-	    if ((cpu_mode == 1)&&(((crsd_readb(sdport->base_io+SD_BLOCK_CNT_H)<<8)|crsd_readb(sdport->base_io+SD_BLOCK_CNT_L))>1))
+-        {
+-    	    err = CR_TRANS_OK;
+-    		break;
+-    	}
+-    	if ((crsd_readb(sdport->base_io+SD_TRANSFER) & (END_STATE|IDLE_STATE))==(END_STATE|IDLE_STATE))
+-        {
+-    	    err = CR_TRANS_OK;
+-    		break;
+-    	}
+-    	if ((crsd_readb(sdport->base_io+SD_TRANSFER) & (ERR_STATUS))==(ERR_STATUS))
+-        {
+-    	    //err = CR_TRANSFER_FAIL;
+-    		break;
+-    	}
+-		RTKSDPRINTF_DBG("*");
+-    }
+-	
+-    if (jiffies >=  timeend){
+-    	//printk(KERN_ERR "rtk_crsd_wait_opt_end:\n");
+-    	//printk(KERN_ERR "sdport->mrq->cmd->opcode = %d\n", sdport->mrq->cmd->opcode);
+-
+-		if ((sdport->sd_trans & (END_STATE | IDLE_STATE)) == (END_STATE | IDLE_STATE)) {
+-			//printk(KERN_ERR "CR_TRANS_OK\n");
+-			err = CR_TRANS_OK;
+-		}else{
+-			 printk(KERN_ERR "\n%s - trans error 3 :\n trans : 0x%08x, st1 : 0x%08x, st2 : 0x%08x, bus : 0x%08x\n",
+-							   drv_name,
+-							   crsd_readb(sdport->base_io+SD_TRANSFER),
+-							   crsd_readb(sdport->base_io+SD_STATUS1),
+-							   crsd_readb(sdport->base_io+SD_STATUS2),
+-							   crsd_readb(sdport->base_io+SD_BUS_STATUS));
+-		}
+-
+-        return err;
+-    }
+-
+-    return err;
+-}
+-EXPORT_SYMBOL_GPL(rtk_crsd_wait_opt_end);
+-
+-DECLARE_COMPLETION(rtk_wait);
+-struct completion* rtk_crsd_int_enable(struct rtk_crsd_host *sdport, unsigned long msec)
+-{
+-    unsigned long timeend=0;
+-	
+-    sdport->int_status = 0;
+-    sdport->sd_trans = -1;
+-    sdport->sd_status1 = 0;
+-    sdport->sd_status2 = 0;
+-    sdport->bus_status = 0;
+-
+-   // return NULL;
+-    //#ifndef ENABLE_SD_INT_MODE
+-    sdport->int_waiting = &rtk_crsd_wait;
+-    //smp_wmb();
+-    return NULL;
+-    //#endif
+-    if (sdport->int_waiting)
+-        return NULL;
+-    
+-//  DECLARE_COMPLETION(rtk_wait);
+-    sdport->int_status  = 0;
+-    sdport->sd_trans    = 0;
+-    sdport->sd_status1   = 0;
+-    sdport->sd_status2   = 0;
+-    sdport->bus_status   = 0;
+-    sdport->int_waiting = &rtk_wait;
+-
+-    RTKSDPRINTF( "rtk wait complete addr = %08x\n", (unsigned int) sdport->int_waiting);
+-
+-    /* timeout timer fire */
+-    if (&sdport->timer){
+-    	if(sdport->tmout){
+-            timeend = sdport->tmout;
+-            sdport->tmout = 0;
+-        }else
+-            timeend = msecs_to_jiffies(msec);
+-
+-        RTKSDPRINTF( "TO = 0x%08lx\n", timeend);
+-        mod_timer(&sdport->timer, (jiffies + timeend) );
+-    }
+-
+-    smp_wmb();
+-    return (struct completion *)&rtk_wait;
+-}
+-EXPORT_SYMBOL_GPL(rtk_crsd_int_enable);
+-
+-void rtk_crsd_int_waitfor(struct rtk_crsd_host *sdport)
+-{
+-    #ifndef ENABLE_SD_INT_MODE
+-    unsigned long timeend=0;
+-    u32 sd_trans=0,sd_status1=0,sd_status2=0,bus_status=0;
+-    unsigned long flags;
+-	
+-//  spin_lock_irqsave(&sdport->lock,flags);
+-    timeend = jiffies + msecs_to_jiffies(300);
+-    RTKSDPRINTF("START from polling\n");
+-    while(time_before(jiffies, timeend))
+-    {
+-	    if (!(sdport->rtflags & RTKCR_FCARD_DETECTED))
+-    		break;
+-	
+-		//rtk_crsd_mdelay(1);
+-		//udelay(800);
+-        if ((crsd_readb(sdport->base_io+SD_TRANSFER) & (END_STATE|IDLE_STATE))==(END_STATE|IDLE_STATE))
+-            break;
+-//		RTKSDPRINTF_INFO("~");
+-    }
+-
+-    rtk_crsd_get_sd_trans(sdport->base_io,&sd_trans);
+-    rtk_crsd_get_sd_sta(sdport->base_io,&sd_status1,&sd_status2,&bus_status);
+-
+-	spin_lock_irqsave(&sdport->lock,flags);
+-    sdport->sd_trans    = sd_trans;
+-    sdport->sd_status1   = sd_status1;
+-    sdport->sd_status2   = sd_status2;
+-    sdport->bus_status   = bus_status;
+-  	spin_unlock_irqrestore(&sdport->lock,flags);
+-
+-    RTKSDPRINTF("int sts : 0x%08x sd_trans : 0x%08x, sd_st1 : 0x%08x\n", sdport->int_status, sdport->sd_trans, sdport->sd_status1);
+-    RTKSDPRINTF("int st2 : 0x%08x bus_sts : 0x%08x\n", sdport->sd_status2, sdport->bus_status);
+-//  spin_unlock_irqrestore(&sdport->lock,flags);
+-    return;
+-    #endif
+-
+-    if (sdport->int_waiting)
+-    {
+-        RTKSDPRINTF( "do wait for 1\n");
+-        wait_for_completion(sdport->int_waiting);
+-        RTKSDPRINTF( "do wait for 2\n");
+-    }
+-}
+-EXPORT_SYMBOL_GPL(rtk_crsd_int_waitfor);
+-
+-void rtk_crsd_op_complete(struct rtk_crsd_host *sdport)
+-{
+-    RTKSDPRINTF( "\n");
+-    if (sdport->int_waiting) {
+-        struct completion *waiting = sdport->int_waiting;
+-		RTKSDPRINTF( "rtk wait complete addr = %08x\n", (unsigned int) sdport->int_waiting);
+-		complete(waiting);
+-		sdport->int_waiting = NULL;
+-    }
+-}
+-EXPORT_SYMBOL_GPL(rtk_crsd_op_complete);
+-
+-char *rtk_crsd_parse_token(const char *parsed_string, const char *token)
+-{
+-    const char *ptr = parsed_string;
+-    const char *start, *end, *value_start, *value_end;
+-    char *ret_str;
+-    RTKSDPRINTF( "\n");
+-	
+-    while(1) {
+-        value_start = value_end = 0;
+-        for(;*ptr == ' ' || *ptr == '\t'; ptr++);
+-        if(*ptr == '\0')        break;
+-        start = ptr;
+-        for(;*ptr != ' ' && *ptr != '\t' && *ptr != '=' && *ptr != '\0'; ptr++) ;
+-        end = ptr;
+-        if(*ptr == '=') {
+-            ptr++;
+-            if(*ptr == '"') {
+-                ptr++;
+-                value_start = ptr;
+-                for(; *ptr != '"' && *ptr != '\0'; ptr++);
+-                if(*ptr != '"' || (*(ptr+1) != '\0' && *(ptr+1) != ' ' && *(ptr+1) != '\t')) {
+-                    RTKSDPRINTF( "system_parameters error! Check your parameters     .");
+-                    break;
+-                }
+-            } else {
+-                value_start = ptr;
+-                for(;*ptr != ' ' && *ptr != '\t' && *ptr != '\0' && *ptr != '"'; ptr++) ;
+-                if(*ptr == '"') {
+-                    RTKSDPRINTF( "system_parameters error! Check your parameters.");
+-                    break;
+-                }
+-            }
+-            value_end = ptr;
+-        }
+-
+-        if(!strncmp(token, start, end-start)) {
+-            if(value_start) {
+-                ret_str = kmalloc(value_end-value_start+1, GFP_KERNEL);
+-                // KWarning: checked ok by alexkh@realtek.com
+-                if(ret_str){
+-                    strncpy(ret_str, value_start, value_end-value_start);
+-                    ret_str[value_end-value_start] = '\0';
+-                }
+-                return ret_str;
+-            } else {
+-                ret_str = kmalloc(1, GFP_KERNEL);
+-                // KWarning: checked ok by alexkh@realtek.com
+-                if(ret_str)
+-                    strcpy(ret_str, "");
+-                return ret_str;
+-            }
+-        }
+-//		RTKSDPRINTF_INFO("=");
+-    }
+-
+-    return (char*)NULL;
+-}
+-EXPORT_SYMBOL_GPL(rtk_crsd_parse_token);
+-
+-void rtk_crsd_chk_param(u32 *pparam, u32 len, u8 *ptr)
+-{
+-    u32 value,i;
+-    RTKSDPRINTF( "\n");
+-    
+-    *pparam = 0;
+-    for(i=0;i<len;i++){
+-        value = ptr[i] - '0';
+-        // KWarning: checked ok by alexkh@realtek.com
+-        if((value >= 0) && (value <=9))
+-        {
+-            *pparam+=value<<(4*(len-1-i));
+-            continue;
+-        }
+-
+-        value = ptr[i] - 'a';
+-        // KWarning: checked ok by alexkh@realtek.com
+-        if((value >= 0) && (value <=5))
+-        {
+-            value+=10;
+-            *pparam+=value<<(4*(len-1-i));
+-            continue;
+-        }
+-
+-        value = ptr[i] - 'A';
+-        // KWarning: checked ok by alexkh@realtek.com
+-        if((value >= 0) && (value <=5))
+-        {
+-            value+=10;
+-            *pparam+=value<<(4*(len-1-i));
+-            continue;
+-        }
+-    }
+-}
+-EXPORT_SYMBOL_GPL(rtk_crsd_chk_param);
+-
+-u32 crsd_verA_magic_num = 0;
+-int rtk_crsd_chk_VerA(void)
+-{
+-    RTKSDPRINTF( "\n");
+-    //TODO : chk
+-#if 0 
+-    if(!crsd_verA_magic_num)
+-        crsd_verA_magic_num = crsd_readl(0xb8060000);
+-
+-    if(crsd_verA_magic_num == 0x62270000){
+-        return 1;
+-    }else{
+-        return 0;
+-    }
+-#else
+-    return crsd_verA_magic_num; //0: polling, 1: interrupt
+-#endif
+-}
+-EXPORT_SYMBOL_GPL(rtk_crsd_chk_VerA);
+-
+-void rtk_crsd_show_config123(struct rtk_crsd_host *sdport){
+-    u32 reginfo = 0;
+-//  u32 clksel_sht;
+-    u32 iobase = sdport->base_io;
+-    RTKSDPRINTF( "\n");
+-    if(iobase == EM_BASE_ADDR){
+-        reginfo = crsd_readl(iobase+EMMC_CKGEN_CTL);
+-        //clksel_sht = EMMC_CLKSEL_SHT;
+-    }else if(iobase == CR_BASE_ADDR){
+-        reginfo = crsd_readl(iobase+CR_SD_CKGEN_CTL);
+-        //clksel_sht = SD_CLKSEL_SHT;
+-    }
+-
+-    RTKSDPRINTF( "CFG1=0x%x CFG2=0x%x CFG3=0x%x bus clock CKGEN=%08x\n",
+-        crsd_readl(iobase+SD_CONFIGURE1),
+-        crsd_readl(iobase+SD_CONFIGURE2),
+-        crsd_readl(iobase+SD_CONFIGURE3),
+-        reginfo );
+-}
+-EXPORT_SYMBOL_GPL(rtk_crsd_show_config123);
+-
+-/* end of file */
+-
++/*
++ * Realtek MMC/SD/SDIO driver
++ *
++ * Authors:
++ * Copyright (C) 2008-2013 Realtek Ltd.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++ */
++
++#include <linux/module.h>
++#include <linux/init.h>
++#include <linux/io.h>
++#include <linux/platform_device.h>
++#include <linux/mbus.h>
++#include <linux/delay.h>
++#include <linux/interrupt.h>
++#include <linux/dma-mapping.h>
++#include <linux/scatterlist.h>
++#include <linux/irq.h>
++#include <linux/gpio.h>
++#include <linux/mmc/host.h>
++#include <asm/unaligned.h>
++
++#include <linux/sched.h>                //liao
++#include <linux/wait.h>                 //liao
++#include <linux/slab.h>                 //liao
++#include <linux/semaphore.h>           //liao
++#include <linux/mmc/card.h>             //liao
++#include <linux/mmc/mmc.h>              //liao
++#include <linux/mmc/sd.h>               //liao
++#include <linux/workqueue.h>            //liao
++#include <linux/completion.h>           //liao
++#include <rbus/reg_mmc.h>               //liao
++#include <rbus/reg_iso.h>               //liao
++#include "rtksd.h"                    //liao
++#include "rtk_crsd_ops.h"                    //liao
++#include "../mmc_debug.h"               //liao
++
++//static unsigned char g_cmd[6]={0};
++
++#ifdef GPIO_DEBUG
++void trans_db_gpio(void)
++{
++    //set debug GPIO
++    u32 reginfo;
++    RTKSDPRINTF( "\n");
++	
++    //1. 0xB800_0804[31:28] = F    --> pin share as gpio
++    //2. 0x1801_BC00[4] = 1  --> output mode
++    //3. 0x1801_BC18[4]   is output data
++    crsd_writel(crsd_readl(GP0DIR_reg)|0x10,GP0DIR_reg);
++
++    reginfo = crsd_readl(GP0DATO_reg);
++    if(reginfo & 0x10){
++        mmcrtk("GP HI\n");
++        crsd_writel(reginfo & ~0x10,GP0DATO_reg);
++    }else{
++        mmcrtk("GP LO\n");
++        crsd_writel(reginfo | 0x10,GP0DATO_reg);
++    }
++
++}
++
++void trans_rst_gpio(void)
++{
++    //set rst GPIO
++    u32 reginfo;
++    RTKSDPRINTF( "\n");
++	
++    crsd_writel(crsd_readl(GP0DIR_reg) |  0x00100000, GP0DIR_reg);
++    reginfo = crsd_readl(GP0DATO_reg);
++
++    if(reginfo & 0x00100000){
++        crsd_writel(reginfo & ~0x00100000, GP0DATO_reg);
++    }else{
++        crsd_writel(reginfo |  0x00100000, GP0DATO_reg);
++    }
++
++}
++#else
++#define trans_db_gpio()
++#define trans_rst_gpio()
++#endif
++
++void rtk_crsd_sync(struct rtk_crsd_host *sdport){
++    crsd_writel(0x0, sdport->base_sysbrdg_io+CR_SYNC);
++}
++
++EXPORT_SYMBOL_GPL(rtk_crsd_sync);
++
++DECLARE_COMPLETION(rtk_crsd_wait);
++void rtk_crsd_int_waitfor(struct rtk_crsd_host *sdport, u8 cmdcode, unsigned long msec,unsigned long dma_msec){
++
++	rtk_crsd_sync(sdport);
++
++    if (sdport->int_waiting){
++
++        rtk_crsd_sync(sdport);
++
++        crsd_writeb((u8) (cmdcode|START_EN), sdport->base_io+SD_TRANSFER ); //cmd fire
++        rtk_crsd_sync(sdport);
++
++        wait_for_completion(sdport->int_waiting);
++
++    }
++
++}
++EXPORT_SYMBOL_GPL(rtk_crsd_int_waitfor);
++
++void rtk_crsd_int_enable_and_waitfor(struct rtk_crsd_host *sdport, u8 cmdcode, unsigned long msec, unsigned long dma_msec){
++
++    unsigned long timeend=0;
++
++    sdport->int_status  = 0;
++    sdport->sd_trans    = -1;
++    sdport->sd_status1   = 0;
++    sdport->sd_status2   = 0;
++    sdport->bus_status   = 0;
++    sdport->dma_trans   = 0;
++
++    sdport->int_waiting = &rtk_crsd_wait;
++
++    /* timeout timer fire */
++    if (&sdport->timer){
++        timeend = msecs_to_jiffies(msec)+sdport->tmout;
++        mod_timer(&sdport->timer, (jiffies + timeend) );
++    }
++
++    rtk_crsd_int_waitfor(sdport, cmdcode, msec, dma_msec); //wait for
++    smp_wmb();
++
++}
++EXPORT_SYMBOL_GPL(rtk_crsd_int_enable_and_waitfor);
++
++int rtk_crsd_int_wait_opt_end(char* drv_name, struct rtk_crsd_host *sdport,u8 cmdcode,u8 cpu_mode){
++
++    volatile int err=CR_TRANS_OK;
++    volatile unsigned long timeend = 0;
++    volatile unsigned int sd_trans = 0;
++
++    err = CR_TRANSFER_TO;
++
++    rtk_crsd_sync(sdport);
++
++    rtk_crsd_int_enable_and_waitfor(sdport, cmdcode, 6000, 0);
++
++    sd_trans = readb(sdport->base_io + SD_TRANSFER);
++
++    rtk_crsd_sync(sdport);
++
++	if ((sd_trans & (END_STATE | IDLE_STATE)) == (END_STATE | IDLE_STATE)) {
++		err = CR_TRANS_OK;
++	}
++
++	if ((sd_trans & (ERR_STATUS)) == (ERR_STATUS)) {
++		err = CR_TRANSFER_FAIL;
++		printk( KERN_ERR "%s - trans error 5 :\ncfg1 : 0x%02x, cfg2 : 0x%02x, cfg3 : 0x%02x, trans : 0x%08x, st1 : 0x%08x, st2 : 0x%08x, bus : 0x%08x\n",
++				drv_name,
++				crsd_readb(sdport->base_io + SD_CONFIGURE1),
++				crsd_readb(sdport->base_io + SD_CONFIGURE2),
++				crsd_readb(sdport->base_io + SD_CONFIGURE3),
++				crsd_readb(sdport->base_io + SD_TRANSFER),
++				crsd_readb(sdport->base_io + SD_STATUS1),
++				crsd_readb(sdport->base_io + SD_STATUS2),
++				crsd_readb(sdport->base_io + SD_BUS_STATUS));
++	}
++
++	if (err == CR_TRANSFER_TO){
++
++		err = CR_TRANSFER_TO;
++
++		if ((sd_trans & (END_STATE | IDLE_STATE)) == (END_STATE | IDLE_STATE)) {
++			//printk(KERN_ERR "CR_TRANS_OK\n");
++			err = CR_TRANS_OK;
++		}else{
++			printk( KERN_ERR "\n%s - trans error 3 :\ntrans : 0x%08x, st1 : 0x%08x, st2 : 0x%08x, bus : 0x%08x\n",
++					drv_name,
++					crsd_readb(sdport->base_io + SD_TRANSFER),
++					crsd_readb(sdport->base_io + SD_STATUS1),
++					crsd_readb(sdport->base_io + SD_STATUS2),
++					crsd_readb(sdport->base_io + SD_BUS_STATUS));
++			printk(KERN_ERR "CR_TRANSFER_TO : cmd->opcode = %d\n", sdport->mrq->cmd->opcode);
++
++		}
++
++		return err;
++	}
++
++
++    RTKSDPRINTF("%s : register settings(base=0x%08x,0x%08x)\n", drv_name, sdport->base_io, sdport->base_io+SD_CMD0);
++    RTKSDPRINTF(" cmd0:0x%02x cmd1:0x%02x cmd2:0x%02x cmd3:0x%02x cmd4:0x%02x cmd5:0x%02x\n",crsd_readb(sdport->base_io+SD_CMD0),crsd_readb(sdport->base_io+SD_CMD1),crsd_readb(sdport->base_io+SD_CMD2),crsd_readb(sdport->base_io+SD_CMD3),crsd_readb(sdport->base_io+SD_CMD4),crsd_readb(sdport->base_io+SD_CMD5));
++    RTKSDPRINTF(" trans:0x%02x status1:0x%02x status2:0x%02x bus_status:0x%02x\n",crsd_readb(sdport->base_io+SD_TRANSFER),crsd_readb(sdport->base_io+SD_STATUS1),crsd_readb(sdport->base_io+SD_STATUS2),crsd_readb(sdport->base_io+SD_BUS_STATUS));
++    RTKSDPRINTF(" configure1:0x%02x configure2:0x%02x configure3:0x%02x\n",crsd_readb(sdport->base_io+SD_CONFIGURE1),crsd_readb(sdport->base_io+SD_CONFIGURE2),crsd_readb(sdport->base_io+SD_CONFIGURE3));
++    RTKSDPRINTF(" byteH:0x%02x byteL:0x%02x blkH:0x%02x blkL:0x%02x\n",crsd_readb(sdport->base_io+SD_BYTE_CNT_H),crsd_readb(sdport->base_io+SD_BYTE_CNT_L),crsd_readb(sdport->base_io+SD_BLOCK_CNT_H),crsd_readb(sdport->base_io+SD_BLOCK_CNT_L));
++    RTKSDPRINTF(" dma_ctl1:0x%08x dma_ctl2:0x%08x dma_ctl3:0x%08x\n",crsd_readl(sdport->base_io+CR_DMA_CTL1),crsd_readl(sdport->base_io+CR_DMA_CTL2),crsd_readl(sdport->base_io+CR_DMA_CTL3));
++
++    return err;
++}
++EXPORT_SYMBOL_GPL(rtk_crsd_int_wait_opt_end);
++
++int rtk_crsd_wait_opt_end(char* drv_name, struct rtk_crsd_host *sdport,u8 cmdcode,u8 cpu_mode){
++
++    volatile int err=CR_TRANS_OK;
++    volatile unsigned long timeend = 0;
++    rtk_crsd_sync(sdport);
++
++    RTKSDPRINTF("%s : register settings(base=0x%08x,0x%08x)\n", drv_name, sdport->base_io, sdport->base_io+SD_CMD0);
++    RTKSDPRINTF(" cmd0:0x%02x cmd1:0x%02x cmd2:0x%02x cmd3:0x%02x cmd4:0x%02x cmd5:0x%02x\n",crsd_readb(sdport->base_io+SD_CMD0),crsd_readb(sdport->base_io+SD_CMD1),crsd_readb(sdport->base_io+SD_CMD2),crsd_readb(sdport->base_io+SD_CMD3),crsd_readb(sdport->base_io+SD_CMD4),crsd_readb(sdport->base_io+SD_CMD5));
++    RTKSDPRINTF(" trans:0x%02x status1:0x%02x status2:0x%02x bus_status:0x%02x\n",crsd_readb(sdport->base_io+SD_TRANSFER),crsd_readb(sdport->base_io+SD_STATUS1),crsd_readb(sdport->base_io+SD_STATUS2),crsd_readb(sdport->base_io+SD_BUS_STATUS));
++    RTKSDPRINTF(" configure1:0x%02x configure2:0x%02x configure3:0x%02x\n",crsd_readb(sdport->base_io+SD_CONFIGURE1),crsd_readb(sdport->base_io+SD_CONFIGURE2),crsd_readb(sdport->base_io+SD_CONFIGURE3));
++    RTKSDPRINTF(" byteH:0x%02x byteL:0x%02x blkH:0x%02x blkL:0x%02x\n",crsd_readb(sdport->base_io+SD_BYTE_CNT_H),crsd_readb(sdport->base_io+SD_BYTE_CNT_L),crsd_readb(sdport->base_io+SD_BLOCK_CNT_H),crsd_readb(sdport->base_io+SD_BLOCK_CNT_L));
++    RTKSDPRINTF(" dma_ctl1:0x%08x dma_ctl2:0x%08x dma_ctl3:0x%08x\n",crsd_readl(sdport->base_io+CR_DMA_CTL1),crsd_readl(sdport->base_io+CR_DMA_CTL2),crsd_readl(sdport->base_io+CR_DMA_CTL3));
++    
++    crsd_writeb((u8) (cmdcode|START_EN), sdport->base_io+SD_TRANSFER );
++    rtk_crsd_sync(sdport);
++    //spin_unlock_irqrestore(&sdport->lock, flags);
++    rtk_crsd_int_enable(sdport,100);
++    rtk_crsd_sync(sdport);
++    rtk_crsd_waitfor(sdport);
++    rtk_crsd_sync(sdport);
++
++    if (sdport->sd_trans & ERR_STATUS) //transfer error
++    {
++    	printk(KERN_ERR "%s trans error 1  trans:0x%08x, st1:0x%08x, st2:0x%08x, bus:0x%08x\n",drv_name,crsd_readb(sdport->base_io+SD_TRANSFER),crsd_readb(sdport->base_io+SD_STATUS1),crsd_readb(sdport->base_io+SD_STATUS2),crsd_readb(sdport->base_io+SD_BUS_STATUS));
++		//return CR_TRANSFER_FAIL;
++	}
++
++    err = CR_TRANSFER_TO;
++    timeend = jiffies + msecs_to_jiffies(1000);
++
++    while(time_before(jiffies, timeend)){
++
++    	if ((crsd_readb(sdport->base_io+SD_STATUS2) & 0x01) == 1){
++    		err = CR_TRANSFER_FAIL;
++    		break;
++    	}
++    	if (!(sdport->rtflags & RTKCR_FCARD_DETECTED)){
++    		err = CR_TRANSFER_FAIL;
++    		break;
++    	}
++	    if ((cpu_mode == 1)&&(((crsd_readb(sdport->base_io+SD_BLOCK_CNT_H)<<8)|crsd_readb(sdport->base_io+SD_BLOCK_CNT_L))>1))
++        {
++    	    err = CR_TRANS_OK;
++    		break;
++    	}
++    	if ((crsd_readb(sdport->base_io+SD_TRANSFER) & (END_STATE|IDLE_STATE))==(END_STATE|IDLE_STATE))
++        {
++    	    err = CR_TRANS_OK;
++    		break;
++    	}
++    	if ((crsd_readb(sdport->base_io+SD_TRANSFER) & (ERR_STATUS))==(ERR_STATUS))
++        {
++    	    err = CR_TRANSFER_FAIL;
++    		break;
++    	}
++		RTKSDPRINTF_DBG("*");
++    }
++	
++    if (jiffies >=  timeend){
++
++		if ((sdport->sd_trans & (END_STATE | IDLE_STATE)) == (END_STATE | IDLE_STATE)) {
++			//printk(KERN_ERR "CR_TRANS_OK\n");
++			err = CR_TRANS_OK;
++		}else{
++			 printk(KERN_ERR "\n%s - trans error 3 :\n trans : 0x%08x, st1 : 0x%08x, st2 : 0x%08x, bus : 0x%08x\n",
++							   drv_name,
++							   crsd_readb(sdport->base_io+SD_TRANSFER),
++							   crsd_readb(sdport->base_io+SD_STATUS1),
++							   crsd_readb(sdport->base_io+SD_STATUS2),
++							   crsd_readb(sdport->base_io+SD_BUS_STATUS));
++		}
++
++        return err;
++    }
++
++    return err;
++}
++EXPORT_SYMBOL_GPL(rtk_crsd_wait_opt_end);
++
++DECLARE_COMPLETION(rtk_wait);
++struct completion* rtk_crsd_int_enable(struct rtk_crsd_host *sdport, unsigned long msec)
++{
++    unsigned long timeend=0;
++	
++    sdport->int_status = 0;
++    sdport->sd_trans = -1;
++    sdport->sd_status1 = 0;
++    sdport->sd_status2 = 0;
++    sdport->bus_status = 0;
++
++   // return NULL;
++    //#ifndef ENABLE_SD_INT_MODE
++    sdport->int_waiting = &rtk_crsd_wait;
++    //smp_wmb();
++    return NULL;
++    //#endif
++    if (sdport->int_waiting)
++        return NULL;
++    
++//  DECLARE_COMPLETION(rtk_wait);
++    sdport->int_status  = 0;
++    sdport->sd_trans    = 0;
++    sdport->sd_status1   = 0;
++    sdport->sd_status2   = 0;
++    sdport->bus_status   = 0;
++    sdport->int_waiting = &rtk_wait;
++
++    RTKSDPRINTF( "rtk wait complete addr = %08x\n", (unsigned int) sdport->int_waiting);
++
++    /* timeout timer fire */
++    if (&sdport->timer){
++    	if(sdport->tmout){
++            timeend = sdport->tmout;
++            sdport->tmout = 0;
++        }else
++            timeend = msecs_to_jiffies(msec);
++
++        RTKSDPRINTF( "TO = 0x%08lx\n", timeend);
++        mod_timer(&sdport->timer, (jiffies + timeend) );
++    }
++
++    smp_wmb();
++    return (struct completion *)&rtk_wait;
++}
++EXPORT_SYMBOL_GPL(rtk_crsd_int_enable);
++
++void rtk_crsd_waitfor(struct rtk_crsd_host *sdport){
++
++    unsigned long timeend = 0;
++    u32 sd_trans = 0;
++    u32 sd_status1 = 0;
++    u32 sd_status2 = 0;
++    u32 bus_status=0;
++    unsigned long flags = 0;
++	
++//  spin_lock_irqsave(&sdport->lock,flags);
++    timeend = jiffies + msecs_to_jiffies(300);
++    RTKSDPRINTF("START from polling\n");
++
++    while(time_before(jiffies, timeend)){
++	    if (!(sdport->rtflags & RTKCR_FCARD_DETECTED))
++    		break;
++	
++		//udelay(800);
++        if ((crsd_readb(sdport->base_io+SD_TRANSFER) & (END_STATE|IDLE_STATE))==(END_STATE|IDLE_STATE))
++            break;
++    }
++
++    rtk_crsd_get_sd_trans(sdport->base_io,&sd_trans);
++    rtk_crsd_get_sd_sta(sdport->base_io,&sd_status1,&sd_status2,&bus_status);
++
++	spin_lock_irqsave(&sdport->lock,flags);
++    sdport->sd_trans    = sd_trans;
++    sdport->sd_status1   = sd_status1;
++    sdport->sd_status2   = sd_status2;
++    sdport->bus_status   = bus_status;
++  	spin_unlock_irqrestore(&sdport->lock,flags);
++
++    RTKSDPRINTF("int sts : 0x%08x sd_trans : 0x%08x, sd_st1 : 0x%08x\n", sdport->int_status, sdport->sd_trans, sdport->sd_status1);
++    RTKSDPRINTF("int st2 : 0x%08x bus_sts : 0x%08x\n", sdport->sd_status2, sdport->bus_status);
++//  spin_unlock_irqrestore(&sdport->lock,flags);
++    return;
++}
++EXPORT_SYMBOL_GPL(rtk_crsd_waitfor);
++
++void rtk_crsd_op_complete(struct rtk_crsd_host *sdport)
++{
++    RTKSDPRINTF( "\n");
++    if (sdport->int_waiting) {
++        struct completion *waiting = sdport->int_waiting;
++		RTKSDPRINTF( "rtk wait complete addr = %08x\n", (unsigned int) sdport->int_waiting);
++		complete(waiting);
++    }
++}
++EXPORT_SYMBOL_GPL(rtk_crsd_op_complete);
++
++char *rtk_crsd_parse_token(const char *parsed_string, const char *token)
++{
++    const char *ptr = parsed_string;
++    const char *start, *end, *value_start, *value_end;
++    char *ret_str;
++    RTKSDPRINTF( "\n");
++	
++    while(1) {
++        value_start = value_end = 0;
++        for(;*ptr == ' ' || *ptr == '\t'; ptr++);
++        if(*ptr == '\0')        break;
++        start = ptr;
++        for(;*ptr != ' ' && *ptr != '\t' && *ptr != '=' && *ptr != '\0'; ptr++) ;
++        end = ptr;
++        if(*ptr == '=') {
++            ptr++;
++            if(*ptr == '"') {
++                ptr++;
++                value_start = ptr;
++                for(; *ptr != '"' && *ptr != '\0'; ptr++);
++                if(*ptr != '"' || (*(ptr+1) != '\0' && *(ptr+1) != ' ' && *(ptr+1) != '\t')) {
++                    RTKSDPRINTF( "system_parameters error! Check your parameters     .");
++                    break;
++                }
++            } else {
++                value_start = ptr;
++                for(;*ptr != ' ' && *ptr != '\t' && *ptr != '\0' && *ptr != '"'; ptr++) ;
++                if(*ptr == '"') {
++                    RTKSDPRINTF( "system_parameters error! Check your parameters.");
++                    break;
++                }
++            }
++            value_end = ptr;
++        }
++
++        if(!strncmp(token, start, end-start)) {
++            if(value_start) {
++                ret_str = kmalloc(value_end-value_start+1, GFP_KERNEL);
++                // KWarning: checked ok by alexkh@realtek.com
++                if(ret_str){
++                    strncpy(ret_str, value_start, value_end-value_start);
++                    ret_str[value_end-value_start] = '\0';
++                }
++                return ret_str;
++            } else {
++                ret_str = kmalloc(1, GFP_KERNEL);
++                // KWarning: checked ok by alexkh@realtek.com
++                if(ret_str)
++                    strcpy(ret_str, "");
++                return ret_str;
++            }
++        }
++//		RTKSDPRINTF_INFO("=");
++    }
++
++    return (char*)NULL;
++}
++EXPORT_SYMBOL_GPL(rtk_crsd_parse_token);
++
++void rtk_crsd_chk_param(u32 *pparam, u32 len, u8 *ptr)
++{
++    u32 value,i;
++    RTKSDPRINTF( "\n");
++    
++    *pparam = 0;
++    for(i=0;i<len;i++){
++        value = ptr[i] - '0';
++        // KWarning: checked ok by alexkh@realtek.com
++        if((value >= 0) && (value <=9))
++        {
++            *pparam+=value<<(4*(len-1-i));
++            continue;
++        }
++
++        value = ptr[i] - 'a';
++        // KWarning: checked ok by alexkh@realtek.com
++        if((value >= 0) && (value <=5))
++        {
++            value+=10;
++            *pparam+=value<<(4*(len-1-i));
++            continue;
++        }
++
++        value = ptr[i] - 'A';
++        // KWarning: checked ok by alexkh@realtek.com
++        if((value >= 0) && (value <=5))
++        {
++            value+=10;
++            *pparam+=value<<(4*(len-1-i));
++            continue;
++        }
++    }
++}
++EXPORT_SYMBOL_GPL(rtk_crsd_chk_param);
++
++u32 crsd_verA_magic_num = 0;
++int rtk_crsd_chk_VerA(void)
++{
++    RTKSDPRINTF( "\n");
++    //TODO : chk
++#if 0 
++    if(!crsd_verA_magic_num)
++        crsd_verA_magic_num = crsd_readl(0xb8060000);
++
++    if(crsd_verA_magic_num == 0x62270000){
++        return 1;
++    }else{
++        return 0;
++    }
++#else
++    return crsd_verA_magic_num; //0: polling, 1: interrupt
++#endif
++}
++EXPORT_SYMBOL_GPL(rtk_crsd_chk_VerA);
++
++void rtk_crsd_show_config123(struct rtk_crsd_host *sdport){
++    u32 reginfo = 0;
++//  u32 clksel_sht;
++    u32 iobase = sdport->base_io;
++    RTKSDPRINTF( "\n");
++    if(iobase == EM_BASE_ADDR){
++        reginfo = crsd_readl(iobase+EMMC_CKGEN_CTL);
++        //clksel_sht = EMMC_CLKSEL_SHT;
++    }else if(iobase == CR_BASE_ADDR){
++        reginfo = crsd_readl(iobase+CR_SD_CKGEN_CTL);
++        //clksel_sht = SD_CLKSEL_SHT;
++    }
++
++    RTKSDPRINTF( "CFG1=0x%x CFG2=0x%x CFG3=0x%x bus clock CKGEN=%08x\n",
++        crsd_readl(iobase+SD_CONFIGURE1),
++        crsd_readl(iobase+SD_CONFIGURE2),
++        crsd_readl(iobase+SD_CONFIGURE3),
++        reginfo );
++}
++EXPORT_SYMBOL_GPL(rtk_crsd_show_config123);
++
++/* end of file */
++
+diff -Nur linux-kernel/drivers/mmc/host/rtk_crsd_ops.h linux-custom/drivers/mmc/host/rtk_crsd_ops.h
+--- linux-kernel/drivers/mmc/host/rtk_crsd_ops.h	2015-05-18 15:08:14.000000000 +0800
++++ linux-custom/drivers/mmc/host/rtk_crsd_ops.h	2015-07-14 14:37:38.756987800 +0800
+@@ -1,43 +1,42 @@
+-/*
+- *  Copyright (C) 2010 Realtek Semiconductors, All Rights Reserved.
+- *
+- * This program is free software; you can redistribute it and/or modify
+- * it under the terms of the GNU General Public License version 2 as
+- * published by the Free Software Foundation.
+- */
+-
+-#ifndef __RTK_CRSD_OPS_H
+-#define __RTK_CRSD_OPS_H
+-#include <linux/completion.h>
+-
+-void rtk_crsd_sync(struct rtk_crsd_host *sdport);
+-int rtk_crsd_wait_opt_end(char*,struct rtk_crsd_host *sdport,unsigned char cmdcode,unsigned char cpu_mode);
+-int rtk_crsd_wait_opt_end_test(char*,struct rtk_crsd_host *sdport,unsigned char cmdcode,unsigned char cpu_mode);
+-void rtk_int_enable_and_waitfor_test(struct rtk_crsd_host *sdport, u8 cmdcode, unsigned long msec, unsigned long dma_msec);
+-void rtk_int_waitfor_test(struct rtk_crsd_host *sdport, u8 cmdcode, unsigned long msec,unsigned long dma_msec);
+-void rtk_op_complete_test(struct rtk_crsd_host *sdport);
+-void rtk_crsd_op_complete(struct rtk_crsd_host *sdport);
+-char *rtk_crsd_parse_token(const char *parsed_string, const char *token);
+-void rtk_crsd_chk_param(u32 *pparam, u32 len, u8 *ptr);
+-int rtk_crsd_chk_VerA(void);
+-void rtk_crsd_show_config123(struct rtk_crsd_host *sdport);
+-void rtk_crsd_set_mis_gpio(u32 gpio_num,u8 dir,u8 level);
+-void rtk_crsd_set_iso_gpio(u32 gpio_num,u8 dir,u8 level);
+-
+-int rtk_crsd_fast_write( unsigned int blk_addr,
+-                    unsigned int data_size,
+-                    unsigned char * buffer );
+-
+-int rtk_crsd_fast_read( unsigned int blk_addr,
+-                   unsigned int data_size,
+-                   unsigned char * buffer );
+-struct completion* rtk_crsd_int_enable(struct rtk_crsd_host *sdport, unsigned long msec);
+-void rtk_crsd_int_enable_and_waitfor(struct rtk_crsd_host *sdport, u8 cmdcode, unsigned long msec, unsigned long dma_msec);
+-void rtk_crsd_int_waitfor(struct rtk_crsd_host *sdport);
+-#endif
+-
+-
+-/* end of file */
+-
+-
+-
++/*
++ *  Copyright (C) 2010 Realtek Semiconductors, All Rights Reserved.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++ */
++
++#ifndef __RTK_CRSD_OPS_H
++#define __RTK_CRSD_OPS_H
++#include <linux/completion.h>
++
++void rtk_crsd_sync(struct rtk_crsd_host *sdport);
++int rtk_crsd_wait_opt_end(char*,struct rtk_crsd_host *sdport,unsigned char cmdcode,unsigned char cpu_mode);
++int rtk_crsd_int_wait_opt_end(char*,struct rtk_crsd_host *sdport,unsigned char cmdcode,unsigned char cpu_mode);
++void rtk_crsd_int_enable_and_waitfor(struct rtk_crsd_host *sdport, u8 cmdcode, unsigned long msec, unsigned long dma_msec);
++void rtk_crsd_int_waitfor(struct rtk_crsd_host *sdport, u8 cmdcode, unsigned long msec,unsigned long dma_msec);
++void rtk_crsd_op_complete(struct rtk_crsd_host *sdport);
++char *rtk_crsd_parse_token(const char *parsed_string, const char *token);
++void rtk_crsd_chk_param(u32 *pparam, u32 len, u8 *ptr);
++int rtk_crsd_chk_VerA(void);
++void rtk_crsd_show_config123(struct rtk_crsd_host *sdport);
++void rtk_crsd_set_mis_gpio(u32 gpio_num,u8 dir,u8 level);
++void rtk_crsd_set_iso_gpio(u32 gpio_num,u8 dir,u8 level);
++
++int rtk_crsd_fast_write( unsigned int blk_addr,
++                    unsigned int data_size,
++                    unsigned char * buffer );
++
++int rtk_crsd_fast_read( unsigned int blk_addr,
++                   unsigned int data_size,
++                   unsigned char * buffer );
++struct completion* rtk_crsd_int_enable(struct rtk_crsd_host *sdport, unsigned long msec);
++void rtk_crsd_int_enable_and_waitfor(struct rtk_crsd_host *sdport, u8 cmdcode, unsigned long msec, unsigned long dma_msec);
++void rtk_crsd_waitfor(struct rtk_crsd_host *sdport);
++#endif
++
++
++/* end of file */
++
++
++
+diff -Nur linux-kernel/drivers/mmc/host/rtksd.c linux-custom/drivers/mmc/host/rtksd.c
+--- linux-kernel/drivers/mmc/host/rtksd.c	2015-05-18 15:08:14.000000000 +0800
++++ linux-custom/drivers/mmc/host/rtksd.c	2015-07-16 17:48:22.614218800 +0800
+@@ -54,7 +54,9 @@
+ #endif
+ #endif
+ 
+-#define ENABLE_SD_INT_MODE 1
++#ifdef CONFIG_MMC_RTKSD_INTERRUPT
++#define ENABLE_SD_INT_MODE
++#endif
+ 
+ #if 0 // JINN enable debug message
+ 	#define MMC_DEBUG_PRINT(fmt,args...)	printk(fmt,## args)
+@@ -95,6 +97,7 @@
+ #define MAX_PHASE		31
+ #define TUNING_CNT		3
+ 
++
+ static void rtk_crsd_request(struct mmc_host *host, struct mmc_request *mrq);
+ static void rtk_crsd_hw_reset(struct mmc_host *host);
+ static int rtk_crsd_get_ro(struct mmc_host *mmc);
+@@ -133,8 +136,8 @@
+ 		__res & __mask;						\
+ 	})
+ 
+-u32 rtk_crsd_swap_endian(u32 input){
+-
++u32 rtk_crsd_swap_endian(u32 input)
++{
+         u32 output;
+         output = (input & 0xff000000)>>24|
+                          (input & 0x00ff0000)>>8|
+@@ -145,28 +148,23 @@
+ 
+ 
+ static u8 crsd_power_status = 0;
+-static void rtk_crsd_card_power(struct rtk_crsd_host *sdport,u8 status){
+-
++static void rtk_crsd_card_power(struct rtk_crsd_host *sdport,u8 status)
++{
+ 	int res;
+-
+-	///////reguest card power gpio
+-	sdport->gpio_card_power = of_get_gpio_flags(sdport->dev->of_node, 0, NULL);
+-	if (gpio_is_valid(sdport->gpio_card_power)){
+-		res = gpio_request(sdport->gpio_card_power, "crsd_power");
+-		if (res < 0){
+-			printk(KERN_ERR "can't request crsd_power gpio %d\n",sdport->gpio_card_power);
+-		}
+-	}else{
+-		printk(KERN_ERR "crsd_power gpio %d is not valid\n",sdport->gpio_card_power);
+-	}
++	u32 tmp;
+ 
+ 	if(status == crsd_power_status)
+ 		return;
+-	if(status){ //power on
++	if(status) //power on
++	{
+ 		res = gpio_direction_output(sdport->gpio_card_power, 0);
+ 
+-		/* Workaround : OS reboot SD card initial fail, jamestai20150129*/
+-		crsd_writel(0x33333323, sdport->base_pll_io + CR_PFUNC_CR );
++		/* Workaround :
++		 * 1. OS reboot SD card initial fail, jamestai20150129
++		 * 2. Enable/disable SD card write protection, jamestai20150615
++		 */
++		tmp = crsd_readl(sdport->base_pll_io + CR_PFUNC_CR );
++		crsd_writel(0x33333223 | (tmp & 0x00000F00), sdport->base_pll_io + CR_PFUNC_CR );
+ 
+ 		if (res < 0) {
+ 			printk(KERN_ERR "can't gpio output crsd card power on %d\n", sdport->gpio_card_power);
+@@ -174,26 +172,32 @@
+ 			crsd_power_status = 1; //card is power on
+ 			mdelay(10); //delay 10 ms after power on
+ 		}
+-	}else{ //power off
++	}
++	else //power off
++	{
+ 		res = gpio_direction_input(sdport->gpio_card_power);
+ 
+-		/* Workaround : OS reboot SD card initial fail, jamestai20150129*/
+-		crsd_writel(0x22223322, sdport->base_pll_io + CR_PFUNC_CR );
++		/* Workaround :
++		 * 1. OS reboot SD card initial fail, jamestai20150129
++		 * 2. Enable/disable SD card write protection, jamestai20150615
++		 */
++		tmp = crsd_readl(sdport->base_pll_io + CR_PFUNC_CR );
++		crsd_writel(0x22223222 | (tmp & 0x00000F00), sdport->base_pll_io + CR_PFUNC_CR );
+ 
+-		if(res < 0){
++		if (res < 0) {
+ 			printk(KERN_ERR "can't gpio input crsd card power off %d\n", sdport->gpio_card_power);
+ 		}else{
+ 			crsd_power_status = 0; //card is power off
+ 			mdelay(10); //delay 10 ms after power off
+ 		}
+ 	}
+-	gpio_free(sdport->gpio_card_power);
+ }
+ 
+-static void rtk_crsd_read_rsp(struct rtk_crsd_host *sdport,u32 *rsp, int reg_count){
+-
++static void rtk_crsd_read_rsp(struct rtk_crsd_host *sdport,u32 *rsp, int reg_count)
++{
+     u32 iobase = sdport->base_io;
+ 
++
+     if ( reg_count==6 ){
+         rsp[0] = crsd_readb(iobase+SD_CMD1) << 24 |
+                  crsd_readb(iobase+SD_CMD2) << 16 |
+@@ -211,29 +215,43 @@
+ }
+ 
+ 
+-static void rtk_crsd_hw_reset(struct mmc_host *host){
++static void rtk_crsd_hw_reset(struct mmc_host *host)
++{
+ 
+     struct rtk_crsd_host *sdport;
+     u32 iobase;
++//  u32 tmp_clock;
++//  unsigned long flags;
+ 
+     sdport = mmc_priv(host);
+     iobase = sdport->base_io;
++// jinn printk(KERN_ERR "[%s][%04d][base_io 0x%08x]\n",__FUNCTION__, __LINE__, iobase);
+     RedSDPRINTF( "regCARD_EXIST = %x\n",crsd_readb(iobase+CARD_EXIST));
+     
+     force_check_previous_xfer_done = 0; // CMD25_USE_SD_AUTOWRITE2
+     sd_in_receive_data_state = 0; // CMD25_WO_STOP_COMMAND
+     sd_current_blk_address = 0; // CMD25_WO_STOP_COMMAND
+-//  sd_previous_blk_section = 0; // CMD25_WO_STOP_COMMAND
++//    sd_previous_blk_section = 0; // CMD25_WO_STOP_COMMAND
+     rtksd_mmc_cmd = NULL; // CMD25_WO_STOP_COMMAND
+     rtksd_sdport = sdport; // CMD25_WO_STOP_COMMAND
+ 
+ ////////////////////////////////////////////////////////////////////
+-
++//  sdport->ins_event = EVENT_REMOV;
++//  sdport->rtflags &= ~RTKCR_FCARD_DETECTED;
++//  rtkcr_set_clk_muxpad(sdport,OFF);
++//	det_time = 1;
+ 	crsd_writeb( 0xff, sdport->base_io+CR_CARD_STOP );     	// SD Card module transfer stop and idle state
++//  if(sdport->mmc->card)
++//		mmc_card_set_removed(sdport->mmc->card);
+ 
+ 	sdport->ops->card_power(sdport, 0);	//power off
+ 	sdport->ops->card_power(sdport, 1);	//power on
+ 
++//  sdport->ins_event = EVENT_INSER;
++//  sdport->rtflags |= RTKCR_FCARD_DETECTED;
++//	det_time = 1;
++
++
+     down_write(&cr_rw_sem);
+ 	sdport->rtflags &= ~RTKCR_FCARD_SELECTED;
+ 	crsd_rca = 0;
+@@ -251,14 +269,18 @@
+     crsd_writeb( 0x0, sdport->base_io+SD_STATUS2 );
+ 
+ 	crsd_writel( 0x003E0003,  sdport->base_pll_io+CR_PLL_SD1);	//PLL_SD1
++	udelay(100);
+ 	crsd_writel( 0x078D1893,  sdport->base_pll_io+CR_PLL_SD2);	//Reduce the impact of spectrum by Hsin-yin, jamestai20150302
++	udelay(100);
+ 	crsd_writel(crsd_readl( sdport->base_io + CR_SD_CKGEN_CTL) | 0x00070000, sdport->base_io + CR_SD_CKGEN_CTL); //Switch SD source clock to 4MHz by Hsin-yin
++	udelay(100);
+ 	crsd_writel( 0x00564388,  sdport->base_pll_io+CR_PLL_SD3);	//PLL_SD3
+-	udelay(2);
++	udelay(100);
+ 	crsd_writel(crsd_readl( sdport->base_io + CR_SD_CKGEN_CTL) & 0xFFF8FFFF, sdport->base_io + CR_SD_CKGEN_CTL); //Switch SD source clock to normal clock source by Hsin-yin
++	udelay(100);
+ 	crsd_writeb( crsd_readb(sdport->base_io+SD_CONFIGURE1) & 0xEF, sdport->base_io+SD_CONFIGURE1 ); //Reset FIFO pointer by Hsin-yin
+ 	crsd_writel( 0x00000007,  sdport->base_pll_io+CR_PLL_SD4);	//PLL_SD4
+-
++	udelay(100);
+ 	crsd_writeb(0x0, iobase+CARD_SD_CLK_PAD_DRIVE);
+ 	crsd_writeb(0x0, iobase+CARD_SD_CMD_PAD_DRIVE);
+ 	crsd_writeb(0x0, iobase+CARD_SD_DAT_PAD_DRIVE);
+@@ -271,55 +293,79 @@
+ 
+ 	mdelay(10);
+ 
++#ifdef ENABLE_SD_INT_MODE
+ 	writel(0x16 ,sdport->base_crsd + 0x24);
+ 	writel(0x17 ,sdport->base_crsd + 0x28);
+-}
++#endif
+ 
+-static void rtk_crsd_set_div(struct rtk_crsd_host *sdport,u32 set_div){
++}
+ 
++static void rtk_crsd_set_div(struct rtk_crsd_host *sdport,u32 set_div)
++{
+     u32 iobase = sdport->base_io;
+     u32 tmp_div;
+     unsigned long flags;
+-
+     spin_lock_irqsave(&sdport->lock,flags);
+     tmp_div = crsd_readb(iobase+SD_CONFIGURE1) & ~MASK_CLOCK_DIV;
+-
+-    if (set_div != CLOCK_DIV_NON){
++    if (set_div != CLOCK_DIV_NON)
++    {
+         crsd_writeb(tmp_div|set_div|SDCLK_DIV, iobase+SD_CONFIGURE1);
+-    }else{
+-        crsd_writeb(tmp_div, iobase+SD_CONFIGURE1);
+     }
+-
++    else
++        crsd_writeb(tmp_div, iobase+SD_CONFIGURE1);
+     rtk_crsd_sync(sdport);
+     spin_unlock_irqrestore(&sdport->lock, flags);
+-
+     RTKSDPRINTF( "%s: set div to 0x%02x, 0x%x=%08x\n",
+               DRIVER_NAME, tmp_div|set_div,iobase+SD_CONFIGURE1, crsd_readb(iobase+SD_CONFIGURE1));
+ }
+ 
+-static void rtk_crsd_set_bits(struct rtk_crsd_host *sdport,u8 set_bit){
+-
++static void rtk_crsd_set_bits(struct rtk_crsd_host *sdport,u8 set_bit)
++{
+     u32 iobase = sdport->base_io;
+     u32 tmp_bits;
+     unsigned long flags;
+ 
+     spin_lock_irqsave(&sdport->lock,flags);
+     tmp_bits = crsd_readb(iobase+SD_CONFIGURE1);
+-
+     if((tmp_bits & MASK_BUS_WIDTH) != set_bit ){
+         tmp_bits &= ~MASK_BUS_WIDTH;
+         crsd_writeb(tmp_bits|set_bit,iobase+SD_CONFIGURE1);
+         spin_unlock_irqrestore(&sdport->lock, flags);
+         RTKSDPRINTF( "%s: change to %s mode, 0x%x =%08x\n",
+                 DRIVER_NAME,bit_tlb[set_bit],iobase+SD_CONFIGURE1,crsd_readb(iobase+SD_CONFIGURE1));
+-    }else{
++    }
++    else
++    {
+         RTKSDPRINTF( "%s: already in  %s mode\n", DRIVER_NAME,bit_tlb[set_bit]);
+         spin_unlock_irqrestore(&sdport->lock, flags);
+ 	}
+ }
+ 
+-static void rtk_crsd_set_access_mode(struct rtk_crsd_host *sdport,u8 level){
++#if 0
++static void rtk_crsd_set_phase(struct rtk_crsd_host *sdport,u8 level)
++{
++    u32 iobase = sdport->base_io;
++    u32 tmp_bits;
++    unsigned long flags;
++
++    RTKSDPRINTF( "\n");
++    spin_lock_irqsave(&sdport->lock,flags);
++    tmp_bits = cr_readb(iobase+SD_CONFIGURE1) & ~DELAY_PHA_MASK;
+ 
++    if(level == LVL_HI){
++        tmp_bits |= DELAY_PHA_HIGH;
++    }else{
++        tmp_bits |= DELAY_PHA_NORM;
++    }
++
++    cr_writel(tmp_bits,iobase+SD_CONFIGURE1);
++    spin_unlock_irqrestore(&sdport->lock, flags);
++
++}
++#endif
++
++static void rtk_crsd_set_access_mode(struct rtk_crsd_host *sdport,u8 level)
++{
+     u32 iobase = sdport->base_io;
+     u32 tmp_bits;
+     unsigned long flags;
+@@ -328,13 +374,20 @@
+     spin_lock_irqsave(&sdport->lock,flags);
+     tmp_bits = crsd_readb(iobase+SD_CONFIGURE1) & ~MODE_SEL_MASK;
+ 
+-    if(level == ACCESS_MODE_SD20){
++    if(level == ACCESS_MODE_SD20)
++	{
+         tmp_bits |= MODE_SEL_SD20;
+-    }else if(level == ACCESS_MODE_DDR){
++    }
++	else if(level == ACCESS_MODE_DDR)
++	{
+         tmp_bits |= MODE_SEL_DDR;
+-	}else if(level == ACCESS_MODE_SD30){
++	}
++	else if(level == ACCESS_MODE_SD30)
++	{
+         tmp_bits |= (MODE_SEL_SD30 | SD30_ASYNC_FIFO_RST);
+-    }else{
++    }
++	else
++	{
+         tmp_bits |= MODE_SEL_SD20;
+     }
+ 
+@@ -344,8 +397,8 @@
+ 
+ 
+ 
+-static void rtk_crsd_speed(struct rtk_crsd_host *sdport,enum crsd_clock_speed sd_speed){
+-
++static void rtk_crsd_speed(struct rtk_crsd_host *sdport,enum crsd_clock_speed sd_speed)
++{
+     switch(sd_speed){
+         case CRSD_CLOCK_200KHZ:  
+ 		    RTKSDPRINTF( "speed CRSD_CLOCK_200KHZ\n");
+@@ -405,20 +458,32 @@
+ 			break;
+         case CRSD_CLOCK_208000KHZ:
+ 		    RTKSDPRINTF( "speed CRSD_CLOCK_208000KHZ\n");
+-			crsd_writeb(0XEE, sdport->base_io+CARD_SD_CLK_PAD_DRIVE);
+-			crsd_writeb(0XEE, sdport->base_io+CARD_SD_CMD_PAD_DRIVE);
+-			crsd_writeb(0XEE, sdport->base_io+CARD_SD_DAT_PAD_DRIVE);
+-
+-			crsd_writel( ((crsd_readl(sdport->base_pll_io+CR_PLL_SD1))|0x00100000), sdport->base_pll_io+CR_PLL_SD1); //change voltage from 1.8v to 2.0v by Hsin-yin
+-
+-			crsd_writel(crsd_readl( sdport->base_io + CR_SD_CKGEN_CTL) | 0x00070000, sdport->base_io + CR_SD_CKGEN_CTL); //Switch SD source clock to 4MHz by Hsin-yin
+ 
+ 			/*
+ 			 * SD clock rate formula:
+ 			 * Target clock = (ssc_div_n +3) *4.5/4, For example: (172+3)*4.5/4 = 196MHz
+ 			 * jamestai20141222
+ 			 */
+-			crsd_writel( 0x00b64388,  sdport->base_pll_io+CR_PLL_SD3);	//bus clock to 208MHz jamestai20141219
++        	if(sdport->magic_num == 0x0 ||
++        	   sdport->magic_num == 0x1){
++
++        		crsd_writeb(0X3F, sdport->base_io+CARD_SD_CLK_PAD_DRIVE);
++				crsd_writeb(0X3F, sdport->base_io+CARD_SD_CMD_PAD_DRIVE);
++				crsd_writeb(0X3F, sdport->base_io+CARD_SD_DAT_PAD_DRIVE);
++
++				rtk_crsd_set_div(sdport,CLOCK_DIV_NON); //0x580 = 0x10
++				rtk_crsd_set_speed(sdport, 0);			//0x478 = 0x2100
++
++        	}else{
++
++        		crsd_writeb(0XFF, sdport->base_io+CARD_SD_CLK_PAD_DRIVE);
++        		crsd_writeb(0XEE, sdport->base_io+CARD_SD_CMD_PAD_DRIVE);
++        		crsd_writeb(0XEE, sdport->base_io+CARD_SD_DAT_PAD_DRIVE);
++
++				crsd_writel(crsd_readl( sdport->base_io + CR_SD_CKGEN_CTL) | 0x00070000, sdport->base_io + CR_SD_CKGEN_CTL); //Switch SD source clock to 4MHz by Hsin-yin
++				crsd_writel( 0x00b64388,  sdport->base_pll_io+CR_PLL_SD3);	//bus clock to 208MHz jamestai20150319
++        	}
++
+ 			udelay(2);
+ 			crsd_writel(crsd_readl( sdport->base_io + CR_SD_CKGEN_CTL) & 0xFFF8FFFF, sdport->base_io + CR_SD_CKGEN_CTL); //Switch SD source clock to normal clock source by Hsin-yin
+ 			crsd_writeb( crsd_readb(sdport->base_io+SD_CONFIGURE1) & 0xEF, sdport->base_io+SD_CONFIGURE1 ); //Reset FIFO pointer by Hsin-yin
+@@ -436,14 +501,16 @@
+ }
+ 
+ 
+-static void rtk_crsd_set_speed(struct rtk_crsd_host *sdport,u8 level){
+-
++static void rtk_crsd_set_speed(struct rtk_crsd_host *sdport,u8 level)
++{
+     u32 iobase = sdport->base_io;
++//  u32 tmp_para;
+     unsigned long flags;
+ 
+ 
+     spin_lock_irqsave(&sdport->lock,flags);
+-    switch(level){
++    switch(level)
++    {
+         case 0:  //ddr50 , highest speed
+ 		    RTKSDPRINTF( "speed 2100\n");
+             crsd_writel(0x2100,iobase+CR_SD_CKGEN_CTL);
+@@ -470,10 +537,19 @@
+     spin_unlock_irqrestore(&sdport->lock, flags);
+ }
+ 
+-static u8 rtk_crsd_get_rsp_len(u8 rsp_para){
++/*
++static void rtk_crsd_bus_speed_down(struct rtk_crsd_host *sdport)
++{
++    RTKSDPRINTF( "\n");
++    crsd_writeb( 0x8,  sdport->base_io+SD_SAMPLE_POINT_CTL );    //sample point = SDCLK / 4
++    crsd_writeb( 0x10, sdport->base_io+SD_PUSH_POINT_CTL );     //output ahead SDCLK /4
++}
++*/
+ 
++static u8 rtk_crsd_get_rsp_len(u8 rsp_para)
++{
+     RTKSDPRINTF( "\n");
+-    switch (rsp_para & 0x3){
++    switch (rsp_para & 0x3) {
+     case 0:
+         return 0;
+     case 1:
+@@ -485,21 +561,38 @@
+     }
+ }
+ 
+-static u32 rtk_crsd_get_cmd_timeout(struct crsd_cmd_pkt *cmd_info){
+-
+-    struct rtk_crsd_host *sdport = cmd_info->sdport;
++static u32 rtk_crsd_get_cmd_timeout(struct crsd_cmd_pkt *cmd_info)
++{
++    struct rtk_crsd_host *sdport   = cmd_info->sdport;
++//  u16 block_count             = cmd_info->block_count;
+     u32 tmout = 0;
+ 
+     RTKSDPRINTF( "\n");
++/*
++   if(cmd_info->cmd->data)
++    {
++        tmout = msecs_to_jiffies(200);
++        if(block_count>0x100)
++        {
++            tmout = tmout + msecs_to_jiffies(block_count>>1);
++        }
++    }
++    else
++        tmout = msecs_to_jiffies(80);
+ 
++#ifdef CONFIG_ANDROID
++    tmout += msecs_to_jiffies(100);
++#endif
++*/
+     tmout += msecs_to_jiffies(1);
+     cmd_info->timeout = sdport->tmout = tmout;
+     return 0;
+ }
+ 
+ #define SD_ALLOC_LENGTH     2048
+-static int rtk_crsd_allocate_dma_buf(struct rtk_crsd_host *sdport, struct mmc_command *cmd){
+-
++static int rtk_crsd_allocate_dma_buf(struct rtk_crsd_host *sdport, struct mmc_command *cmd)
++{
++//  extern unsigned char* pPSP;
+     if (!pRSP)
+         pRSP_org = pRSP = dma_alloc_coherent(sdport->dev, SD_ALLOC_LENGTH, &sdport->paddr ,GFP_KERNEL);
+     else
+@@ -515,10 +608,9 @@
+     RTKSDPRINTF( "allocate rtk dma buf : dma addr=0x%08x, phy addr=0x%08x\n", (unsigned int)pRSP, (unsigned int)sdport->paddr);
+     return 1;
+ }
+-
+-static int rtk_crsd_free_dma_buf(struct rtk_crsd_host *sdport){
+-
+-	if (pRSP_org)
++static int rtk_crsd_free_dma_buf(struct rtk_crsd_host *sdport)
++{
++    if (pRSP_org)
+         dma_free_coherent(sdport->dev, SD_ALLOC_LENGTH, pRSP_org ,sdport->paddr);
+     else
+         return 0;
+@@ -527,11 +619,11 @@
+     return 1;
+ }
+ 
+-static void rtk_crsd_get_next_block(void){
+-
++static void rtk_crsd_get_next_block(void)
++{
+     RTKSDPRINTF( "\n");
+-
+-    if (pRSP_org){
++    if (pRSP_org)
++    {
+         if ((pRSP+0x200) >= (pRSP_org+SD_ALLOC_LENGTH))
+             pRSP = pRSP_org;
+         else
+@@ -539,9 +631,12 @@
+     }
+ }
+ 
+-static int rtk_crsd_set_rspparam(struct crsd_cmd_pkt *cmd_info){
++static int rtk_crsd_set_rspparam(struct crsd_cmd_pkt *cmd_info)
++{
++    //correct emmc setting for rt1195
+ 
+-    switch(cmd_info->cmd->opcode){
++    switch(cmd_info->cmd->opcode)
++    {
+         case MMC_GO_IDLE_STATE:			//cmd 0	/* bc                          */
+ 		 	RTKSDPRINTF_WARM("is cmd CMD0 MMC_GO_IDLE_STATE\n");
+             cmd_info->rsp_para1 = 0xD0;			//SD1_R0;
+@@ -570,7 +665,7 @@
+ 		 	RTKSDPRINTF_WARM("is cmd CMD3 MMC_SET_RELATIVE_ADDR\n");
+             cmd_info->rsp_para1 = -1;//SD1_R0;
+             cmd_info->rsp_para2 = 0x41;//SD_R1|CRC16_CAL_DIS;
+-            cmd_info->rsp_para3 = 0x5;//;
++            cmd_info->rsp_para3 = 0x05;//;
+             //cmd_info->cmd->arg = 0x10000;
+             break;
+ 
+@@ -637,10 +732,12 @@
+ 		 	RTKSDPRINTF_WARM("is cmd CMD10 MMC_SEND_CID\n");
+             cmd_info->rsp_para1 = -1;//0;
+             cmd_info->rsp_para2 = 0x42;//SD_R2;
+-            cmd_info->rsp_para3 = 0x5;//0x0;
++            cmd_info->rsp_para3 = 0x05;//0x0;
+ //          cmd_info->cmd->arg = 0x10000;
+             break;
+ 
++
++
+ //		case MMC_READ_DAT_UNTIL_STOP:	//cmd 11 /* adtc [31:0] dadr R1 */
+ 		case SD_SWITCH_VOLTAGE:			//cmd 11  /* ac                      R1  */
+ 		 	RTKSDPRINTF_WARM("is cmd CMD11 SD_SWITCH_VOLTAGE\n");
+@@ -649,16 +746,18 @@
+             cmd_info->rsp_para3 = 0x0;     //don't update
+             break;
+ 
++
+         case MMC_STOP_TRANSMISSION:  	//cmd 12	/* ac                      R1b */
+ 		 	RTKSDPRINTF_WARM("is cmd CMD12 MMC_STOP_TRANSMISSION\n");
+             cmd_info->rsp_para1 = -1;
+-            cmd_info->rsp_para2 = 0x7c;// SD_R1|CRC16_CAL_DIS;
+-            cmd_info->rsp_para3 = 0x0;//-1;
++            cmd_info->rsp_para2 = 0x79;// SD_R1|CRC16_CAL_DIS;
++            cmd_info->rsp_para3 = 0x5;//-1;
+             break;
+ 
+ 		case SD_APP_SD_STATUS:         	//cmd 13   	/* adtc                    R1  */
+ //      case MMC_SEND_STATUS: 			//cmd 13	/* ac   [31:16] RCA        R1  */
+-			if((cmd_info->cmd->flags & (0x3<<5)) == MMC_CMD_ADTC){	//SD_APP_SD_STATUS
++			if((cmd_info->cmd->flags & (0x3<<5)) == MMC_CMD_ADTC)	//SD_APP_SD_STATUS
++			{
+ 			 	RTKSDPRINTF_WARM("is cmd ACMD13 SD_APP_SD_STATUS\n");
+ 	            cmd_info->rsp_para1 = -1;
+ 	            cmd_info->rsp_para2 = 0x1;//SD_R1|CRC16_CAL_DIS;
+@@ -693,9 +792,10 @@
+ 		 	RTKSDPRINTF_WARM("is cmd CMD17 MMC_READ_SINGLE_BLOCK\n");
+             cmd_info->rsp_para1 = -1;
+             cmd_info->rsp_para2 = 0x1;
+-            cmd_info->rsp_para3 = -1;
++            cmd_info->rsp_para3 = 0x05;
+             break;
+ 
++
+         case MMC_READ_MULTIPLE_BLOCK:	//cmd 18	/* adtc [31:0] data addr   R1  */
+ 		 	RTKSDPRINTF_WARM("is cmd CMD18 MMC_READ_MULTIPLE_BLOCK\n");
+             cmd_info->rsp_para1 = -1;
+@@ -703,10 +803,11 @@
+             if(MMCDetected == 1){
+             	cmd_info->rsp_para3 = 0x4;//0x04;
+             }else{
+-            	cmd_info->rsp_para3 = -1;//0x04;
++            	cmd_info->rsp_para3 = 0x2;
+             }
+             break;
+ 
++
+ //		case MMC_BUS_TEST_W:			//cmd 19 /* adtc R1 */
+ 		case MMC_SEND_TUNING_BLOCK:		//cmd 19 /* adtc R1 */
+ 		 	RTKSDPRINTF_WARM("is cmd CMD19 MMC_SEND_TUNING_BLOCK\n");
+@@ -715,6 +816,8 @@
+             cmd_info->rsp_para3 = -1;//0x04;
+             break;
+ 
++		
++
+ 		case MMC_WRITE_DAT_UNTIL_STOP:	//cmd 20 /* adtc [31:0] data addr R1 */
+ 		 	RTKSDPRINTF_WARM("is cmd CMD20 SPEED_CLASS_CONTROL \n");
+             cmd_info->rsp_para1 = -1;     //don't update
+@@ -738,14 +841,14 @@
+ 		 	RTKSDPRINTF_WARM("is cmd CMD24 MMC_WRITE_BLOCK\n");
+             cmd_info->rsp_para1 = -1;
+             cmd_info->rsp_para2 = 0x1;
+-            cmd_info->rsp_para3 = -1;
++            cmd_info->rsp_para3 = 0x5;
+             break;
+ 
+         case MMC_WRITE_MULTIPLE_BLOCK:	//cmd 25	/* adtc                    R1  */
+ 		 	RTKSDPRINTF_WARM("is cmd CMD25 MMC_WRITE_MULTIPLE_BLOCK\n");
+             cmd_info->rsp_para1 = -1;
+             cmd_info->rsp_para2 = 0x1;
+-            cmd_info->rsp_para3 = -1;//0x03;
++            cmd_info->rsp_para3 = 0x5;
+             break;
+ 
+ //host not support CMD27
+@@ -833,6 +936,38 @@
+             cmd_info->rsp_para3 = -1;     //don't update
+             break;
+ 
++		case MMC_EXT_READ_SINGLE:		//cmd 48
++		 	RTKSDPRINTF_WARM("is cmd CMD48 MMC_GEN_CMD\n");
++            cmd_info->rsp_para1 = -1;
++            cmd_info->rsp_para2 = 0x1;
++            cmd_info->rsp_para3 = -1;
++            break;
++
++		case MMC_EXT_WRITE_SINGLE:		//cmd 49
++		 	RTKSDPRINTF_WARM("is cmd CMD49 MMC_GEN_CMD\n");
++            cmd_info->rsp_para1 = -1;
++            cmd_info->rsp_para2 = 0x1;
++            cmd_info->rsp_para3 = -1;
++            break;
++
++		case MMC_EXT_READ_MULTIPLE:		//cmd 58
++		 	RTKSDPRINTF_WARM("is cmd CMD58 MMC_GEN_CMD\n");
++            cmd_info->rsp_para1 = -1;
++            cmd_info->rsp_para2 = 0x1;
++            if(MMCDetected == 1){
++            	cmd_info->rsp_para3 = 0x4;//0x04;
++            }else{
++            	cmd_info->rsp_para3 = 0x2;//0x04;
++            }
++            break;
++
++		case MMC_EXT_WRITE_MULTIPLE:	//cmd 59
++		 	RTKSDPRINTF_WARM("is cmd CMD59 MMC_GEN_CMD\n");
++            cmd_info->rsp_para1 = -1;
++            cmd_info->rsp_para2 = 0x1;
++            cmd_info->rsp_para3 = 0x2;
++            break;
++
+         default:
+ 		 	RTKSDPRINTF_WARM("is cmd default, opcode = %d \n",cmd_info->cmd->opcode);
+             cmd_info->rsp_para1 = -1;     //don't update
+@@ -840,55 +975,68 @@
+             break;
+     }
+ 
++
++
+     return 0;
+ }
+ 
+-static int rtk_crsd_SendCMDGetRSP_Cmd(struct crsd_cmd_pkt *cmd_info){
+-
+-    u8 cmd_idx = cmd_info->cmd->opcode;
++static int rtk_crsd_SendCMDGetRSP_Cmd(struct crsd_cmd_pkt *cmd_info)
++{
++    u8 cmd_idx              = cmd_info->cmd->opcode;
+     u32 sd_arg;
+     s8 rsp_para1;
+     s8 rsp_para2;
+     s8 rsp_para3;
+-    u8 rsp_len = cmd_info->rsp_len;
+-    u32 *rsp = (u32 *)&cmd_info->cmd->resp;
++    u8 rsp_len              = cmd_info->rsp_len;
++    u32 *rsp                = (u32 *)&cmd_info->cmd->resp;
+     struct rtk_crsd_host *sdport = cmd_info->sdport;
+     u32 iobase = sdport->base_io;
+     int err;
++//  unsigned long flags;
+     u32 dma_val=0;
++//  u32 byte_count = 0x200, block_count = 1, cpu_mode=0, sa=0;
+     u32 byte_count = 0x200, block_count = 1, sa=0;
++//  u8 tmp9_buf[1024]={0};
+     u32 buf_ptr=0;
+ 
++
+     rtk_crsd_set_rspparam(cmd_info);   //for 119x
+     sd_arg              = cmd_info->cmd->arg;
+     rsp_para1           = cmd_info->rsp_para1;
+     rsp_para2           = cmd_info->rsp_para2;
+     rsp_para3           = cmd_info->rsp_para3;
+ 
+-    /*printk( "%s: cmd_idx=%u, rsp_addr=0x%08x \n",
++    RTKSDPRINTF( "%s: cmd_idx=%u, rsp_addr=0x%08x \n",
+             DRIVER_NAME,cmd_idx,(unsigned int)rsp);
+-    printk( "%s: sd_arg=0x%08x; rsp_para1=0x%x \n",
++    RTKSDPRINTF( "%s: sd_arg=0x%08x; rsp_para1=0x%x \n",
+             DRIVER_NAME,sd_arg,rsp_para1);
+-    printk( "%s: rsp_para2=0x%x rsp_para3=0x%x rsp_len=0x%x \n",
++    RTKSDPRINTF( "%s: rsp_para2=0x%x rsp_para3=0x%x rsp_len=0x%x \n",
+             DRIVER_NAME,rsp_para2,rsp_para3,rsp_len);
+-*/
++
++
+     if(rsp == NULL) {
+         BUG_ON(1);
+     }
+ 
+-    if ((cmd_idx == SD_IO_SEND_OP_COND)|(cmd_idx == SD_IO_RW_DIRECT)|(cmd_idx == SD_IO_RW_EXTENDED)){
++
++
++/* SDIO commands                         type  argument     response */
++//#define SD_IO_SEND_OP_COND          5 /* bcr  [23:0] OCR         R4  */
++//#define SD_IO_RW_DIRECT            52 /* ac   [31:0] See below   R5  */
++//#define SD_IO_RW_EXTENDED          53 /* adtc [31:0] See below   R5  */
++
++    if ((cmd_idx == SD_IO_SEND_OP_COND)|(cmd_idx == SD_IO_RW_DIRECT)|(cmd_idx == SD_IO_RW_EXTENDED))
++    {
+         RTKSDPRINTF( "%s : reject SDIO commands cmd:0x%02x \n",DRIVER_NAME,cmd_idx);
+         return CR_TRANSFER_FAIL;
+     }
+ 
++
+     if (rsp_para1 != -1)
+         crsd_writeb(rsp_para1, iobase+SD_CONFIGURE1);
+-
+     crsd_writeb(rsp_para2,     iobase+SD_CONFIGURE2);
+-
+     if (rsp_para3 != -1)
+         crsd_writeb(rsp_para3, iobase+SD_CONFIGURE3);
+-
+     g_cmd[0] = (0x40|cmd_idx);
+     g_cmd[1] = (sd_arg>>24)&0xff;
+     g_cmd[2] = (sd_arg>>16)&0xff;
+@@ -905,7 +1053,8 @@
+     sdport->cmd_opcode = cmd_idx;
+     rtk_crsd_get_cmd_timeout(cmd_info);
+ 
+-    if (RESP_TYPE_17B & rsp_para2){
++    if (RESP_TYPE_17B & rsp_para2)
++    {
+         //remap the resp dst buffer to un-cache
+         #if 1
+         RTKSDPRINTF( "pRSP : 0x%08x\n", (unsigned int)pRSP);
+@@ -917,53 +1066,79 @@
+         #endif
+ 
+         dma_val = RSP17_SEL|DDR_WR|DMA_XFER;
+-
+-        crsd_writeb(byte_count, iobase+SD_BYTE_CNT_L);     //0x24
+-        crsd_writeb(byte_count>>8, iobase+SD_BYTE_CNT_H);     //0x28
+-        crsd_writeb(block_count, iobase+SD_BLOCK_CNT_L);    //0x2C
+-        crsd_writeb(block_count>>8, iobase+SD_BLOCK_CNT_H);    //0x30
++        RTKSDPRINTF( "-----rsp 17B-----\n DMA_sa=0x%08x DMA_len=0x%08x DMA_setting=0x%08x\n", sa,1,dma_val);
++        crsd_writeb(byte_count,       iobase+SD_BYTE_CNT_L);     //0x24
++        crsd_writeb(byte_count>>8,    iobase+SD_BYTE_CNT_H);     //0x28
++        crsd_writeb(block_count,      iobase+SD_BLOCK_CNT_L);    //0x2C
++        crsd_writeb(block_count>>8,   iobase+SD_BLOCK_CNT_H);    //0x30
++//        if (cpu_mode && (iobase==CR_BASE_ADDR))
++//            crsd_writel( CPU_MODE_EN, iobase+EMMC_CPU_ACC); //enable cpu mode
++//        else
++//            crsd_writel( 0, iobase+EMMC_CPU_ACC);
+         crsd_writel(sa, iobase+CR_DMA_CTL1);   //espeical for R2
+         crsd_writel(1, iobase+CR_DMA_CTL2);   //espeical for R2
+         crsd_writel(dma_val, iobase+CR_DMA_CTL3);   //espeical for R2
+         rtk_crsd_get_next_block();
+-    }else if(RESP_TYPE_6B & rsp_para2){
++    }
++    else if (RESP_TYPE_6B & rsp_para2)
++    {
+         RTKSDPRINTF( "-----rsp 6B-----\n");
+         RTKSDPRINTF( "do nothings\n");
++		//cr_writel( 0x00, iobase+EMMC_CPU_ACC);
+     }
+ 
+     RTKSDPRINTF( "cmd0:0x%02x,cmd1:0x%02x,cmd2:0x%02x,cmd3:0x%02x,cmd4:0x%02x,cmd5:0x%02x\n", g_cmd[0],g_cmd[1],g_cmd[2],g_cmd[3],g_cmd[4],g_cmd[5]);
+ 
+-    err = rtk_crsd_wait_opt_end_test(DRIVER_NAME,sdport,SD_SENDCMDGETRSP,0);
+-    //err = rtkcr_wait_opt_end(DRIVER_NAME,sdport,SD_SENDCMDGETRSP,0);
++#ifdef ENABLE_SD_INT_MODE
++    err = rtk_crsd_int_wait_opt_end(DRIVER_NAME,sdport,SD_SENDCMDGETRSP,0);
++#else
++    err = rtk_crsd_wait_opt_end(DRIVER_NAME,sdport,SD_SENDCMDGETRSP,0);
++#endif
+ 
+     if(err == CR_TRANS_OK){
+-        if(buf_ptr != 0){
++      //if(buf_ptr != NULL)
++        if(buf_ptr != 0)
++        {
+             //ignore start pattern
+ 			int i;
+ 			*(((unsigned int *)buf_ptr)+4) = crsd_readb(iobase+SD_CMD5);	//the last byte of 17 byte is from SD_CMD5, not from dma		
++			for(i=0;i<5;i++)
++			{
++				RTKSDPRINTF_DBG( "befor 0x%x = 0x%x\n",(unsigned int)(((unsigned int *)buf_ptr)+i),*(((unsigned int *)buf_ptr)+i) );
++			}
+ 			
+             buf_ptr++;
+             rtk_crsd_read_rsp(sdport,(u32*)buf_ptr, rsp_len);
++//			if (cmd_idx == SD_SWITCH)
++//				memcpy(rsp, (u32*)buf_ptr, 64);
++//			else
++			for(i=0;i<5;i++)
++			{
++				RTKSDPRINTF_DBG( "after 0x%x = 0x%x\n",(unsigned int)(((unsigned int *)buf_ptr)+i),*(((unsigned int *)buf_ptr)+i) );
++			}
+ 			memcpy(rsp, (u32*)buf_ptr, 16);
+-        }else{
+-            rtk_crsd_read_rsp(sdport,rsp, rsp_len);
++			for(i=0;i<5;i++)
++			{
++				RTKSDPRINTF_DBG( "rsp[%d](0x%x) = 0x%x\n",i,((unsigned int)&(rsp[i])),rsp[i]);
++			}
+         }
+-
++        else
++            rtk_crsd_read_rsp(sdport,rsp, rsp_len);
+         rtk_crsd_sync(sdport);
+-
+-        if (cmd_idx == MMC_SET_RELATIVE_ADDR){
++        if (cmd_idx == MMC_SET_RELATIVE_ADDR)
++        {
+             g_crinit = 1;
+             RTKSDPRINTF( "emmc init done ...\n");
+         }
+-
+-    }else{
++    }
++    else{
+         RTKSDPRINTF("%s: cmd trans fail, err=%d \n",DRIVER_NAME, err);
+     }
+     return err;
+ }
+ 
+-static int rtk_crsd_SendStopCMD(struct mmc_command *cmd, struct rtk_crsd_host *sdport){
+-
++static int rtk_crsd_SendStopCMD(struct mmc_command *cmd, struct rtk_crsd_host *sdport)
++{
+     u8 cmd_idx;
+     u32 sd_arg;
+     s8 rsp_para1;
+@@ -991,8 +1166,6 @@
+ 	sdport = cmd_info->sdport;
+ 	iobase = sdport->base_io;
+ 
+-	//printk("rtk_crsd_SendStopCMD ...\n");
+-
+     rtk_crsd_set_rspparam(cmd_info);   //for 119x
+ 
+ 	//cmd_info->rsp_para2 &= 0xF7;// wait busy end disable
+@@ -1020,6 +1193,10 @@
+     g_cmd[4] = sd_arg&0xff;
+     g_cmd[5] = 0x00;
+ 
++	//printk("*** cmd12, argu 0x%08x ***\n", sd_arg);
++	//printk("*** rsp_para2 = 0x%02x, CFG2 = 0x%02x\n", rsp_para2, crsd_readb(iobase+SD_CONFIGURE2));
++	//printk("*** rsp_para3 = 0x%02x, CFG2 = 0x%02x\n", rsp_para2, crsd_readb(iobase+SD_CONFIGURE3));
++
+     crsd_writeb(g_cmd[0],    iobase+SD_CMD0);
+     crsd_writeb(g_cmd[1],    iobase+SD_CMD1);
+     crsd_writeb(g_cmd[2],    iobase+SD_CMD2);
+@@ -1031,17 +1208,21 @@
+ 
+     err = rtk_crsd_wait_opt_end(DRIVER_NAME,sdport,SD_SENDCMDGETRSP,0);
+ 
++	//printk("--- rsp_para2 = 0x%02x, CFG2 = 0x%02x\n", rsp_para2, crsd_readb(iobase+SD_CONFIGURE2));
++	//printk("--- rsp_para3 = 0x%02x, CFG3 = 0x%02x\n", rsp_para2, crsd_readb(iobase+SD_CONFIGURE3));
++	//printk("--- XFER = 0x%02x\n", crsd_readb(iobase+SD_TRANSFER));
++
+     if(err == CR_TRANS_OK){
+         rtk_crsd_sync(sdport);
+-    }else{
++    }
++    else{
+         RTKSDPRINTF("%s: cmd trans fail, err=%d \n",DRIVER_NAME, err);
+     }
+     return err;
+ }
+ 
+-#ifdef CMD25_USE_SD_AUTOWRITE2
+-static int rtk_crsd_SendStopCMD_and_not_check_done(struct mmc_command *cmd, struct rtk_crsd_host *sdport){
+-
++static int rtk_crsd_SendStopCMD_and_not_check_done(struct mmc_command *cmd, struct rtk_crsd_host *sdport)
++{
+     u8 cmd_idx;
+     u32 sd_arg;
+     s8 rsp_para1;
+@@ -1129,66 +1310,98 @@
+     return err;
+ #endif
+ }
+-#endif
+-
+-static int rtk_crsd_SendCMDGetRSP(struct crsd_cmd_pkt * cmd_info){
+ 
+-	int rc;
+-
+-	rc = rtk_crsd_SendCMDGetRSP_Cmd(cmd_info);
++static int rtk_crsd_SendCMDGetRSP(struct crsd_cmd_pkt * cmd_info)
++{
++    int rc;
++    rc = rtk_crsd_SendCMDGetRSP_Cmd(cmd_info);
+ 
+     return rc;
+ }
+ 
+-static int rtk_crsd_Stream_Cmd(u16 cmdcode,struct crsd_cmd_pkt *cmd_info,u8 data_len){
++/*
++static void duplicate_pkt(struct crsd_cmd_pkt* sour,struct crsd_cmd_pkt* dist)
++{
++    RTKSDPRINTF( "\n");
++    dist->sdport      = sour->sdport;
++    dist->cmd         = sour->cmd;
++    dist->data        = sour->data;
++
++    dist->dma_buffer  = sour->dma_buffer;
++    dist->byte_count  = sour->byte_count;
++    dist->block_count = sour->block_count;
++
++    dist->flags       = sour->flags;
++    dist->rsp_para1    = sour->rsp_para1;
++    dist->rsp_para2    = sour->rsp_para2;
++    dist->rsp_para3    = sour->rsp_para3;
++    dist->rsp_len     = sour->rsp_len;
++    dist->timeout     = sour->timeout;
++}
+ 
+-    u8 cmd_idx = cmd_info->cmd->opcode;
+-    u32 sd_arg = cmd_info->cmd->arg;
+-    s8 rsp_para1 = cmd_info->rsp_para1;
+-    s8 rsp_para2 = cmd_info->rsp_para2;
+-    s8 rsp_para3 = cmd_info->rsp_para3;
+-    int rsp_len = cmd_info->rsp_len;
+-    u32 *rsp = (u32 *)&cmd_info->cmd->resp;
+-    u16 byte_count = cmd_info->byte_count;
+-    u16 block_count = cmd_info->block_count;
++static int rtk_crsd_err_handle(u16 cmdcode,struct crsd_cmd_pkt *cmd_info)
++{
++//    struct mmc_host *host       = cmd_info->sdport->mmc;
++    //struct rtk_crsd_host *sdport   = cmd_info->sdport;
++    //u8 cmd_idx                  = cmd_info->cmd->opcode;
++    //u32 iobase                  = sdport->base_io;
++	//u16 state = 0;
++    int err = 0;
++//  RTKSDPRINTF( "\n");
++
++	return err;
++}
++*/
++static int rtk_crsd_Stream_Cmd(u16 cmdcode,struct crsd_cmd_pkt *cmd_info,u8 data_len)
++{
++    u8 cmd_idx              = cmd_info->cmd->opcode;
++    u32 sd_arg              = cmd_info->cmd->arg;
++    s8 rsp_para1             = cmd_info->rsp_para1;
++    s8 rsp_para2             = cmd_info->rsp_para2;
++    s8 rsp_para3             = cmd_info->rsp_para3;
++    int rsp_len             = cmd_info->rsp_len;
++    u32 *rsp                = (u32 *)&cmd_info->cmd->resp;
++    u16 byte_count          = cmd_info->byte_count;
++    u16 block_count         = cmd_info->block_count;
+     struct rtk_crsd_host *sdport = cmd_info->sdport;
+     u32 iobase = sdport->base_io;
+     int err;
+-    u8 *data = cmd_info->dma_buffer;
+-    u32 cpu_mode = 0;
+-    u32 sa = 0;
+-
+-    /*printk("rtk_crsd_Stream_Cmd ...\n");
++    u8 *data              = cmd_info->dma_buffer;
++//  unsigned long flags;
++    u32 cpu_mode=0;
++    u32 sa=0;
+ 
+-    printk( "%s: cmd_idx=%u, rsp_addr=0x%08x \n",
++    RTKSDPRINTF( "%s: cmd_idx=%u, rsp_addr=0x%08x \n",
+             DRIVER_NAME,cmd_idx,(unsigned int)rsp);
+-    printk( "%s: sd_arg=0x%08x; rsp_para1=0x%x \n",
+-    		DRIVER_NAME,sd_arg,rsp_para1);
+-    printk( "%s: rsp_para2=0x%x rsp_para3=0x%x rsp_len=0x%x \n",
++    RTKSDPRINTF( "%s: sd_arg=0x%08x; rsp_para1=0x%x \n",
++            DRIVER_NAME,sd_arg,rsp_para1);
++    RTKSDPRINTF( "%s: rsp_para2=0x%x rsp_para3=0x%x rsp_len=0x%x \n",
+             DRIVER_NAME,rsp_para2,rsp_para3,rsp_len);
+-*/
++
+ 
+     if(data == NULL || rsp == NULL) {
+         BUG_ON(1);
+     }
+ 
+     rtk_crsd_set_rspparam(cmd_info);   //for 119x
++    sd_arg              = cmd_info->cmd->arg;
++    if (rsp_para1 != -1)
++        rsp_para1           = cmd_info->rsp_para1;
+ 
+-    if (rsp_para1 != -1){
+-        rsp_para1 = cmd_info->rsp_para1;
+-    }
+-
+-    rsp_para2 = cmd_info->rsp_para2;
+-
+-    if (rsp_para3 != -1){
+-        rsp_para3 = cmd_info->rsp_para3;
++    /* Fix CRC error for SD_AUTOWRITE3, jamestai20150325 */
++    if(cmdcode == SD_AUTOWRITE3){
++    	rsp_para2 = 0;
++    }else{
++    	rsp_para2 = cmd_info->rsp_para2;
+     }
+ 
++    if (rsp_para3 != -1)
++        rsp_para3           = cmd_info->rsp_para3;
+     sa = (u32)data/8;
+ 
+-    if((cmdcode == SD_NORMALWRITE)){
++    if((cmdcode==SD_NORMALWRITE)){
+         byte_count = 512;
+-    }else if(cmdcode == SD_NORMALREAD && MMCDetected == 1){
++    }else if(cmdcode==SD_NORMALREAD && MMCDetected == 1){
+     	byte_count = 512;
+     }
+ 
+@@ -1199,63 +1412,76 @@
+     g_cmd[4] = sd_arg&0xff;
+     g_cmd[5] = 0x00;
+ 
+-    crsd_writeb(g_cmd[0], iobase+SD_CMD0);           //0x10
+-    crsd_writeb(g_cmd[1], iobase+SD_CMD1);           //0x14
+-    crsd_writeb(g_cmd[2], iobase+SD_CMD2);           //0x18
+-    crsd_writeb(g_cmd[3], iobase+SD_CMD3);           //0x1C
+-    crsd_writeb(g_cmd[4], iobase+SD_CMD4);           //0x20
+-    crsd_writeb(g_cmd[5], iobase+SD_CMD5);           //0x20
++    crsd_writeb(g_cmd[0],    iobase+SD_CMD0);           //0x10
++    crsd_writeb(g_cmd[1],    iobase+SD_CMD1);           //0x14
++    crsd_writeb(g_cmd[2],    iobase+SD_CMD2);           //0x18
++    crsd_writeb(g_cmd[3],    iobase+SD_CMD3);           //0x1C
++    crsd_writeb(g_cmd[4],    iobase+SD_CMD4);           //0x20
++    crsd_writeb(g_cmd[5],    iobase+SD_CMD5);           //0x20
+ 
+-    if (rsp_para1 != -1){
+-        crsd_writeb(rsp_para1, iobase+SD_CONFIGURE1);     //0x0C
++    if (rsp_para1 != -1)
++    {
++        crsd_writeb(rsp_para1,         iobase+SD_CONFIGURE1);     //0x0C
+         RTKSDPRINTF( "read configure1 : 0x%02x\n", crsd_readb(iobase+SD_CONFIGURE1));
+     }
+-
+-    crsd_writeb(rsp_para2, iobase+SD_CONFIGURE2);     //0x0C
+-
+-    if (rsp_para3 != -1){
++    crsd_writeb(rsp_para2,         iobase+SD_CONFIGURE2);     //0x0C
++    if (rsp_para3 != -1)
++    {
+         crsd_writeb(rsp_para3,         iobase+SD_CONFIGURE3);     //0x0C
+         RTKSDPRINTF( "read configure3 : 0x%02x\n", crsd_readb(iobase+SD_CONFIGURE3));
+     }
+-
+-    crsd_writeb(byte_count, iobase+SD_BYTE_CNT_L);     //0x24
+-    crsd_writeb(byte_count>>8, iobase+SD_BYTE_CNT_H);     //0x28
+-    crsd_writeb(block_count, iobase+SD_BLOCK_CNT_L);    //0x2C
+-    crsd_writeb(block_count>>8, iobase+SD_BLOCK_CNT_H);    //0x30
++    crsd_writeb(byte_count,       iobase+SD_BYTE_CNT_L);     //0x24
++    crsd_writeb(byte_count>>8,    iobase+SD_BYTE_CNT_H);     //0x28
++    crsd_writeb(block_count,      iobase+SD_BLOCK_CNT_L);    //0x2C
++    crsd_writeb(block_count>>8,   iobase+SD_BLOCK_CNT_H);    //0x30
+ 
+     if(cmd_info->cmd->data->flags & MMC_DATA_READ){
+         RTKSDPRINTF( "-----mmc data ddr read-----\n");
+-
++//        crsd_writel( 0x00, iobase+EMMC_CPU_ACC);
+         crsd_writel( (u32)sa, iobase+CR_DMA_CTL1);
+         crsd_writel( block_count, iobase+CR_DMA_CTL2);
+-
+-        if(data_len==RESP_LEN64){
++		if(data_len==RESP_LEN64)
++		{
+ 			crsd_writel( RSP64_SEL|DDR_WR|DMA_XFER, iobase+CR_DMA_CTL3);
+-		}else if(data_len==RESP_LEN17){
++		} 
++		else if(data_len==RESP_LEN17) 
++		{
+ 			crsd_writel( RSP17_SEL|DDR_WR|DMA_XFER, iobase+CR_DMA_CTL3);
+-		}else{
++		} 
++		else 
++		{
+ 	        crsd_writel( DDR_WR|DMA_XFER, iobase+CR_DMA_CTL3);
+ 		}
+ 	}else if(cmd_info->cmd->data->flags & MMC_DATA_WRITE){
+         RTKSDPRINTF( "-----mmc data write-----\n");
+         RTKSDPRINTF( "DMA sa = 0x%x\nDMA len = 0x%x\nDMA set = 0x%x\n", (u32)sa, block_count, DMA_XFER);
+ 
++//        crsd_writel( 0, iobase+EMMC_CPU_ACC);
+         crsd_writel( (u32)sa, iobase+CR_DMA_CTL1);
+         crsd_writel( block_count, iobase+CR_DMA_CTL2);
+ 
+-		if(data_len==RESP_LEN64){
++		if(data_len==RESP_LEN64)
++		{
+ 			crsd_writel( RSP64_SEL|DMA_XFER, iobase+CR_DMA_CTL3);
+-		}else if(data_len==RESP_LEN17){
++		} 
++		else if(data_len==RESP_LEN17)
++		{
+ 			crsd_writel( RSP17_SEL|DMA_XFER, iobase+CR_DMA_CTL3);
+-		}else{
++		} 
++		else 
++		{
+ 	        crsd_writel( DMA_XFER, iobase+CR_DMA_CTL3);
+ 		}
+ 
+-    }else{ //sram read
++    }
++    else //sram read
++    {
+    	    BUG_ON(1);	//victor ????
+         RTKSDPRINTF( "-----mmc data sram read (cpu mode)-----\n");
+ 
+         cpu_mode = 1;
++//        crsd_writel( 0, iobase+EMMC_CPU_ACC);
++//        crsd_writel( CPU_MODE_EN, iobase+EMMC_CPU_ACC);
+         crsd_writel( (u32)sa, iobase+CR_DMA_CTL1);
+         crsd_writel( block_count, iobase+CR_DMA_CTL2);
+         crsd_writel( DDR_WR|DMA_XFER, iobase+CR_DMA_CTL3);
+@@ -1263,30 +1489,38 @@
+ 
+     sdport->cmd_opcode = cmd_idx;
+     rtk_crsd_get_cmd_timeout(cmd_info);
+-    err = rtk_crsd_wait_opt_end_test(DRIVER_NAME, sdport, cmdcode, cpu_mode);
+-    //err = rtk_crsd_wait_opt_end(DRIVER_NAME,sdport,cmdcode,cpu_mode);
+ 
+-    if(cmd_info->cmd->opcode == MMC_SEND_TUNING_BLOCK){
++#ifdef ENABLE_SD_INT_MODE
++    err = rtk_crsd_int_wait_opt_end(DRIVER_NAME, sdport, cmdcode, cpu_mode);
++#else
++    err = rtk_crsd_wait_opt_end(DRIVER_NAME,sdport,cmdcode,cpu_mode);
++#endif
++
++    if(cmd_info->cmd->opcode == MMC_SEND_TUNING_BLOCK)
++	{
+ 		//reset dat64_sel and rsp17_sel, #CMD19 DMA won't be auto-cleared
+ 		crsd_writel( 0x0, iobase+CR_DMA_CTL3);	
+ 	}
+ 
+     if(err == CR_TRANS_OK){
+-        if((cmdcode == SD_AUTOREAD1) || (cmdcode == SD_AUTOWRITE1)){
++        if((cmdcode == SD_AUTOREAD1) || (cmdcode == SD_AUTOWRITE1))
++        {
+             RTKSDPRINTF( "AUTO READ/WRITE 1 skip response~\n");
+         }
+-		#ifdef CMD25_WO_STOP_COMMAND
+-        else if( cmdcode == SD_AUTOWRITE2 ){
++#ifdef CMD25_WO_STOP_COMMAND
++        else if( cmdcode == SD_AUTOWRITE2 ) {
+ 			// CMD + DATA
+ 			RTKSDPRINTF( "AUTO WRITE 2 skip response~\n");
+-		}else if( cmdcode == SD_AUTOWRITE3 ){
++		}
++		else if( cmdcode == SD_AUTOWRITE3 ) {
+ 			// DATA only, clear rsp
+ 			RTKSDPRINTF( "AUTO WRITE 3 skip response~\n");
+ 		}
+-		#endif
+-        else{
++#endif
++        else
++        {
+             rtk_crsd_read_rsp(sdport,rsp, rsp_len);
+-            //printk( "---stream cmd done---\n");
++            RTKSDPRINTF( "---stream cmd done---\n");
+         }
+     }
+ 
+@@ -1297,11 +1531,10 @@
+ }
+ 
+ static u32 rtk_crsd_chk_cmdcode(struct mmc_command* cmd){
+-
+-	u32 cmdcode;
++    u32 cmdcode;
+     RTKSDPRINTF( "\n");
+ 
+-    if(cmd->opcode < 58){
++    if(cmd->opcode <= 59){
+     	if(cmd->opcode == 8 && MMCDetected == 1){
+     		cmdcode = SD_NORMALREAD;
+     	}else{
+@@ -1321,10 +1554,14 @@
+     return cmdcode;
+ 
+ }
+-
++/*
++static u32 rtk_crsd_chk_r1_type(struct mmc_command* cmd){
++    RTKSDPRINTF( "\n");
++    return 0;
++}
++*/
+ static u8 rtk_crsd_get_rsp_type(struct mmc_command* cmd){
+-
+-	u32 rsp_type;
++    u32 rsp_type;
+     RTKSDPRINTF( "\n");
+     if ( mmc_resp_type(cmd)==MMC_RSP_R1 ){
+         rsp_type = SD_R1;
+@@ -1344,10 +1581,11 @@
+     return rsp_type;
+ }
+ 
+-static int rtk_crsd_Stream(struct crsd_cmd_pkt *cmd_info){
+ 
+-    u8 cmd_idx = cmd_info->cmd->opcode;
+-    int err = 0;
++static int rtk_crsd_Stream(struct crsd_cmd_pkt *cmd_info)
++{
++    u8 cmd_idx              = cmd_info->cmd->opcode;
++    int err=0;
+     u32 i;
+     struct scatterlist *sg;
+     u32 dir = 0;
+@@ -1355,85 +1593,119 @@
+     u32 dma_leng;
+     u32 dma_addr;
+     u32 old_arg;
++//	u8 one_blk=0;
+     u16 cmdcode = 0;
+ 	u8 data_len = 0;
+-	u32 blk_cnt = 0;
+-
+-    //printk("rtk_crsd_Stream ...\n");
++//  unsigned long flags;
++    //enum dma_data_direction	direction;
++    //dma_addr_t		dma_addr = 0;
+ 
+     struct mmc_host *host = cmd_info->sdport->mmc;
+     struct rtk_crsd_host *sdport = cmd_info->sdport;
+     
+-	#ifdef CMD25_WO_STOP_COMMAND
++#ifdef CMD25_WO_STOP_COMMAND
+ 	rtksd_mmc_cmd = cmd_info->cmd;
+ 	rtksd_sdport =	sdport;
+-	#endif
++#endif
+ 
+     rtk_crsd_set_rspparam(cmd_info);   //for 119x
+ 
+-    if(cmd_info->data->flags & MMC_DATA_READ){
++    if(cmd_info->data->flags & MMC_DATA_READ)
++	{
+         dir = DMA_FROM_DEVICE;
+-    }else{
++    }
++	else
++	{
+         dir = DMA_TO_DEVICE;
+     }
+ 
+-    cmd_info->data->bytes_xfered = 0;
++    cmd_info->data->bytes_xfered=0;
+     dma_nents = dma_map_sg(mmc_dev(host), cmd_info->data->sg, cmd_info->data->sg_len, dir);
+     sg = cmd_info->data->sg;
+ 
+-    old_arg = cmd_info->cmd->arg;
++    RTKSDPRINTF( "sg_len:%u\n",cmd_info->data->sg_len);
++    RTKSDPRINTF( "sg:0x%p; dma_nents:%u\n",sg,dma_nents);
+ 
+-    for(i=0; i<dma_nents; i++, sg++){
++    old_arg=cmd_info->cmd->arg;
+ 
++    for(i=0; i<dma_nents; i++,sg++)
++	{
++        u32 blk_cnt;
++		
+ 		dma_leng = sg_dma_len(sg);
+ 		dma_addr = sg_dma_address(sg);
+ 
+-		if((cmd_idx == SD_SWITCH)&&(cmd_info->cmd->flags | MMC_CMD_ADTC)){
++        RTKSDPRINTF( "dma_addr:0x%x; dma_leng:0x%x\n",dma_addr,dma_leng);
++        RTKSDPRINTF("host=%p\n",host);
++
++
++		if((cmd_idx == SD_SWITCH)&&(cmd_info->cmd->flags | MMC_CMD_ADTC))
++		{
+ 		 	RTKSDPRINTF("is cmd 6 SD_SWITCH\n");
+             cmd_info->byte_count = 0x40;     
+             blk_cnt = dma_leng/0x40;
+ 			data_len = RESP_LEN64;
+-		}else if((cmd_idx == SD_APP_SD_STATUS)&&((cmd_info->cmd->flags & (0x3<<5)) == MMC_CMD_ADTC)){
++		}
++		else if((cmd_idx == SD_APP_SD_STATUS)&&((cmd_info->cmd->flags & (0x3<<5)) == MMC_CMD_ADTC))
++		{
+ 		 	RTKSDPRINTF("is acmd 13 SD_APP_SD_STATUS\n");
+             cmd_info->byte_count = 0x40;     
+             blk_cnt = dma_leng/0x40;
+ 			data_len = RESP_LEN64;
+-		}else if((cmd_idx == MMC_SEND_TUNING_BLOCK)|(cmd_idx == SD_APP_SEND_SCR)|(cmd_idx == SD_APP_SEND_NUM_WR_BLKS)){
++		}
++		else if((cmd_idx == MMC_SEND_TUNING_BLOCK)|(cmd_idx == SD_APP_SEND_SCR)|(cmd_idx == SD_APP_SEND_NUM_WR_BLKS))
++		{
+             cmd_info->byte_count = 0x40;     //rtk HW limite, one trigger 512 byte pass.
+             blk_cnt = 1;
++//	            blk_cnt = dma_leng/0x40;
+ 			data_len = RESP_LEN64;
+-		}else if((cmd_idx == MMC_ALL_SEND_CID)|(cmd_idx == MMC_SEND_CSD)|(cmd_idx == MMC_SEND_CID)){
++		}
++		else if((cmd_idx == MMC_ALL_SEND_CID)|(cmd_idx == MMC_SEND_CSD)|(cmd_idx == MMC_SEND_CID))
++		{
+             cmd_info->byte_count = 0x11;
+             blk_cnt = dma_leng/0x11;
+ 			data_len = RESP_LEN17;
+-		}else{
++		}
++		else
++		{
+             cmd_info->byte_count = BYTE_CNT;     //rtk HW limite, one trigger 512 byte pass.
+             blk_cnt = dma_leng/BYTE_CNT;
+-            //printk("blk_cnt = %d\n", blk_cnt);
+ 			data_len = 0;
+ 		}
+ 
+-        if(blk_cnt == 0 && dma_leng){
++        if(blk_cnt == 0 && dma_leng)
++		{
+             blk_cnt = 1;
+         }
+ 
+         cmd_info->block_count = blk_cnt;
+         cmd_info->dma_buffer = (unsigned char *)dma_addr;
++
++        //if(cmd_info->data->flags & MMC_DATA_READ){
++		//	dma_cache_inv(KSEG0ADDR(dma_addr), dma_leng);
++        //}
++        //else
++        //{
++        //	rtk_crsd_wait_status(host->card,STATE_TRAN,0);
++        //}
++//printk(KERN_ERR ">>> %s [%d][cmd %d(0x%02x)][blks %d]\n",__FUNCTION__, i, cmd_idx, cmd_idx, cmd_info->block_count);
+         cmdcode = sdport->ops->chk_cmdcode(cmd_info->cmd);
+ 
+-		#ifdef CMD25_WO_STOP_COMMAND // new write method
++#ifdef CMD25_WO_STOP_COMMAND // new write method
++//MMC_DEBUG_PRINT("            [%s][%d] CMD %d, Argu 0x%08x, Last Addr 0x%08x, card 0x%08x\n", __FUNCTION__,__LINE__, cmd_info->cmd->opcode, cmd_info->cmd->arg, sd_current_blk_address, host->card);
++//MMC_DEBUG_PRINT("            [%s][%d] CMD %d, Argu 0x%08x, Last Addr 0x%08x\n", __FUNCTION__,__LINE__, cmd_info->cmd->opcode, cmd_info->cmd->arg, sd_current_blk_address);
+ 		if( host->card && mmc_card_blockaddr(host->card) && (
+ 			cmd_info->cmd->opcode == MMC_WRITE_BLOCK ||
+-			cmd_info->cmd->opcode == MMC_WRITE_MULTIPLE_BLOCK ) )
++			cmd_info->cmd->opcode == MMC_WRITE_MULTIPLE_BLOCK ||
++			cmd_info->cmd->opcode == MMC_EXT_WRITE_MULTIPLE ) )
+ 		{
+-			if( sd_in_receive_data_state ){
++			if( sd_in_receive_data_state ) {
+ 				if( sd_current_blk_address == cmd_info->cmd->arg /*&& (sd_previous_blk_section == (cmd_info->cmd->arg>>19) )*/ ) {
+-					MMC_DEBUG_PRINT("            [%s][%d] addr no gap\n", __FUNCTION__,__LINE__);
++MMC_DEBUG_PRINT("            [%s][%d] addr no gap\n", __FUNCTION__,__LINE__);
+ 					cmdcode = SD_AUTOWRITE3; // DATA only
+-					cmd_info->rsp_para2 = 0;
+-				}else{
+-					MMC_DEBUG_PRINT("            [%s][%d] addr has gap !!!\n", __FUNCTION__,__LINE__);
+-
++				}
++				else {
++MMC_DEBUG_PRINT("            [%s][%d] addr has gap !!!\n", __FUNCTION__,__LINE__);
+ 					// send stop command first
+ 					rtk_crsd_SendStopCMD(cmd_info->cmd, sdport);
+ 
+@@ -1443,18 +1715,29 @@
+ 					sd_in_receive_data_state = 0;
+ 					cmdcode = SD_AUTOWRITE2; // CMD + DATA
+ 				}
+-			}else{
++			}
++			else {
+ 				cmdcode = SD_AUTOWRITE2; // CMD + DATA
+ 			}
+ 
++			if( cmd_info->cmd->opcode == MMC_WRITE_BLOCK ) {
++				MMC_DEBUG_PRINT("            [%s][%d] change cmd24 --> cmd25\n", __FUNCTION__,__LINE__);
++			}
++
+ 			// alwasy use multi-write command
+-			cmd_info->cmd->opcode = MMC_WRITE_MULTIPLE_BLOCK;
+-		}else{
++			if(cmd_info->cmd->opcode == MMC_EXT_WRITE_MULTIPLE){
++				cmd_info->cmd->opcode = MMC_EXT_WRITE_MULTIPLE;
++			}else{
++				cmd_info->cmd->opcode = MMC_WRITE_MULTIPLE_BLOCK;
++			}
++		}
++		else {
+ 			if( cmd_info->cmd->opcode == MMC_SEND_STATUS ) { // CMD13
+ 				// issue command	
+-			}else{
++			}
++			else {
+ 				if( sd_in_receive_data_state ) {
+-					MMC_DEBUG_PRINT("            [%s][%d] sd in receive state\n", __FUNCTION__,__LINE__);
++MMC_DEBUG_PRINT("            [%s][%d] sd in receive state\n", __FUNCTION__,__LINE__);
+ 					// send stop command first
+ 					rtk_crsd_SendStopCMD(cmd_info->cmd, sdport);
+ 
+@@ -1466,52 +1749,60 @@
+ 				// issue command
+ 			}
+ 		}
+-		#endif
++#endif
+ 
+-		if( cmd_info->cmd->opcode == MMC_WRITE_BLOCK ||
+-			cmd_info->cmd->opcode == MMC_WRITE_MULTIPLE_BLOCK ||
+-			cmd_info->cmd->opcode == MMC_READ_SINGLE_BLOCK ||
+-			cmd_info->cmd->opcode == MMC_READ_MULTIPLE_BLOCK )
+-		{
+-			//printk("            [%s][%d] blksz = %d, blocks = %d, dma_leng = %d, blk_cnt = %d\n", __FUNCTION__,__LINE__, cmd_info->cmd->data->blksz, cmd_info->cmd->data->blocks, dma_leng, blk_cnt);
+-		}
++//printk("[%d][cmd %d][argu 0x%08x][block_cnt 0x%04x]\n", i, cmd_info->cmd->opcode, cmd_info->cmd->arg, blk_cnt);	
++if( cmd_info->cmd->opcode == MMC_WRITE_BLOCK ||
++	cmd_info->cmd->opcode == MMC_WRITE_MULTIPLE_BLOCK ||
++	cmd_info->cmd->opcode == MMC_READ_SINGLE_BLOCK ||
++	cmd_info->cmd->opcode == MMC_READ_MULTIPLE_BLOCK )
++{
++MMC_DEBUG_PRINT("            [%s][%d] blksz = %d, blocks = %d, dma_leng = %d, blk_cnt = %d\n", __FUNCTION__,__LINE__, cmd_info->cmd->data->blksz, cmd_info->cmd->data->blocks, dma_leng, blk_cnt);
++}
++        err = rtk_crsd_Stream_Cmd(cmdcode,cmd_info,data_len);
+ 
+-		err = rtk_crsd_Stream_Cmd(cmdcode,cmd_info,data_len);
+ 
+-        if(err == 0){
++        //if(cmd_info->data->flags & MMC_DATA_WRITE){
++		//	dma_cache_wback(KSEG0ADDR(dma_addr), dma_leng);
++        //}
++        //dma_unmap_page(host->parent, dma_addr, PAGE_SIZE, dir);
+ 
+-			#ifdef CMD25_WO_STOP_COMMAND // new write method
++        if(err == 0)
++		{
++#ifdef CMD25_WO_STOP_COMMAND // new write method
+ 			if( host->card && mmc_card_blockaddr(host->card) && (
+ 				cmd_info->cmd->opcode == MMC_WRITE_BLOCK ||
+-				cmd_info->cmd->opcode == MMC_WRITE_MULTIPLE_BLOCK ) )
++				cmd_info->cmd->opcode == MMC_WRITE_MULTIPLE_BLOCK ||
++				cmd_info->cmd->opcode == MMC_EXT_WRITE_MULTIPLE ) )
+ 			{
++//				sd_previous_blk_section = cmd_info->cmd->arg >> 19; // div 0x80000
+ 				sd_current_blk_address = cmd_info->cmd->arg + blk_cnt;
+ 				sd_in_receive_data_state = 1;
+ 				mod_timer(&rtksd_stop_cmd_timer, jiffies + 1*HZ );
+ 			}
+-			#endif
+-
+-			cmd_info->cmd->arg += dma_leng/BYTE_CNT;
++#endif
++			cmd_info->cmd->arg += dma_leng;
+             cmd_info->data->bytes_xfered += dma_leng;
+         }
+ 
+-        if(err){
++        if(err)
++		{
+             cmd_info->cmd->arg = old_arg;
+             break;
+         }
+ 
+     }
+-
+     dma_unmap_sg(mmc_dev(host), cmd_info->data->sg, cmd_info->data->sg_len, dir);
+ 
++    //reset cmd0
+     g_cmd[0] = 0x00;
+ 
+     return err;
+ 
+ }
+ 
+-static void rtk_crsd_req_end_tasklet(unsigned long param){
+-
++static void rtk_crsd_req_end_tasklet(unsigned long param)
++{
+     struct rtk_crsd_host *sdport;
+     struct mmc_request* mrq;
+     unsigned long flags;
+@@ -1524,16 +1815,76 @@
+ 
+     spin_unlock_irqrestore(&sdport->lock, flags);
+     mmc_request_done(sdport->mmc, mrq);
+-    MMC_DEBUG_PRINT("          [%s][%d][mrq ptr 0x%08x]\n", __FUNCTION__,__LINE__, (unsigned int)mrq);
++MMC_DEBUG_PRINT("          [%s][%d][mrq ptr 0x%08x]\n", __FUNCTION__,__LINE__, (unsigned int)mrq);
+ }
++#if 0
++static int rtk_crsd_tune_phase(struct crsd_cmd_pkt *cmd_info)
++{
++    u8 cmd_idx              = cmd_info->cmd->opcode;
++    u32 sd_arg;
++    struct rtk_crsd_host *sdport = cmd_info->sdport;
++    u32 iobase = sdport->base_io;
++//	int err;
++//	u32 dma_val=0;
+ 
+-static void rtk_crsd_send_command(struct rtk_crsd_host *sdport, struct mmc_command *cmd){
++	printk(KERN_ERR "[%s %s %d ]start\n",__FILE__,__FUNCTION__,__LINE__);
++    sd_arg              = cmd_info->cmd->arg;
+ 	
++	if(cmd_idx != SD_SWITCH) 
++		return 0;
++
++	if ((sd_arg&0xf) != UHS_SDR104_BUS_SPEED) 
++		return 0;		
++
++	(*(volatile unsigned int *) 0xFE0001E8) = 0x00B64388;		//PLL_SD3
++    asm ("DMB");
++
++//	rtk_crsd_set_speed(sdport, 0);								//clk_div = div1
++
++	/*reg sd_configure1*/
++//	rtk_crsd_set_div(sdport,CLOCK_DIV_NON);						//sd clk no divided
++	rtk_crsd_set_access_mode(sdport,ACCESS_MODE_SD30);			//SD30 MODE
++	rtk_crsd_set_bits(sdport,BUS_WIDTH_4);						// 4 bit mode
++
++	crsd_writeb(0XFF, iobase+CARD_SD_CLK_PAD_DRIVE);
++	crsd_writeb(0XFF, iobase+CARD_SD_CMD_PAD_DRIVE);
++	crsd_writeb(0XFF, iobase+CARD_SD_DAT_PAD_DRIVE);
++
++	(*(volatile unsigned int *) 0xFE0001E0) = 0x001E0063;		//PLL_SD1
++    asm ("DMB");
++
++
++
++/*
++	(*(volatile unsigned int *) 0xFE0001E0) = 0x003E0003;		//PLL_SD1
++    asm ("DMB");
++	(*(volatile unsigned int *) 0xFE0001E4) = 0x078D7893;		//PLL_SD2
++    asm ("DMB");
++//	(*(volatile unsigned int *) 0xFE0001E8) = 0x00094388;		//PLL_SD3
++	(*(volatile unsigned int *) 0xFE0001EC) = 0x00000007;		//PLL_SD4
++
++*/
++
++	printk(KERN_ERR "[%s %s %d ]end\n",__FILE__,__FUNCTION__,__LINE__);
++/*
++	struct mmc_host *host       = cmd_info->sdport->mmc;
++    u16 state = 0;
++    mdelay(1);
++    rtk_crsd_send_status(sdport,&state,0);
++	printk(KERN_ERR "[%s %s %d ]state = %d \n",__FILE__,__FUNCTION__,__LINE__,state);
++*/
++
++	return 0;
++
++}
++#endif
++
++static void rtk_crsd_send_command(struct rtk_crsd_host *sdport, struct mmc_command *cmd)
++{
+     int rc = 0;
+     struct crsd_cmd_pkt cmd_info;
+-
++//  unsigned long flags;
+     RTKSDPRINTF( "\n");
+-
+     memset(&cmd_info, 0, sizeof(struct crsd_cmd_pkt));
+ 
+     if ( !sdport || !cmd ){
+@@ -1546,57 +1897,69 @@
+     }
+ 
+ 	/*work around of bug switch voltage fail : force clock disable after cmd11*/
+-    if(cmd->opcode == SD_SWITCH_VOLTAGE){
++    if(cmd->opcode == SD_SWITCH_VOLTAGE)
++    {
+ 		crsd_writeb(0x40, sdport->base_io+SD_BUS_STATUS);
+ 		RTKSDPRINTF( "set SD_BUS_STATUS 0x%x= %x\n",sdport->base_io+SD_BUS_STATUS,crsd_readb(sdport->base_io+SD_BUS_STATUS));
+  	}
+-
++if (cmd->data)
++MMC_DEBUG_PRINT("          [%s][%d][mrq ptr 0x%08x][cmd %d][argu 0x%08x][%d:%d]\n", __FUNCTION__,__LINE__, (unsigned int)(sdport->mrq), cmd->opcode, cmd->arg, cmd->data->blksz, cmd->data->blocks);
++else
++MMC_DEBUG_PRINT("          [%s][%d][mrq ptr 0x%08x][cmd %d][argu 0x%08x]\n", __FUNCTION__,__LINE__, (unsigned int)(sdport->mrq), cmd->opcode, cmd->arg);	
+     cmd_info.cmd    = cmd;
+     cmd_info.sdport = sdport;
+     cmd_info.rsp_para2 = rtk_crsd_get_rsp_type(cmd_info.cmd);
+     cmd_info.rsp_len  = rtk_crsd_get_rsp_len(cmd_info.rsp_para2);
+ 
+-    if (cmd->data){
++    if (cmd->data)
++	{
+         cmd_info.data = cmd->data;
+-
+-        if(cmd->data->flags == MMC_DATA_READ){
++        if(cmd->data->flags == MMC_DATA_READ)
++		{
+             /* do nothing */
+-        }else if(cmd->data->flags == MMC_DATA_WRITE){
+-            if(sdport->wp == 1){
+-                RTKSDPRINTF("%s: card is locked!", DRIVER_NAME);
++        }
++		else if(cmd->data->flags == MMC_DATA_WRITE)
++        {
++            if(sdport->wp ==1)
++			{
++                RTKSDPRINTF("%s: card is locked!",
++                            DRIVER_NAME);
+                 rc = -1;
+                 cmd->retries = 0;
+                 goto err_out;
+             }
+-        }else{
+-            RTKSDPRINTF( "error: cmd->data->flags=%d\n", cmd->data->flags);
++        }
++		else
++		{
++            RTKSDPRINTF( "error: cmd->data->flags=%d\n",
++                    cmd->data->flags);
+             cmd->error = -MMC_ERR_INVALID;
+             cmd->retries = 0;
+             goto err_out;
+         }
+ 
+-	    if(cmd->opcode != SD_APP_SEND_SCR){
+-	    	MMC_DEBUG_PRINT("          [%s][%d]\n", __FUNCTION__,__LINE__);
+-			rc = rtk_crsd_Stream(&cmd_info);
+-
+-			#ifdef CMD25_USE_SD_AUTOWRITE2
++	    if(cmd->opcode != SD_APP_SEND_SCR)
++    	{
++MMC_DEBUG_PRINT("          [%s][%d]\n", __FUNCTION__,__LINE__);
++	        rc = rtk_crsd_Stream(&cmd_info);
++#ifdef CMD25_USE_SD_AUTOWRITE2
+ 			if( (cmd->opcode == MMC_WRITE_MULTIPLE_BLOCK )&& !rc ) {
+ 				rc = rtk_crsd_SendStopCMD_and_not_check_done(cmd, sdport);
+ 			}
+-			#endif
+-
+-		}else{
++#endif
++		}
++		else
++		{
+ 			struct scatterlist sg;
+ 			struct mmc_data data_SCR = {0};
+ 			void *ssr;
+ 			
+ 			ssr = kmalloc(64, GFP_KERNEL);
+-
+-			if (!ssr){
++			if (!ssr)
++			{
+ 				rc = CR_TRANSFER_FAIL;
+ 				goto err_out;
+ 			}
+-
+ 			sg_init_one(&sg, ssr, 64);
+ 
+ 		    RTKSDPRINTF("data->blksz= %d, data->blocks= %d \n",cmd_info.data->blksz,cmd_info.data->blocks);
+@@ -1611,59 +1974,72 @@
+ 			cmd_info.data->sg = &sg;
+ 			cmd_info.data->sg_len = 1;
+ 
++MMC_DEBUG_PRINT("          [%s][%d]\n", __FUNCTION__,__LINE__);
+ 		    rc = rtk_crsd_Stream(&cmd_info);
+ 
+-			if(!rc){
++			if(!rc)
++			{
+ 				int i;
+ 				sg_copy_from_buffer(data_SCR.sg, data_SCR.sg_len, ssr, data_SCR.blksz);
+                 cmd_info.data->bytes_xfered = data_SCR.blksz;
+-
+-                RTKSDPRINTF("SCR =\n");
+-
+-			    for(i=0;i<8;i++)
++			    RTKSDPRINTF("SCR =\n");
++				for(i=0;i<8;i++)
+ 				    RTKSDPRINTF(" 0x%x= %x\n",((unsigned int)ssr+i),*((unsigned char*)((unsigned int)ssr+i)) );
+ 
+ 			}
+-
+ 			kfree(ssr);
+ 		}
+-    }else{
++    }
++    else
++	{
++MMC_DEBUG_PRINT("          [%s][%d]\n", __FUNCTION__,__LINE__);
+         rc = rtk_crsd_SendCMDGetRSP(&cmd_info);
+     }
+ 
+     RTKSDPRINTF("reg SD_CONFIGURE1 0x%x= %x\n",sdport->base_io+SD_CONFIGURE1,crsd_readb(sdport->base_io+SD_CONFIGURE1));
+     RTKSDPRINTF("reg CR_SD_CKGEN_CTL 0x%x= %x\n",sdport->base_io+CR_SD_CKGEN_CTL,crsd_readl(sdport->base_io+CR_SD_CKGEN_CTL));
+     RTKSDPRINTF("reg CR_PFUNC_CR 0x%x= %x\n",sdport->base_pll_io+CR_PFUNC_CR,crsd_readl(sdport->base_pll_io+CR_PFUNC_CR));
+-
+-    if(cmd->opcode == MMC_SELECT_CARD){
++    if(cmd->opcode == MMC_SELECT_CARD)
++    {
+ 		sdport->rtflags |= RTKCR_FCARD_SELECTED;
+ 		rtk_crsd_speed(sdport, CRSD_CLOCK_6200KHZ);
+-    }else if((cmd->opcode == SD_SEND_RELATIVE_ADDR)&&((cmd->flags & (0x3<<5)) == MMC_CMD_BCR)){
++    }
++	else if((cmd->opcode == SD_SEND_RELATIVE_ADDR)&&((cmd->flags & (0x3<<5)) == MMC_CMD_BCR))
++	{
+ 		crsd_rca = ((cmd->resp[0]) >> RCA_SHIFTER);
+ 	}
+ 
++
++//	else if((cmd->opcode == SD_SWITCH)&&((cmd->flags & (0x3<<5)) == MMC_CMD_ADTC))
++//	{
++//		rtk_crsd_tune_phase(&cmd_info);
++//	}
++
++
++	rtk_crsd_dump_reg(sdport);
++/*
++    if(cmd->opcode == MMC_SWITCH){
++         if((cmd->arg & 0xffff00ff) == 0x03b30001) {
++            if((cmd->arg & 0x0000ff00)==0){
++                sdport->rtflags |= RTKCR_USER_PARTITION;
++            }else{
++                sdport->rtflags &= ~RTKCR_USER_PARTITION;
++            }
++         }
++    }
++*/
+ err_out:
+     if (rc){
+-
+-    	if(rc == -RTK_RMOV)
++        if(rc == -RTK_RMOV)
+             cmd->retries = 0;
+ 
+-    	 if(crsd_readb(sdport->base_io + SD_STATUS1) & 0xE2){
+-    	        printk(KERN_ERR "CRC ERROR\n");
+-    	        printk(KERN_ERR "cmd->opcode = %d\n", cmd->opcode);
+-    	        printk(KERN_ERR "cmd->arg = %x\n", cmd->arg);
+-    	        cmd->error = -MMC_ERR_BADCRC;
+-    	 }else{
+-    		 printk(KERN_ERR "Timerout\n");
+-    		 cmd->error = -MMC_ERR_TIMEOUT;
+-    	 }
++        cmd->error = -MMC_ERR_FAILED;
+     }
+-
+     tasklet_schedule(&sdport->req_end_tasklet);
+ }
+ 
+-static void rtk_crsd_request(struct mmc_host *host, struct mmc_request *mrq){
+-
++static void rtk_crsd_request(struct mmc_host *host, struct mmc_request *mrq)
++{
+     struct rtk_crsd_host *sdport;
+     struct mmc_command *cmd;
+     RedSDPRINTF( "\n");
+@@ -1684,34 +2060,34 @@
+ 
+     if ( sdport && cmd ){
+         rtk_crsd_allocate_dma_buf(sdport, cmd);
+-
+-        #ifdef CMD25_USE_SD_AUTOWRITE2
++#ifdef CMD25_USE_SD_AUTOWRITE2
+ 		if( force_check_previous_xfer_done ) {
+ 			extern int rtk_crsd_wait_opt_end2(char* drv_name, struct rtk_crsd_host *sdport);
+ 			rtk_crsd_wait_opt_end2(DRIVER_NAME,sdport);
+ 			force_check_previous_xfer_done = 0;
+ 		}
+-		#endif
+-
+-		rtk_crsd_send_command(sdport, cmd);
+-
++#endif
++//MMC_DEBUG_PRINT("        [%s][%d] >>>> card 0x%08x\n", __FUNCTION__,__LINE__, host->card);
++        rtk_crsd_send_command(sdport, cmd);
++//MMC_DEBUG_PRINT("        [%s][%d] <<<<\n", __FUNCTION__,__LINE__);
+     }else{
+-
+ done:
++//MMC_DEBUG_PRINT("        [%s][%d] >>>> card 0x%08x\n", __FUNCTION__,__LINE__, host->card);
+         tasklet_schedule(&sdport->req_end_tasklet);
++//MMC_DEBUG_PRINT("        [%s][%d] <<<<\n", __FUNCTION__,__LINE__);
+     }
+-
+ 	up_write(&cr_rw_sem);
+ 	//spin_unlock_irqrestore(&sdport->lock, flags);
+ }
+ 
+ 
+-static int rtk_crsd_wait_voltage_stable_low(struct rtk_crsd_host *sdport){
+-
++static int rtk_crsd_wait_voltage_stable_low(struct rtk_crsd_host *sdport)
++{
+ 	volatile u8 stat;
+ 	u8 i=0;
+ 
+-	while(1){
++	while(1)
++	{
+ 		stat = crsd_readb(sdport->base_io+SD_BUS_STATUS);
+ 		BluSDPRINTF("-stat %x \n",stat);
+ 		if ( (stat & (SD_DAT3_0_LEVEL | SD_CMD_LEVEL)) == 0x0 )
+@@ -1724,11 +2100,12 @@
+ 	return 0;
+ }
+ 
+-static int rtk_crsd_wait_voltage_stable_high(struct rtk_crsd_host *sdport){
+-
++static int rtk_crsd_wait_voltage_stable_high(struct rtk_crsd_host *sdport)
++{
+ 	volatile u8 stat;
+ 	u8 i=0;
+-	while(1){
++	while(1)
++	{
+ 		stat = crsd_readb(sdport->base_io+SD_BUS_STATUS);
+ 		BluSDPRINTF(".stat %x \n",stat);
+ 		if ( (stat & (SD_DAT3_0_LEVEL | SD_CMD_LEVEL)) == (SD_DAT3_0_LEVEL | SD_CMD_LEVEL) )
+@@ -1741,8 +2118,8 @@
+ 	return 0;
+ }
+ 
+-static int rtk_crsd_switch_voltage(struct mmc_host *mmc, struct mmc_ios *ios){
+-
++static int rtk_crsd_switch_voltage(struct mmc_host *mmc, struct mmc_ios *ios)
++{
+     struct rtk_crsd_host *sdport;
+ 	int err = 0;
+     sdport = mmc_priv(mmc);
+@@ -1799,8 +2176,8 @@
+ 
+ }
+ 
+-static void rtk_crsd_set_ios(struct mmc_host *host, struct mmc_ios *ios){
+-
++static void rtk_crsd_set_ios(struct mmc_host *host, struct mmc_ios *ios)
++{
+     struct rtk_crsd_host *sdport;
+     sdport = mmc_priv(host);
+ 
+@@ -1823,29 +2200,23 @@
+         if (ios->clock >= UHS_SDR104_MAX_DTR && ios->timing == MMC_TIMING_UHS_SDR104) {
+         	rtk_crsd_set_access_mode(sdport, ACCESS_MODE_SD30);
+         	rtk_crsd_speed(sdport, CRSD_CLOCK_208000KHZ);
+-        	sdport->card_speed = SD_MODE_UHS_SDR104;
+         	RTKSDPRINTF("Ultra high speed CRSD_CLOCK_208000KHZ\n");
+         } else if (ios->clock >= UHS_SDR50_MAX_DTR && ios->timing == MMC_TIMING_UHS_SDR50) {
+         	rtk_crsd_set_access_mode(sdport, ACCESS_MODE_SD30);
+         	rtk_crsd_speed(sdport, CRSD_CLOCK_100000KHZ);
+-        	sdport->card_speed = SD_MODE_UHS_SDR50;
+         	RTKSDPRINTF("Ultra high speed CRSD_CLOCK_100000KHZ\n");
+         } else if (ios->clock >= UHS_SDR25_MAX_DTR && ios->timing == MMC_TIMING_UHS_SDR25) {
+         	rtk_crsd_speed(sdport, CRSD_CLOCK_50000KHZ);
+-        	sdport->card_speed = SD_MODE_UHS_SDR25;
+         	RTKSDPRINTF("high speed CRSD_CLOCK_50000KHZ\n");
+         } else if (ios->clock >= UHS_SDR12_MAX_DTR && ios->timing == MMC_TIMING_UHS_SDR12) {
+         	rtk_crsd_speed(sdport, CRSD_CLOCK_25000KHZ);
+-        	sdport->card_speed = SD_MODE_UHS_SDR12;
+         	RTKSDPRINTF("high speed CRSD_CLOCK_25000KHZ\n");
+         } else if (ios->clock >= UHS_DDR50_MAX_DTR && ios->timing == MMC_TIMING_UHS_DDR50) {
+         	rtk_crsd_set_access_mode(sdport, ACCESS_MODE_DDR);
+         	rtk_crsd_speed(sdport, CRSD_CLOCK_50000KHZ);
+-        	sdport->card_speed = SD_MODE_UHS_DDR50;
+         	RTKSDPRINTF("high speed CRSD_CLOCK_50000KHZ\n");
+         } else if(ios->clock >= 20000000){
+         	rtk_crsd_speed(sdport, CRSD_CLOCK_20000KHZ);
+-        	sdport->card_speed = SD_MODE_HIGH_SPEED;
+         	RTKSDPRINTF("mid speed RTKCR_FCARD_SELECTED = 0 CRSD_CLOCK_20000KHZ\n");
+         } else if (ios->clock > 200000) {
+         	if (sdport->rtflags & RTKCR_FCARD_SELECTED) {
+@@ -1855,7 +2226,6 @@
+         		rtk_crsd_speed(sdport, CRSD_CLOCK_400KHZ);
+         		RTKSDPRINTF("mid speed RTKCR_FCARD_SELECTED = 0 CRSD_CLOCK_400KHZ\n");
+         	}
+-        	sdport->card_speed = SD_MODE_HIGH_SPEED;
+         } else {
+         	if (sdport->rtflags & RTKCR_FCARD_SELECTED) {
+         		rtk_crsd_speed(sdport, CRSD_CLOCK_6200KHZ);
+@@ -1864,7 +2234,6 @@
+         		rtk_crsd_speed(sdport, CRSD_CLOCK_200KHZ);
+         		RTKSDPRINTF("low speed CRSD_CLOCK_200KHZ\n");
+         	}
+-        	sdport->card_speed = SD_MODE_HIGH_SPEED;
+         }
+ 
+     }else{  //MMC_BUSMODE_OPENDRAIN
+@@ -1885,12 +2254,13 @@
+     up_write(&cr_rw_sem);
+ }
+ 
+-static inline const char *sdmmc_dev(struct rtk_crsd_host *sdport){
++static inline const char *sdmmc_dev(struct rtk_crsd_host *sdport)
++{
+ 	return dev_name(&(sdport->mmc->class_dev));
+ }
+ 
+-static u8 rtk_crsd_search_final_phase(struct rtk_crsd_host *sdport, u32 phase_map){
+-
++static u8 rtk_crsd_search_final_phase(struct rtk_crsd_host *sdport, u32 phase_map)
++{
+ 	struct timing_phase_path path[MAX_PHASE + 1];
+ 	struct timing_phase_path swap;
+ 	int i, j, cont_path_cnt;
+@@ -1998,8 +2368,8 @@
+ 	return final_phase;
+ }
+ 
+-static int rtk_crsd_change_tx_phase(struct rtk_crsd_host *sdport, u8 sample_point){
+-
++static int rtk_crsd_change_tx_phase(struct rtk_crsd_host *sdport, u8 sample_point)
++{
+ 	volatile unsigned int temp_reg;
+ 	temp_reg = 	crsd_readl(sdport->base_pll_io+CR_PLL_SD1);	 
+ 	temp_reg = (temp_reg & ~0xf8)|(sample_point<<3);
+@@ -2009,8 +2379,8 @@
+ 	return 0;
+ }
+ 
+-static int rtk_crsd_change_rx_phase(struct rtk_crsd_host *sdport, u8 sample_point){
+-
++static int rtk_crsd_change_rx_phase(struct rtk_crsd_host *sdport, u8 sample_point)
++{
+ 	volatile unsigned int temp_reg;
+ 	temp_reg = 	crsd_readl(sdport->base_pll_io+CR_PLL_SD1);	
+ 	temp_reg = (temp_reg & ~0x1f00)|(sample_point<<8);
+@@ -2020,8 +2390,9 @@
+ 	return 0;
+ }
+ 
+-static int rtk_crsd_tuning_tx_cmd(struct rtk_crsd_host *sdport, u8 sample_point){
+-
++static int rtk_crsd_tuning_tx_cmd(struct rtk_crsd_host *sdport,
++		 u8 sample_point)
++{
+    	struct mmc_command cmd;
+     struct crsd_cmd_pkt cmd_info;
+ 
+@@ -2045,8 +2416,9 @@
+ 
+ }
+ 
+-static int rtk_crsd_tuning_rx_cmd(struct rtk_crsd_host *sdport, u8 sample_point,struct scatterlist* p_sg){
+-
++static int rtk_crsd_tuning_rx_cmd(struct rtk_crsd_host *sdport,
++		 u8 sample_point,struct scatterlist* p_sg)
++{
+     struct crsd_cmd_pkt cmd_info;
+ 	struct mmc_request mrq = {NULL};
+ 	struct mmc_command cmd = {0};
+@@ -2085,36 +2457,42 @@
+ 	rtk_crsd_Stream(&cmd_info);
+  	rtk_crsd_dump_reg(sdport);
+ 	
++//	if(sdport->sd_status1 & 1)
+ 	if(crsd_readb(sdport->base_io+SD_STATUS1) & 1) 
+ 		return -1;
+ 	return 0;
+ }
+ 
+-static int rtk_crsd_tuning_tx_phase(struct rtk_crsd_host *sdport, u8 sample_point){
+-
++static int rtk_crsd_tuning_tx_phase(struct rtk_crsd_host *sdport,
++		u8 sample_point)
++{
+ 	int err;
+ 	err = rtk_crsd_tuning_tx_cmd(sdport, (u8)sample_point);
+ 	return err;
+ }
+ 
+-static int rtk_crsd_tuning_rx_phase(struct rtk_crsd_host *sdport, u8 sample_point, struct scatterlist* p_sg){
+-
++static int rtk_crsd_tuning_rx_phase(struct rtk_crsd_host *sdport,
++		u8 sample_point, struct scatterlist* p_sg)
++{
+ 	int err;
+ 	err = rtk_crsd_tuning_rx_cmd(sdport, (u8)sample_point, p_sg);
+ 	return err;
+ }
+ 
+ 
+-static int rtk_crsd_tuning_tx(struct rtk_crsd_host *sdport){
+-
++static int rtk_crsd_tuning_tx(struct rtk_crsd_host *sdport)
++{
+ 	int sample_point;
+ 	int err=0, i;
+ 	u32 raw_phase_map[TUNING_CNT] = {0}, phase_map;
+ 	u8 final_phase;
+ 
+-	for (sample_point = 0; sample_point <= MAX_PHASE; sample_point++){
+-		for (i = 0; i < TUNING_CNT; i++){
+-		    if (!(sdport->rtflags & RTKCR_FCARD_DETECTED)){
++	for (sample_point = 0; sample_point <= MAX_PHASE; sample_point++) 
++	{
++		for (i = 0; i < TUNING_CNT; i++) 
++		{
++		    if (!(sdport->rtflags & RTKCR_FCARD_DETECTED))
++		    {
+ 				RTKSDPRINTF_WARM( " line %d, MMC_ERR_RMOVE \n",__LINE__); 
+ 				err = -MMC_ERR_RMOVE;
+ 				goto out ;
+@@ -2127,18 +2505,18 @@
+ 	}
+ 
+ 	phase_map = 0xFFFFFFFF;
+-	for(i = 0; i < TUNING_CNT; i++){
++	for (i = 0; i < TUNING_CNT; i++) {
+ 		RTKSDPRINTF_WARM( " %s TX raw_phase_map[%d] = 0x%08x\n",sdmmc_dev(sdport), 
+ 				i, raw_phase_map[i]);
+ 		phase_map &= raw_phase_map[i];
+ 	}
+-
+ 	RTKSDPRINTF_WARM(" %s TX phase_map = 0x%08x\n",sdmmc_dev(sdport),  phase_map);
+ 
+-	if(phase_map){
++	if (phase_map) {
+ 		final_phase = rtk_crsd_search_final_phase(sdport, phase_map);
+ 		RTKSDPRINTF_WARM(" %s final phase = 0x%08x\n",sdmmc_dev(sdport),  final_phase);
+-		if(final_phase == 0xFF){
++		if (final_phase == 0xFF)
++		{
+ 			RTKSDPRINTF_WARM(" %s final phase = 0x%08x\n",sdmmc_dev(sdport),  final_phase);
+ 			err = -EINVAL;
+ 			goto out ;
+@@ -2146,7 +2524,7 @@
+ 		rtk_crsd_change_tx_phase(sdport, final_phase);
+ 		err = 0;
+ 		goto out ;
+-	}else{
++	} else {
+ 		RTKSDPRINTF_WARM(" %s  fail !phase_map\n",sdmmc_dev(sdport));
+ 		err = -EINVAL;
+ 		goto out ;
+@@ -2157,8 +2535,8 @@
+ }
+ 
+ 
+-static int rtk_crsd_tuning_rx(struct rtk_crsd_host *sdport){
+-
++static int rtk_crsd_tuning_rx(struct rtk_crsd_host *sdport)
++{
+ 	int sample_point;
+ 	int err=0, i;
+ 	u32 raw_phase_map[TUNING_CNT] = {0}, phase_map;
+@@ -2170,9 +2548,12 @@
+ 		return -ENOMEM;
+ 
+ 	sg_init_one(&sg, ssr, 512);
+-	for (sample_point = 0; sample_point <= MAX_PHASE; sample_point++){
+-		for (i = 0; i < TUNING_CNT; i++){
+-		    if (!(sdport->rtflags & RTKCR_FCARD_DETECTED)){
++	for (sample_point = 0; sample_point <= MAX_PHASE; sample_point++) 
++	{
++		for (i = 0; i < TUNING_CNT; i++) 
++		{
++		    if (!(sdport->rtflags & RTKCR_FCARD_DETECTED))
++		    {
+ 				RTKSDPRINTF_WARM( " line %d, MMC_ERR_RMOVE \n",__LINE__); 
+ 				err = -MMC_ERR_RMOVE;
+ 				goto out ;
+@@ -2192,10 +2573,11 @@
+ 	}
+ 	RTKSDPRINTF_WARM(" %s RX phase_map = 0x%08x\n",sdmmc_dev(sdport),  phase_map);
+ 
+-	if (phase_map){
++	if (phase_map) {
+ 		final_phase = rtk_crsd_search_final_phase(sdport, phase_map);
+ 		RTKSDPRINTF_WARM(" %s final phase = 0x%08x\n",sdmmc_dev(sdport),  final_phase);
+-		if (final_phase == 0xFF){
++		if (final_phase == 0xFF)
++		{	
+ 			RTKSDPRINTF_WARM(" %s final phase = 0x%08x\n",sdmmc_dev(sdport),  final_phase);
+ 			err = -EINVAL;
+ 			goto out ;
+@@ -2203,7 +2585,7 @@
+ 		rtk_crsd_change_rx_phase(sdport, final_phase);
+ 		err = 0;
+ 		goto out ;
+-	}else{
++	} else {
+ 		RTKSDPRINTF_WARM(" %s  fail !phase_map\n",sdmmc_dev(sdport));
+ 		err = -EINVAL;
+ 		goto out ;
+@@ -2216,10 +2598,10 @@
+ }
+ 
+ 
+-static int rtk_crsd_execute_tuning(struct mmc_host *mmc, u32 opcode){
+-
++static int rtk_crsd_execute_tuning(struct mmc_host *mmc, u32 opcode)
++{
+ 	struct rtk_crsd_host *sdport = mmc_priv(mmc);
+-	int err;
++	int err = 0;
+ 	unsigned int reg_tmp=0;
+ 	unsigned int reg_tmp2=0;
+ 	unsigned int reg_tuned3318=0;
+@@ -2236,10 +2618,12 @@
+  	/*if tune tx phase fail, down 8MHz and retry*/
+ 	do{
+ 		err = rtk_crsd_tuning_tx(sdport);
+-		if (err == -MMC_ERR_RMOVE){
++		if (err == -MMC_ERR_RMOVE)
++		{
+ 			RTKSDPRINTF_WARM("rtk_crsd_tuning_tx MMC_ERR_RMOVE\n");	
+ 			return err;
+ 		}else if (err){
++
+ 			reg_tmp = crsd_readl(sdport->base_pll_io+CR_PLL_SD3);
+ 			reg_tuned3318 = (reg_tmp & 0x3FF0000) >> 16;
+ 
+@@ -2257,7 +2641,8 @@
+ 		}
+ 	}while(err);
+ 
+-	if(err){
++	if(err)
++	{
+ 		RTKSDPRINTF_WARM("rtk_crsd_tuning_tx fail\n");	
+ 		return err;
+ 	}
+@@ -2267,62 +2652,124 @@
+ 	// enable spectrum
+ 	crsd_writel( reg_tmp2,  sdport->base_pll_io+CR_PLL_SD2);	//PLL_SD2
+ 
+-	if(err){
++	if(err)
++	{
+ 		BluSDPRINTF("rtk_crsd_tuning_rx fail\n");	
+ 		return err;
+ 	}
+ 
+ 	printk(KERN_ERR "    %s PLL3 SD %d (0x%02x)\n",__FUNCTION__, (crsd_readl(sdport->base_pll_io+CR_PLL_SD3)>>16), (crsd_readl(sdport->base_pll_io+CR_PLL_SD3)>>16));
+ 	printk(KERN_ERR "    %s CLK_GEN div %d\n",__FUNCTION__, 1<<(crsd_readl(sdport->base_io+CR_SD_CKGEN_CTL)&0x03));
+-	printk(KERN_ERR "    Update:2015.03.05 \n");
+ 
+ 	return err;
+ }
+ 
+-static void rtk_crsd_plug_timer(unsigned long data){
++#if 0
++static void rtk_crsd_chk_card_insert(struct rtk_crsd_host *sdport)
++{
++    struct mmc_host *host=sdport->mmc;
++//	u32 iobase = sdport->base_io;
++    RTKSDPRINTF( "\n");
++
++    rtk_crsd_set_bits(sdport,BUS_WIDTH_1);
++    rtk_crsd_set_speed(sdport, 2);
++    rtk_crsd_set_div(sdport,CLOCK_DIV_128);
++//    host->card_type_pre = CR_EM;  //default flow is sd
++    host->card_type_pre = CR_SD;
++    host->ops = &rtk_crsd_ops;
++
++
++    sdport->rtflags     &= ~RTKCR_FCARD_DETECTED;
++	sdport->int_status_old &=  ~SD_EXISTENCE;
+ 	
++/*
++
++	if(cr_readb(iobase+CARD_EXIST) & SD_EXISTENCE)
++	{
++	    sdport->rtflags |= RTKCR_FCARD_DETECTED;
++	    RTKSDPRINTF( "SD card is exist, regCARD_EXIST = %x\n",cr_readb(iobase+CARD_EXIST));
++
++	    cr_writeb( 0x2, sdport->base_io+CARD_SELECT );            	//Specify the current active card module for the coming data transfer, bit 2:0 = 010
++	    cr_writeb( 0x4, sdport->base_io+CR_CARD_OE );            	//arget module is SD/MMC card module, bit 2 =1
++//	    cr_writeb( 0x4, sdport->base_io+CR_IP_CARD_INT_EN );     	//SD/MMC Interrupt Enable, bit 2 = 1
++	    cr_writeb( 0x4, sdport->base_io+CARD_CLOCK_EN_CTL );     	// SD Card Module Clock Enable, bit 2 = 1
++
++		//# SD_CONFIGURE1 (0x1801_0580)
++		//# Initial Mode, bit 7 = 1
++		//# divide clock by 256, bit 6 = 1
++		//# SD30_Async_FIFO_Rst_n., bit 4 = 1
++		//# SD20 mode, bit 3:2 = 00
++		//# 1-bit bus width, bit 1:0 = 00
++	    cr_writeb( 0xD0, sdport->base_io+SD_CONFIGURE1 );
++
++		//# SD CMD Response Timeout Error disable	//#x /b 0x18010584
++	    cr_writeb( 0x0, sdport->base_io+SD_STATUS2 );
++
++	}else{
++	    RTKSDPRINTF( "SD card is not exist, regCARD_EXIST = %x\n",cr_readb(iobase+CARD_EXIST));
++	}
++*/
++}
++#endif
++static void rtk_crsd_plug_timer(unsigned long data)
++{
+     struct rtk_crsd_host *sdport;
+     u32 reginfo;
+ 	volatile unsigned int reg_tmp;
+-    volatile unsigned long timeend = 0;
++    volatile unsigned long timeend=0;
+ 
+     sdport = (struct rtk_crsd_host *)data;
+     reginfo = crsd_readb(sdport->base_io+CARD_EXIST);
+ 
+-    if((reginfo & SD_EXISTENCE) ^ (sdport->int_status_old & SD_EXISTENCE)){
+-
++    if((reginfo & SD_EXISTENCE) ^
++       (sdport->int_status_old & SD_EXISTENCE))
++    {
+         u32 det_time = 0;
+-        RTKSDPRINTF_WARM( "Card status change, reginfo=0x%x, int_status=0x%x\n", reginfo,sdport->int_status_old);
+-
+-        sdport->rtflags &= ~RTKCR_FCARD_DETECTED;
+-        sdport->wp = 0;
++        RTKSDPRINTF_WARM( "Card status change, reginfo=0x%x, int_status=0x%x\n",
++                reginfo,sdport->int_status_old);
+ 
+-        if(reginfo & SD_EXISTENCE){
++        sdport->rtflags     &= ~RTKCR_FCARD_DETECTED;
++        sdport->wp          = 0;
++        if(reginfo & SD_EXISTENCE)
++		{
+             sdport->ins_event = EVENT_INSER;
+             sdport->rtflags |= RTKCR_FCARD_DETECTED;
+             det_time = 1;
+ 		    RedSDPRINTF( "SD card is exist, regCARD_EXIST = %x\n",crsd_readb(sdport->base_io+CARD_EXIST));
+ 			crsd_writel(0x0, sdport->base_io+CR_DMA_CTL3);	//stop dma control
+-			crsd_writeb(0x0, sdport->base_io+CR_CARD_STOP );            // SD Card module transfer no stop
+-		    crsd_writeb(0x2, sdport->base_io+CARD_SELECT );            	//Specify the current active card module for the coming data transfer, bit 2:0 = 010
+-		    crsd_writeb(0x4, sdport->base_io+CR_CARD_OE );            	//arget module is SD/MMC card module, bit 2 =1
+-	//	    crsd_writeb(0x4, sdport->base_io+CR_IP_CARD_INT_EN );     	//SD/MMC Interrupt Enable, bit 2 = 1
+-		    crsd_writeb(0x4, sdport->base_io+CARD_CLOCK_EN_CTL );     	// SD Card Module Clock Enable, bit 2 = 1
+-		    crsd_writeb(0xD0, sdport->base_io+SD_CONFIGURE1 );
++			crsd_writeb( 0x0, sdport->base_io+CR_CARD_STOP );            // SD Card module transfer no stop
++		    crsd_writeb( 0x2, sdport->base_io+CARD_SELECT );            	//Specify the current active card module for the coming data transfer, bit 2:0 = 010
++		    crsd_writeb( 0x4, sdport->base_io+CR_CARD_OE );            	//arget module is SD/MMC card module, bit 2 =1
++	//	    crsd_writeb( 0x4, sdport->base_io+CR_IP_CARD_INT_EN );     	//SD/MMC Interrupt Enable, bit 2 = 1
++		    crsd_writeb( 0x4, sdport->base_io+CARD_CLOCK_EN_CTL );     	// SD Card Module Clock Enable, bit 2 = 1
++		    crsd_writeb( 0xD0, sdport->base_io+SD_CONFIGURE1 );
+ 			rtk_crsd_speed(sdport, CRSD_CLOCK_400KHZ);
+-		    crsd_writeb(0x0, sdport->base_io+SD_STATUS2 );
+-        }else{
++		    crsd_writeb( 0x0, sdport->base_io+SD_STATUS2 );
++        }
++		else
++		{
+             sdport->ins_event = EVENT_REMOV;
+             sdport->rtflags &= ~RTKCR_FCARD_DETECTED;
+             det_time = 1;
+ 
+ 			/*crsd reset*/
+ 		    timeend = jiffies + msecs_to_jiffies(100);
+-		    while(time_before(jiffies, timeend)){
+-				if((!(crsd_readl(sdport->base_emmc+EMMC_DMA_CTL3)&0x1)) && (crsd_readb(sdport->base_sdio+SDIO_NORML_INT_STA)&0x2));
+-					break;
+-				RTKSDPRINTF_DBG(".");
+-			}
++
++		    if(crsd_readl(sdport->base_pll_io + 0x01fc) == 0){
++		    	while(time_before(jiffies, timeend))
++				{
++					if((crsd_readb(sdport->base_sdio+SDIO_NORML_INT_STA)&0x2));
++						break;
++					RTKSDPRINTF_DBG(".");
++				}
++		    }else{
++				while(time_before(jiffies, timeend))
++				{
++					if((!(crsd_readl(sdport->base_emmc+EMMC_DMA_CTL3)&0x1)) && (crsd_readb(sdport->base_sdio+SDIO_NORML_INT_STA)&0x2));
++						break;
++					RTKSDPRINTF_DBG(".");
++				}
++		    }
+ 
+ 			reg_tmp = crsd_readl(sdport->base_pll+CR_SOFT_RESET2);
+ 			crsd_writel((reg_tmp & (~0x400)) , sdport->base_pll+CR_SOFT_RESET2 );     	// SD Card module transfer stop and idle state
+@@ -2333,13 +2780,18 @@
+ 			crsd_writel(0x0, sdport->base_io+CR_DMA_CTL3);	//stop dma control
+ 			crsd_writeb( 0xff, sdport->base_io+CR_CARD_STOP );     	// SD Card module transfer stop and idle state
+ 			crsd_writel( 0x003E0003,  sdport->base_pll_io+CR_PLL_SD1);	//PLL_SD1
++			udelay(100);
+ 			crsd_writel( 0x078D1893,  sdport->base_pll_io+CR_PLL_SD2);	//Reduce the impact of spectrum by Hsin-yin, jamestai20150302
++			udelay(100);
+ 			crsd_writel(crsd_readl( sdport->base_io + CR_SD_CKGEN_CTL) | 0x00070000, sdport->base_io + CR_SD_CKGEN_CTL); //Switch SD source clock to 4MHz by Hsin-yin
++			udelay(100);
+ 			crsd_writel( 0x00564388,  sdport->base_pll_io+CR_PLL_SD3);	//PLL_SD3
+-			udelay(2);
++			udelay(100);
+ 			crsd_writel(crsd_readl( sdport->base_io + CR_SD_CKGEN_CTL) & 0xFFF8FFFF, sdport->base_io + CR_SD_CKGEN_CTL); //Switch SD source clock to normal clock source by Hsin-yin
++			udelay(100);
+ 			crsd_writeb( crsd_readb(sdport->base_io+SD_CONFIGURE1) & 0xEF, sdport->base_io+SD_CONFIGURE1 ); //Reset FIFO pointer by Hsin-yin
+ 			crsd_writel( 0x00000007,  sdport->base_pll_io+CR_PLL_SD4);	//PLL_SD4
++			udelay(100);
+ 			crsd_writeb(0xD0, sdport->base_io+SD_CONFIGURE1);
+ 			rtk_crsd_speed(sdport, CRSD_CLOCK_400KHZ);
+ 			crsd_writeb(0x0, sdport->base_io+CARD_SD_CLK_PAD_DRIVE);
+@@ -2362,64 +2814,26 @@
+ static void rtk_crsd_timeout_timer(unsigned long data){
+ 
+     struct rtk_crsd_host *sdport;
+-    u8 wflag = 0;
+-    u32 sd_status1 = 0, sd_status2 = 0, bus_status = 0;
+-    u32 sd_trans = 0, int_status;
+-  	unsigned long flags;
++
++  	unsigned long flags = 0;
+ 
+     sdport = (struct rtk_crsd_host *)data;
+-    //printk( "rtk_crsd_timeout_timer fired ...\n");
++
++    RTKSDPRINTF( "rtk_crsd_timeout_timer fired ...\n");
+     RTKSDPRINTF( "%s - int_wait=%08x\n", __func__, (unsigned int) (sdport->int_waiting));
++
+     spin_lock_irqsave(&sdport->lock, flags);
+     //down_write(&cr_rw_sem);
+     
+-    //#ifdef ENABLE_SD_INT_MODE
+-    //if(sdport->int_waiting)
+-    //#else
+-    //if (1)
+-    //#endif
+-    //{
+-		int_status = readl(sdport->base_io + 0x24);
+-		//printk(">>> INT=0x%08x\n",int_status);
+-		sd_trans = readb(sdport->base_io + 0x193);
+-		sd_status1 = readb(sdport->base_io + 0x183);
+-		sd_status2 = readb(sdport->base_io + 0x184);
+-		bus_status = readb(sdport->base_io + 0x185);
+-
+-//        RTKSDPRINTF( "0. get sd trans \n");
+-//        wflag = 0x01;
+-//        #ifdef ENABLE_SD_INT_MODE
+-//        RTKSDPRINTF( "========== C1 ==========\n");
+-//        rtk_crsd_clr_int_sta(sdport->base_io);
+-//        rtk_crsd_get_int_sta(sdport->base_io,&int_status);
+-//        sdport->int_status  = int_status;
+-//        #endif
+-//        RTKSDPRINTF( "1. get sd trans \n");
+-//        RTKSDPRINTF( "baseio=0x%08x\n",sdport->base_io);
+-//        rtk_crsd_get_sd_trans(sdport->base_io,&sd_trans);
+-//
+-//        RTKSDPRINTF( "2. get sd status \n");
+-//        rtk_crsd_get_sd_sta(sdport->base_io,&sd_status1,&sd_status2,&bus_status);
+-
+-        sdport->sd_trans    = sd_trans;
+-        sdport->sd_status1   = sd_status1;
+-        sdport->sd_status2   = sd_status2;
+-        sdport->bus_status   = bus_status;
+-        //printk( "int sts : 0x%08x sd_trans : 0x%08x, sd_st1 : 0x%08x\n", sdport->int_status, sdport->sd_trans, sdport->sd_status1);
+-        //printk( "int st2 : 0x%08x bus_sts : 0x%08x \n", sdport->sd_status2, sdport->bus_status);
+-    //}else{
+-    //    WARN_ON(1);
+-    //}
++    sdport->int_status = readl(sdport->base_io + 0x24);
++    sdport->sd_trans = readb(sdport->base_io + 0x193);
++    sdport->sd_status1 = readb(sdport->base_io + 0x183);
++    sdport->sd_status2 = readb(sdport->base_io + 0x184);
++    sdport->bus_status = readb(sdport->base_io + 0x185);
+ 
+     rtk_crsd_op_complete(sdport);
+     spin_unlock_irqrestore(&sdport->lock, flags);
+     //up_write(&cr_rw_sem);
+-    #ifdef ENABLE_SD_INT_MODE
+-    RTKSDPRINTF("%s: %s %s card access time out!\n",
+-            DRIVER_NAME,
+-            (wflag & 0x01) ? "int error;" : "",
+-            (wflag & 0x10) ? "dma error;" : "" );
+-    #endif
+ }
+ 
+ #ifdef EMMC_SHOUTDOWN_PROTECT
+@@ -2472,14 +2886,16 @@
+ 
+ #endif
+ 
++static irqreturn_t rtk_crsd_irq(int irq, void *dev){
+ 
+-static irqreturn_t rtk_crsd_irq(int irq, void *dev)
+-{
+     struct rtk_crsd_host *sdport = dev;
+     int irq_handled = 0;
+     u32 int_status = 0;
+-    u32 sd_trans = 0, dma_trans = 0;;
+-    u32 sd_status1 = 0,sd_status2 = 0, bus_status = 0;
++    u32 sd_trans = 0;;
++    u32  dma_trans = 0;
++    u32 sd_status1 = 0;
++    u32 sd_status2 = 0;
++    u32 bus_status = 0;
+ 
+     rtk_crsd_sync(sdport);
+ 
+@@ -2494,23 +2910,12 @@
+     		int_status = readl(sdport->base_io + 0x24);
+     	}while(!(int_status & ISRSTA_INT1));
+     }else if(sdport->cmd_opcode == 17 || sdport->cmd_opcode == 18 || sdport->cmd_opcode == 25 || sdport->cmd_opcode == 24){
+-
+-    	//if(sdport->card_speed & SD_MODE_UHS_SDR104){
+ 		do{
+ 			int_status = readl(sdport->base_io + 0x24);
+ 		}while(!(int_status & ISRSTA_INT4) || !(int_status & ISRSTA_INT1));
+-    	/*}else if(sdport->card_speed & (SD_MODE_UHS_SDR50 | SD_MODE_UHS_DDR50 | SD_MODE_UHS_SDR12 | SD_MODE_UHS_SDR25)){
+-    		udelay(3);
+-    	}else if(sdport->card_speed & SD_MODE_HIGH_SPEED){
+-    		udelay(5);
+-    	}*/
+-
+     }
+ 
+-
+-
+ 	int_status = readl(sdport->base_io + 0x24);
+-	//printk(">>> INT=0x%08x\n",int_status);
+     sd_trans = readb(sdport->base_io + 0x193);
+     sd_status1 = readb(sdport->base_io + 0x183);
+     sd_status2 = readb(sdport->base_io + 0x184);
+@@ -2519,10 +2924,6 @@
+ 
+ 	if (int_status & (ISRSTA_INT1 | ISRSTA_INT2 | ISRSTA_INT4)){
+ 
+-		#ifdef  SHOW_INT_STATUS
+-		printk("INT=0x%08x sdport=0x%p\n",int_status,sdport);
+-		#endif
+-
+ 		sdport->int_status = int_status;
+ 		sdport->sd_trans = sd_trans;
+ 		sdport->sd_status1 = sd_status1;
+@@ -2532,7 +2933,7 @@
+ 
+ 		if (sdport->int_waiting) {
+ 			del_timer(&sdport->timer);
+-			rtk_op_complete_test(sdport);
++			rtk_crsd_op_complete(sdport);
+ 		}else{
+ 			printk("No int_waiting!!!\n");
+ 		}
+@@ -2552,23 +2953,20 @@
+ 		return IRQ_NONE;
+ }
+ 
+-/* liao ********************
+- * check read only func
+- *
+- *
+- ***************************/
+-static int rtk_crsd_get_ro(struct mmc_host *host){
+-
++static int rtk_crsd_get_ro(struct mmc_host *host)
++{
+ 	struct rtk_crsd_host *sdport;
+ 	u32 iobase;
+ 	u32 reginfo;
+ 
++
+ 	sdport = mmc_priv(host);
+ 	down_write(&cr_rw_sem);
+ 	iobase = sdport->base_io;
+ 	reginfo = crsd_readb(iobase+CARD_EXIST);
+ 	up_write(&cr_rw_sem);
+-	if(reginfo & SD_WRITE_PROTECT){
++	if(reginfo & SD_WRITE_PROTECT)
++	{
+ 		RTKSDPRINTF( "SD card is write protect, regCARD_EXIST = %x\n",crsd_readb(iobase+CARD_EXIST));
+ 		return 1;                                                          
+ 	}
+@@ -2576,18 +2974,20 @@
+ 	return 0;
+ }
+ 
+-static int rtk_crsd_get_cd(struct mmc_host *host){
+-
++static int rtk_crsd_get_cd(struct mmc_host *host)
++{
+     struct rtk_crsd_host *sdport;
+     u32 iobase;
+     u32 reginfo;
+ 
++
+     sdport = mmc_priv(host);
+     down_write(&cr_rw_sem);
+     iobase = sdport->base_io;
+     reginfo = crsd_readb(iobase+CARD_EXIST);
+     up_write(&cr_rw_sem);
+-    if(reginfo & SD_EXISTENCE){
++    if(reginfo & SD_EXISTENCE)
++	{
+ 	    RedSDPRINTF( "SD card is exist, regCARD_EXIST = %x\n",crsd_readb(iobase+CARD_EXIST));
+ 	    return 1;
+     }
+@@ -2595,10 +2995,366 @@
+     return 0;
+ }
+ 
++#if 0
++static int rtk_crsd_wait_status(struct mmc_card *card,u8 state,u8 divider)
++{
++    struct mmc_command cmd;
++    struct crsd_cmd_pkt cmd_info;
++    unsigned long timeend;
++    int err;
++
++    timeend = jiffies + msecs_to_jiffies(100);    /* wait 100ms */
++
++    do {
++        memset(&cmd, 0, sizeof(struct mmc_command));
++        memset(&cmd_info, 0, sizeof(struct crsd_cmd_pkt));
++
++        rtk_crsd_set_cmd_info(card,&cmd,&cmd_info,
++                     MMC_SEND_STATUS,
++                     (card->rca)<<RCA_SHIFTER,
++                     0x41);//SD_R1|divider);
++        err = rtk_crsd_SendCMDGetRSP_Cmd(&cmd_info);
++
++        if(err){
++            RTKSDPRINTF("wait %s fail\n",state_tlb[state]);
++            break;
++        }else{
++            u8 cur_state = R1_CURRENT_STATE(cmd.resp[0]);
++			if (cur_state<9)
++	            RTKSDPRINTF("cur_state=%s\n",state_tlb[cur_state]);
++            err = -1;
++            if(cur_state == state){
++                if(cmd.resp[0] & R1_READY_FOR_DATA){
++                    err = 0;
++                    break;
++                }
++            }
++        }
++		RTKSDPRINTF_DBG("+");
++
++    }while(time_before(jiffies, timeend));
++    return err;
++}
++
+ 
+-#ifdef CMD25_WO_STOP_COMMAND
+-static void rtk_crsd_cmd12_timer(unsigned long param){
++static int rtk_crsd_send_status(struct mmc_card *card,u16 * state,u8 divider)
++{
++    struct mmc_command cmd;
++    struct crsd_cmd_pkt cmd_info;
++    int err;
++
++    memset(&cmd, 0, sizeof(struct mmc_command));
++    memset(&cmd_info, 0, sizeof(struct crsd_cmd_pkt));
++
++    rtk_crsd_set_cmd_info(card,&cmd,&cmd_info,
++                 MMC_SEND_STATUS,
++                 (card->rca)<<RCA_SHIFTER,
++                 0x41);//SD_R1|divider);
++    err = rtk_crsd_SendCMDGetRSP_Cmd(&cmd_info);
++
++    if(err){
++        RTKSDPRINTF("%s: MMC_SEND_STATUS fail\n",DRIVER_NAME);
++    }else{
++        u8 cur_state = R1_CURRENT_STATE(cmd.resp[0]);
++        *state = cur_state;
++        RTKSDPRINTF("cur_state=%s\n",state_tlb[cur_state]);
++
++    }
++
++    return err;
++}
++
++
++static int rtk_crsd_stop_transmission(struct mmc_card *card)
++{
++    struct mmc_command cmd;
++    struct crsd_cmd_pkt cmd_info;
++    int err = 0;
++
++    RTKSDPRINTF( "\n");
++
++    memset(&cmd, 0, sizeof(struct mmc_command));
++    memset(&cmd_info, 0, sizeof(struct crsd_cmd_pkt));
++
++    rtk_crsd_set_cmd_info(card,&cmd,&cmd_info,
++                 MMC_STOP_TRANSMISSION,
++                 0x00,
++                 SD_R1b);
++    err = rtk_crsd_SendCMDGetRSP_Cmd(&cmd_info);
++
++    if(err){
++        RTKSDPRINTF( "%s: MMC_STOP_TRANSMISSION fail\n",DRIVER_NAME);
++    }
++    return err;
++
++}
++#endif
++
++//#define MMC_VDD_30_31   0x00040000  /* VDD voltage 3.0 ~ 3.1 */
++//#define MMC_VDD_31_32   0x00080000  /* VDD voltage 3.1 ~ 3.2 */
++//#define MMC_VDD_32_33   0x00100000  /* VDD voltage 3.2 ~ 3.3 */
++//#define MMC_VDD_33_34   0x00200000  /* VDD voltage 3.3 ~ 3.4 */
++//#define MMC_VDD_34_35   0x00400000  /* VDD voltage 3.4 ~ 3.5 */
++//#define MMC_VDD_35_36   0x00800000  /* VDD voltage 3.5 ~ 3.6 */
++//#define MMC_CARD_BUSY   0x80000000  /* Card Power up status bit */
++//#define RTL_HOST_VDD    MMC_VDD_33_34|MMC_VDD_32_33|MMC_VDD_31_32|MMC_VDD_30_31
++
++//static int rtk_crsd_re_init_proc(struct mmc_card *card)    //re_initial_card
++//{
++//    struct crsd_cmd_pkt cmd_info;
++//    struct mmc_command cmd;
++//    u32 arg = 0;
++//    u8 i;
++//    int err=0;
++//    struct rtk_crsd_host *sdport = mmc_priv(card->host);
++//    u32 iobase = sdport->base_io;
++//    unsigned long timeend;
++//
++//    RTKSDPRINTF( "\n");
++//    sdport->rt_parameter=0;
++//    rtk_crsd_set_clk(sdport,CARD_SWITCHCLOCK_30MHZ);
++//
++//    if(card->type == MMC_TYPE_SD)
++//    {
++//
++//        for(i=0;i<4;i++){
++//            crsd_writel(0x48, iobase+CR_REG_CMD_1);
++//            crsd_writel(0x00, iobase+CR_REG_CMD_2);
++//            crsd_writel(0xff, iobase+CR_REG_CMD_3);
++//            crsd_writel(0xff, iobase+CR_REG_CMD_4);
++//            crsd_writel(0xff, iobase+CR_REG_CMD_5);
++//            crsd_writel(0xff, iobase+CR_REG_CMD_6);
++//            crsd_writel(0xff, iobase+CR_REG_CMD_7);
++//            crsd_writel(0x90, iobase+CR_REG_CMD_8);
++//            rtk_crsd_wait_opt_end(sdport);
++//        }
++//    }
++//
++//
++//    rtk_crsd_set_cmd_info(card,&cmd,&cmd_info,MMC_GO_IDLE_STATE,
++//                 0x00000000,SD_R0|DIVIDE_128);
++//    err = rtk_crsd_SendCMDGetRSP_Cmd(&cmd_info);
++//    if(err){
++//        goto err_out;
++//    }
++//
++//    if(card->type == MMC_TYPE_SD){
++//        RTKSDPRINTF("SD re_initial\n");
++//        if(card->scr.sda_vsn == 2){    //SD spec 2.0
++//            //CMD8_SEND_IF_COND
++//            rtk_crsd_set_cmd_info(card,&cmd,&cmd_info,SD_SEND_IF_COND,
++//                         0x000001AA,SD_R7|DIVIDE_128);
++//            err=rtk_crsd_SendCMDGetRSP_Cmd(&cmd_info);
++//
++//            if(err)
++//                goto err_out;
++//        }
++//
++//        if ( mmc_card_blockaddr(card))
++//            arg = 0x40000000;   //SD_HCS;
++//
++//        timeend = jiffies + 2*HZ;
++//        while (1){
++//            if(time_after(jiffies, timeend)){
++//                mmcspec("SD ACMD41_SD_APP_OP_COND time out\n");
++//                err=-1;
++//                goto err_out;
++//            }
++//
++//            rtk_crsd_set_cmd_info(card,&cmd,&cmd_info,MMC_APP_CMD,
++//                         0x00000000,SD_R1|DIVIDE_128);
++//            err=rtk_crsd_SendCMDGetRSP_Cmd(&cmd_info);
++//            if(err)
++//                goto err_out;
++//
++//            mdelay(1);
++//            rtk_crsd_set_cmd_info(card,&cmd,&cmd_info,SD_APP_OP_COND,
++//                         arg|RTL_HOST_VDD,SD_R3|DIVIDE_128);
++//            err=rtk_crsd_SendCMDGetRSP_Cmd(&cmd_info);
++//            if(err)
++//                goto err_out;
++//
++//            if (cmd.resp[0] & MMC_CARD_BUSY)
++//                break;
++//
++//        }
++//        mdelay(1);
++//        rtk_crsd_set_cmd_info(card,&cmd,&cmd_info,MMC_ALL_SEND_CID,
++//                         0x00000000,SD_R2|DIVIDE_128);
++//        err=rtk_crsd_SendCMDGetRSP_Cmd(&cmd_info);
++//        if(err)
++//            goto err_out;
++//
++//        rtk_crsd_set_cmd_info(card,&cmd,&cmd_info,SD_SEND_RELATIVE_ADDR,
++//                         0x00000000,SD_R6|DIVIDE_128);
++//        err=rtk_crsd_SendCMDGetRSP_Cmd(&cmd_info);
++//        if(err)
++//            goto err_out;
++//
++//        card->rca = cmd.resp[0]>>RCA_SHIFTER;
++//        mmcspec("card->rca:0x%x\n",card->rca);
++//
++//        rtk_crsd_set_cmd_info(card,&cmd,&cmd_info,MMC_SELECT_CARD,
++//                         (card->rca)<<RCA_SHIFTER,SD_R1b|DIVIDE_128);
++//        err=rtk_crsd_SendCMDGetRSP_Cmd(&cmd_info);
++//        if(err)
++//            goto err_out;
++//
++//        if( mmc_card_highspeed(card))   //support high-speed
++//        {
++//            mmcspec("high-speed mode\n");
++//            //rtk_crsd_set_cmd_info(card,&cmd,&cmd_info,CMD6_SWITCH_FUNC,
++//            //             0x80fffff1,SD_R1);
++////            err=rtk_crsd_SendCMDGetRSP_Cmd(&cmd_info);
++//            rtk_crsd_set_clk(sdport,CARD_SWITCHCLOCK_40MHZ);
++//        }
++//        else
++//        {
++//            mmcspec("normal-speed mode\n");
++//            //rtk_crsd_set_phase(card->host,RTK_PHASE_LOW);
++//            rtk_crsd_set_clk(sdport,CARD_SWITCHCLOCK_30MHZ);
++//        }
++//
++//        if(card->scr.bus_widths &0x04) //support 4-bits
++//        {
++//
++//            rtk_crsd_set_cmd_info(card,&cmd,&cmd_info,MMC_APP_CMD,
++//                         card->rca<<RCA_SHIFTER,SD_R1);
++//            err=rtk_crsd_SendCMDGetRSP_Cmd(&cmd_info);
++//            if(err)
++//                goto err_out;
++//
++//            rtk_crsd_set_cmd_info(card,&cmd,&cmd_info,SD_APP_SET_BUS_WIDTH,
++//                         0x02,SD_R1);
++//            err=rtk_crsd_SendCMDGetRSP_Cmd(&cmd_info);
++//            if(err)
++//                goto err_out;
++//
++//            err=rtk_crsd_set_bits(sdport,BUS_WIDTH_4);
++//            if(err)
++//                goto err_out;
++//            else
++//                mmcspec("SD/SDHC 4-bits mode\n");
++//
++//        }
++//
++//    }else{  //MMC card
++//        RTKSDPRINTF("%s: MMC re_initial\n",DRIVER_NAME);
++//        timeend=jiffies+HZ;
++//        while (1){
++//            if(time_after(jiffies, timeend)){
++//                mmcspec("SD ACMD41_SD_APP_OP_COND time out\n");
++//                err=-1;
++//                goto err_out;
++//            }
++//
++//            rtk_crsd_set_cmd_info(card,&cmd,&cmd_info,MMC_SEND_OP_COND,
++//                         RTL_HOST_VDD,SD_R3|DIVIDE_128);
++//            err=rtk_crsd_SendCMDGetRSP_Cmd(&cmd_info);
++//            if(err)
++//                goto err_out;
++//
++//            mdelay(1);
++//
++//            if (cmd.resp[0] & MMC_CARD_BUSY)
++//                break;
++//
++//        }
++//
++//        mdelay(1);
++//        rtk_crsd_set_cmd_info(card,&cmd,&cmd_info,MMC_ALL_SEND_CID,
++//                         0x00000000,SD_R2|DIVIDE_128);
++//        err=rtk_crsd_SendCMDGetRSP_Cmd(&cmd_info);
++//        if(err)
++//            goto err_out;
++//
++//        mmcspec("%s: card->rca:0x%x\n",DRIVER_NAME,card->rca);
++//        rtk_crsd_set_cmd_info(card,&cmd,&cmd_info,MMC_SET_RELATIVE_ADDR,
++//                         (card->rca)<<RCA_SHIFTER,SD_R1|DIVIDE_128);
++//        err=rtk_crsd_SendCMDGetRSP_Cmd(&cmd_info);
++//        if(err)
++//            goto err_out;
++//
++//        rtk_crsd_set_cmd_info(card,&cmd,&cmd_info,MMC_SELECT_CARD,
++//                         (card->rca)<<RCA_SHIFTER,SD_R1b|DIVIDE_128);
++//        err=rtk_crsd_SendCMDGetRSP_Cmd(&cmd_info);
++//        if(err)
++//            goto err_out;
++//
++//        //speed up to 40MHz
++//        rtk_crsd_set_clk(sdport,CARD_SWITCHCLOCK_40MHZ);
++//
++//        arg=(MMC_SWITCH_MODE_WRITE_BYTE << 24)
++//            | (EXT_CSD_BUS_WIDTH << 16)
++//            | (1 << 8)
++//            | EXT_CSD_CMD_SET_NORMAL;
++//        rtk_crsd_set_cmd_info(card,&cmd,&cmd_info,MMC_SWITCH,
++//                         arg,SD_R1b);
++//        err=rtk_crsd_SendCMDGetRSP_Cmd(&cmd_info);
++//        if(err)
++//            goto err_out;
++//
++//        timeend=jiffies+HZ;
++//        do {
++//            if(time_after(jiffies, timeend)){
++//                err=-1;
++//                goto err_out;
++//            }
++//
++//            rtk_crsd_set_cmd_info(card,&cmd,&cmd_info,MMC_SEND_STATUS,
++//                         (card->rca)<<RCA_SHIFTER,SD_R1);
++//            err=rtk_crsd_SendCMDGetRSP_Cmd(&cmd_info);
++//            if(err)
++//                goto err_out;
++//
++//        }while(((cmd.resp[0] & 0x00001E00) >> 9)==7);   //0x00001E00; the 1E is card state window
++//
++//        if(cmd.resp[0]&0xFDFFA000){ //0xFDFFA000 is card status error bits
++//            err=-1;
++//            goto err_out;
++//        }
++//
++//        if (cmd.resp[0] & (1<<7)){
++//            err=-1;
++//            goto err_out;
++//        }else{
++//            err=rtk_crsd_set_bits(sdport,BUS_WIDTH_4);
++//            if(err)
++//                goto err_out;
++//            else
++//                mmcspec("MMC 4-bits mode\n");
++//        }
++//    }
++//
++//err_out:
++//
++//    if(err ){
++//        mmcspec("re_initial fail !!\n");
++//
++//    }else{
++//        mmcspec("re_initial success\n");
++//    }
++//    return err;
++//}
++
++/*
++static void rtk_crsd_set_cmd_info(struct mmc_card *card,struct mmc_command * cmd,
++                         struct crsd_cmd_pkt * cmd_info,u32 opcode,u32 arg,u8 rsp_para)
++{
++    memset(cmd, 0, sizeof(struct mmc_command));
++    memset(cmd_info, 0, sizeof(struct crsd_cmd_pkt));
++    cmd->opcode         = opcode;
++    cmd->arg            = arg;
++    cmd_info->cmd       = cmd;
++    cmd_info->sdport    = mmc_priv(card->host);
++    cmd_info->rsp_para2  = rsp_para;
++    cmd_info->rsp_len   = rtk_crsd_get_rsp_len(rsp_para);
++}
++*/
+ 
++#ifdef CMD25_WO_STOP_COMMAND
++static void rtk_crsd_cmd12_timer(unsigned long param)
++{
+ 	if( sd_in_receive_data_state && rtksd_mmc_cmd && rtksd_sdport ) {
+ 		sd_in_receive_data_state = 0;
+ 		rtk_crsd_SendStopCMD( rtksd_mmc_cmd, rtksd_sdport);
+@@ -2611,17 +3367,21 @@
+     .re_init_proc   = NULL,
+     .card_det       = NULL,
+     .card_power     = rtk_crsd_card_power,
++	//.chk_card_insert= rtk_crsd_chk_card_insert,
++	//.set_crt_muxpad = rtk_crsd_set_crt_muxpad,
+ 	.set_clk        = NULL,
+ 	//we don't need to do the rst
+     .reset_card     = NULL,
+     .reset_host     = NULL,
++	//.bus_speed_down = rtk_crsd_bus_speed_down,
+     .get_cmdcode    = NULL, //rtk_get_emmc_cmdcode,
+     .get_r1_type    = NULL, //rtk_emmc_get_r1_type,
+     .chk_cmdcode    = rtk_crsd_chk_cmdcode,
++	//.chk_r1_type    = rtk_crsd_chk_r1_type,
+ };
+ 
+-static int rtk_crsd_probe(struct platform_device *pdev){
+-
++static int rtk_crsd_probe(struct platform_device *pdev)
++{
+     struct mmc_host *mmc = NULL;
+     struct rtk_crsd_host *sdport = NULL;
+     int ret, irq;
+@@ -2636,8 +3396,6 @@
+ 	if (!rtk119x_crsd_node)
+ 		panic("No irda of node found");
+ 
+-    rtk_crsd_chk_VerA();
+-
+ 	/* Request IRQ */
+ 	irq = irq_of_parse_and_map(rtk119x_crsd_node, 0);
+ 	if (!irq) {
+@@ -2662,6 +3420,7 @@
+     sdport = mmc_priv(mmc);
+     memset(sdport, 0, sizeof(struct rtk_crsd_host));
+ 
++
+ ///////mmap io
+ 	sdport->base_pll = of_iomap(rtk119x_crsd_node, 0);
+ 	if (!sdport->base_pll )
+@@ -2685,11 +3444,22 @@
+ 
+ 
+ 	RTKSDPRINTF(" sdport->base_pll = %x \n", (u32)sdport->base_pll);	 
+-	RTKSDPRINTF(" sdport->base_crsd = %x \n",(u32)sdport->base_crsd);
++	RTKSDPRINTF(" sdport->base_crsd = %x \n",(u32)sdport->base_crsd);	 
+ 	RTKSDPRINTF(" sdport->base_sysbrdg = %x \n", (u32)sdport->base_sysbrdg);	 
+ 	RTKSDPRINTF(" sdport->base_emmc = %x \n", (u32)sdport->base_emmc);	 
+ 	RTKSDPRINTF(" sdport->base_sdio = %x \n", (u32)sdport->base_sdio);	 
+ 
++	sdport->gpio_card_power = of_get_gpio_flags(rtk119x_crsd_node, 0, NULL);
++
++	if (gpio_is_valid(sdport->gpio_card_power)) {
++		ret = gpio_request(sdport->gpio_card_power, "crsd_power");
++		if (ret < 0) {
++			printk(KERN_ERR"can't request crsd_power gpio %d\n",sdport->gpio_card_power);
++		}
++	}else{
++		printk(KERN_ERR"crsd_power gpio %d is not valid\n",sdport->gpio_card_power);
++	}
++
+     sdport->mmc = mmc;
+     sdport->dev = &pdev->dev;
+     sdport->base_io = (u32)(sdport->base_crsd);
+@@ -2699,9 +3469,14 @@
+     sdport->base_sdio_io = (u32)(sdport->base_sdio);
+     sdport->ops = &crsd_ops;
+ 
++    crsd_writel(0x00000004, sdport->base_pll_io+CR_PLL_SD4);
++    crsd_writel(0x00000007, sdport->base_pll_io+CR_PLL_SD4);
++
+     sema_init(&sdport->sem,1);
+     sema_init(&sdport->sem_op_end,1);
+ 
++    sdport->magic_num = (readl(sdport->base_sysbrdg_io + 0x204) >> 16);
++
+     mmc->ocr_avail = MMC_VDD_30_31 | MMC_VDD_31_32 |
+                      MMC_VDD_32_33 | MMC_VDD_33_34 | MMC_VDD_165_195;
+ 
+@@ -2713,7 +3488,9 @@
+               | MMC_CAP_UHS_SDR25
+               | MMC_CAP_UHS_SDR50
+               | MMC_CAP_UHS_DDR50
++//              | MMC_CAP_1_8V_DDR;
+               | MMC_CAP_MMC_HIGHSPEED;
++//            | MMC_CAP_NONREMOVABLE;
+ 
+     if(rtk_crsd_bus_wid == 4 || rtk_crsd_bus_wid == 5){
+         mmc->caps &= ~MMC_CAP_8_BIT_DATA;
+@@ -2722,15 +3499,21 @@
+     mmc->f_min = 10000000>>8;   /* RTK min bus clk is 10Mhz/256 */
+     mmc->f_max = 208000000;      /* RTK max bus clk is 208Mhz */
+ 
+-	mmc->max_segs = 1;
+-	mmc->max_blk_size = 512;
+-	mmc->max_blk_count = 1024;
+-	mmc->max_seg_size = mmc->max_blk_size * mmc->max_blk_count;
+-	mmc->max_req_size = mmc->max_blk_size * mmc->max_blk_count;
++    mmc->max_segs = 1;
++    mmc->max_blk_size   = 512;
++
++    if(rtk_crsd_chk_VerA())
++        mmc->max_blk_count  = 0x100;
++    else
++        mmc->max_blk_count  = 0x400;
++
++    mmc->max_seg_size   = mmc->max_blk_size * mmc->max_blk_count;
++    mmc->max_req_size   = mmc->max_blk_size * mmc->max_blk_count;
+ 
+     spin_lock_init(&sdport->lock);
+     init_rwsem(&cr_rw_sem);
+-    tasklet_init(&sdport->req_end_tasklet, rtk_crsd_req_end_tasklet, (unsigned long)sdport);
++    tasklet_init(&sdport->req_end_tasklet, rtk_crsd_req_end_tasklet,
++		        (unsigned long)sdport);
+ 
+     RTKSDPRINTF( "\n");
+ 
+@@ -2741,9 +3524,7 @@
+         goto out;
+     }
+ 
+-    //rtk_crsd_hold_int_dec(sdport->base_io);       /* hold status interrupt */
+-    rtk_crsd_clr_int_sta(sdport->base_io);
+-
++#ifdef ENABLE_SD_INT_MODE
+     ret = request_irq(irq, rtk_crsd_irq, IRQF_SHARED, DRIVER_NAME, sdport);   //rtk_crsd_interrupt
+     if (ret){
+         RTKSDPRINTF( "%s: cannot assign irq %d\n", DRIVER_NAME, irq);
+@@ -2751,27 +3532,30 @@
+     }else{
+         sdport->irq = irq;
+     }
+-
++#endif
+ 
+   	setup_timer(&sdport->timer, rtk_crsd_timeout_timer, (unsigned long)sdport);
+ 	setup_timer(&sdport->plug_timer, rtk_crsd_plug_timer, (unsigned long)sdport);
+-
+-	#ifdef CMD25_WO_STOP_COMMAND
++#ifdef CMD25_WO_STOP_COMMAND
+ 	setup_timer(&rtksd_stop_cmd_timer, rtk_crsd_cmd12_timer, (unsigned long)NULL);
+-	#endif
++#endif
+ 
+     if (sdport->ops->reset_card)
+         sdport->ops->reset_card(sdport);
+ 
+-	crsd_writel( 0x003E0003,  sdport->base_pll_io+CR_PLL_SD1);	//PLL_SD1
+-	crsd_writel( 0x078D1893,  sdport->base_pll_io+CR_PLL_SD2);	//Reduce the impact of spectrum by Hsin-yin, jamestai20150302
+-	crsd_writel(crsd_readl( sdport->base_io + CR_SD_CKGEN_CTL) | 0x00070000, sdport->base_io + CR_SD_CKGEN_CTL); //Switch SD source clock to 4MHz by Hsin-yin
+-	crsd_writel( 0x00564388,  sdport->base_pll_io+CR_PLL_SD3);	//PLL_SD3
+-	udelay(2);
++    crsd_writel( 0x003E0003,  sdport->base_pll_io+CR_PLL_SD1);	//PLL_SD1
++    udelay(100);
++    crsd_writel( 0x078D1893,  sdport->base_pll_io+CR_PLL_SD2);	//Reduce the impact of spectrum by Hsin-yin, jamestai20150302
++    udelay(100);
++    crsd_writel(crsd_readl( sdport->base_io + CR_SD_CKGEN_CTL) | 0x00070000, sdport->base_io + CR_SD_CKGEN_CTL); //Switch SD source clock to 4MHz by Hsin-yin
++    udelay(100);
++    crsd_writel( 0x00564388,  sdport->base_pll_io+CR_PLL_SD3);	//PLL_SD3
++	udelay(100);
+ 	crsd_writel(crsd_readl( sdport->base_io + CR_SD_CKGEN_CTL) & 0xFFF8FFFF, sdport->base_io + CR_SD_CKGEN_CTL); //Switch SD source clock to normal clock source by Hsin-yin
++	udelay(100);
+ 	crsd_writeb( crsd_readb(sdport->base_io+SD_CONFIGURE1) & 0xEF, sdport->base_io+SD_CONFIGURE1 ); //Reset FIFO pointer by Hsin-yin
+ 	crsd_writel( 0x00000007,  sdport->base_pll_io+CR_PLL_SD4);	//PLL_SD4
+-
++	udelay(100);
+ 	crsd_writeb(0xD0, sdport->base_io+SD_CONFIGURE1);
+ 	rtk_crsd_speed(sdport, CRSD_CLOCK_400KHZ);
+ 
+@@ -2789,29 +3573,30 @@
+ 	crsd_rca = 0;
+ 
+ 
+-    #ifdef ENABLE_SD_INT_MODE
+-    rtk_crsd_en_int(sdport->base_io);
+-    #endif
++#ifdef ENABLE_SD_INT_MODE
+ 	writel(0x16 ,sdport->base_crsd + 0x24);
+-    writel(0x17 ,sdport->base_crsd + 0x28);
++	writel(0x17 ,sdport->base_crsd + 0x28);
++#endif
+ 
+     platform_set_drvdata(pdev, mmc);
+ 
+     crsd_writeb( 0x2, sdport->base_io+CARD_SELECT );            //for emmc, select SD ip
+-
+-    if (bErrorRetry_1){
++    if (bErrorRetry_1)
++    {
+         crsd_writeb( 0x8,  sdport->base_io+SD_SAMPLE_POINT_CTL );    //sample point = SDCLK / 4
+         crsd_writeb( 0x10, sdport->base_io+SD_PUSH_POINT_CTL );     //output ahead SDCLK /4
+-    }else{
++    }
++    else
++    {
+         crsd_writeb( 0x0, sdport->base_io+SD_SAMPLE_POINT_CTL );    //sample point = SDCLK / 4
+         crsd_writeb( 0x0, sdport->base_io+SD_PUSH_POINT_CTL );     //output ahead SDCLK /4
+     }
+-
+     g_crinit=0;
+ 
+     rtk_crsd_sync(sdport);
+ 
+-    RTKSDPRINTF("%s: %s driver initialized\n", mmc_hostname(mmc), DRIVER_NAME);
++    RTKSDPRINTF("%s: %s driver initialized\n",
++               mmc_hostname(mmc), DRIVER_NAME);
+ 
+     ret = mmc_add_host(mmc);
+     if (ret)
+@@ -2821,6 +3606,7 @@
+    	mod_timer(&sdport->plug_timer, jiffies + 3*HZ );
+ 	rtk_crsd_mdelay(2000);
+ 
++
+     return 0;
+ 
+ out:
+@@ -2842,19 +3628,20 @@
+ 
+ 	    if (sdport->base_sdio)
+             iounmap(sdport->base_sdio);
+-    }
+ 
++
++    }
+     if (mmc)
+         mmc_free_host(mmc);
+     return ret;
+ }
+ 
+-static int __exit rtk_crsd_remove(struct platform_device *pdev){
+-
++static int __exit rtk_crsd_remove(struct platform_device *pdev)
++{
+     struct mmc_host *mmc = platform_get_drvdata(pdev);
+     RTKSDPRINTF( "\n");
+ 
+-    if(mmc){
++    if (mmc) {
+         struct rtk_crsd_host *sdport = mmc_priv(mmc);
+ 
+         flush_scheduled_work();
+@@ -2870,11 +3657,9 @@
+ 
+       	del_timer_sync(&sdport->timer);
+         del_timer_sync(&sdport->plug_timer);
+-
+-        #ifdef CMD25_WO_STOP_COMMAND
++#ifdef CMD25_WO_STOP_COMMAND
+         del_timer_sync(&rtksd_stop_cmd_timer);
+-		#endif
+-
++#endif
+         if (sdport->base_crsd)
+             iounmap(sdport->base_crsd);
+ 
+@@ -2882,6 +3667,7 @@
+             iounmap(sdport->base_pll);
+ 
+         mmc_free_host(mmc);
++        gpio_free(sdport->gpio_card_power);
+     }
+     platform_set_drvdata(pdev, NULL);
+ 
+@@ -2892,12 +3678,14 @@
+ /*****************************************************************************************/
+ /* driver / device attache area                                                                                                               */
+ /*****************************************************************************************/
+-static int rtk_crsd_pm_suspend(struct device *dev) {
++static int rtk_crsd_pm_suspend(struct device *dev) 
++{
++
+ 	return 0;
+ }
+ 
+-static int rtk_crsd_pm_resume(struct device *dev) {
+-
++static int rtk_crsd_pm_resume(struct device *dev) 
++{
+ 	int ret = 0;
+ 	struct rtk_crsd_host *sdport = dev_get_drvdata(dev);
+ 
+@@ -2916,9 +3704,8 @@
+ 
+ 	/* Workaround : OS reboot SD card initial fail, jamestai20150129*/
+ 	crsd_writel(0x33333323, sdport->base_pll_io + CR_PFUNC_CR );
+-
++	//ret = mmc_resume_host(sdport->mmc);
+ 	gpio_free(sdport->gpio_card_power);
+-	return ret;
+ }
+ 
+ static const struct dev_pm_ops rtk_crsd_pm_ops = {
+@@ -2943,8 +3730,8 @@
+     },
+ };
+ 
+-static void rtk_crsd_display_version (void){
+-
++static void rtk_crsd_display_version (void)
++{
+     const __u8 *revision;
+     const __u8 *date;
+     const __u8 *time;
+@@ -2972,8 +3759,9 @@
+ 
+ }
+ 
+-static void rtk_crsd_dump_reg(struct rtk_crsd_host *sdport){
+ 
++static void rtk_crsd_dump_reg(struct rtk_crsd_host *sdport)
++{
+ 	unsigned int reg_tmp;
+ 
+     RTKSDPRINTF_WARM( "CR_PLL_SD1 = 0x%x, CR_PLL_SD2 = 0x%x, CR_PLL_SD3 = 0x%x, CR_PLL_SD4 = 0x%x, CR_PFUNC_CR = 0x%x,\n", \
+@@ -2985,7 +3773,8 @@
+ 		);
+ 
+ 	reg_tmp	= 	sdport->base_io;
+-	for (;reg_tmp < 0xFE0104b0;){
++	for (;reg_tmp < 0xFE0104b0;)
++	{
+ 	    REG_SDPRINTF("0x%x = 0x%x,  0x%x,  0x%x,  0x%x \n", \
+ 			reg_tmp,	\
+ 			crsd_readl( reg_tmp),	\
+@@ -2997,7 +3786,8 @@
+ 	}
+ 
+ 	reg_tmp	= 	sdport->base_io + 0x100;
+-	for (;reg_tmp < 0xFE0105bf;){
++	for (;reg_tmp < 0xFE0105bf;)
++	{
+ 	    REG_SDPRINTF("0x%x = 0x%x,  0x%x,  0x%x,  0x%x \n",\
+ 			reg_tmp,\
+ 			crsd_readb( reg_tmp),\
+@@ -3007,8 +3797,11 @@
+ 			);
+ 		reg_tmp += 4;
+ 	}
++
+ }
+ 
++
++
+ static int rtk_crsd_set_bus_width(char * buf){
+     /*
+     get eMMC bus width setting by bootcode parameter, like below
+@@ -3025,8 +3818,8 @@
+     return 0;
+ }
+ 
+-static int __init rtk_crsd_init(void){
+-
++static int __init rtk_crsd_init(void)
++{
+     int rc = 0;
+ 
+     RTKSDPRINTF( "\n");
+@@ -3044,6 +3837,7 @@
+         return -ENODEV;
+     }else{
+ #ifdef ENABLE_SD_INT_MODE
++    	RTKSDPRINTF( "Realtek SD Controller Driver is successfully installing.\n\n");
+         RTKSDPRINTF( "Realtek SD Controller Driver is running interrupt mode.\n\n");
+ #endif
+         RTKSDPRINTF( "Realtek SD Controller Driver is successfully installing.\n\n");
+@@ -3053,16 +3847,19 @@
+     return rc;
+ }
+ 
+-static void __exit rtk_crsd_exit(void){
+-
++static void __exit rtk_crsd_exit(void)
++{
+     RTKSDPRINTF( "\n");
+     platform_driver_unregister(&rtk_crsd_driver);
+ }
+ 
+ // allow emmc driver initialization earlier
+ module_init(rtk_crsd_init);
++//late_init_call(rtk_crsd_init);
++//device_initcall_sync(rtk_crsd_init);
+ module_exit(rtk_crsd_exit);
+ 
++
+ /* maximum card clock frequency (default 50MHz) */
+ module_param(maxfreq, int, 0);
+ 
+diff -Nur linux-kernel/drivers/mmc/host/rtksd.h linux-custom/drivers/mmc/host/rtksd.h
+--- linux-kernel/drivers/mmc/host/rtksd.h	2015-05-18 15:08:14.000000000 +0800
++++ linux-custom/drivers/mmc/host/rtksd.h	2015-07-16 17:48:19.224083200 +0800
+@@ -38,13 +38,17 @@
+ #define CONCEALED		"\033[8m"
+ */
+ 
+-
++#define MMC_EXT_READ_SINGLE			48
++#define MMC_EXT_WRITE_SINGLE		49
++#define MMC_EXT_READ_MULTIPLE		58
++#define MMC_EXT_WRITE_MULTIPLE		59
+ 
+ //debug
+ //#define CRSD_TUNE_DBG
+ //#define CRSD_DBG
+ //#define CRSD_REG_DBG
+ 
++
+ #if defined(CRSD_TUNE_DBG) 
+ #define RTKSDPRINTF_WARM(fmt, args...)	printk(KERN_WARNING "[%26s %4d]"fmt,__FUNCTION__,__LINE__,## args)
+ #define RTKSDPRINTF_NOTC(fmt, args...)	printk(KERN_NOTICE "[%26s %4d]"fmt,__FUNCTION__,__LINE__,## args)
+@@ -212,7 +216,7 @@
+     volatile u32		sd_trans;
+     volatile u32		gpio_isr_info;
+     u32                 tmout;
+-    u32 				card_speed;
++    unsigned int  		magic_num;
+ };
+ 
+ struct rtk_crsd_host_ops {
+@@ -358,57 +362,6 @@
+ #define POW_CHECK 0
+ #define POW_FORCE 1
+ 
+-#define rtkcr_get_int_sta(io_base,status_addr)                           \
+-            do {                                                         \
+-                if (io_base == CR_BASE_ADDR)                             \
+-                    *(u32 *)status_addr = crsd_readl(io_base+CR_SD_ISR);   \
+-                else                                                     \
+-                    *(u32 *)status_addr = crsd_readl(io_base+EMMC_SD_ISR); \
+-            } while (0);
+-
+-#define rtkcr_get_sd_sta(io_base,status_addr1,status_addr2,bus_status)       \
+-            do {                                                             \
+-                    *(u32 *)status_addr1 = crsd_readb(io_base+SD_STATUS1);     \
+-                    *(u32 *)status_addr2 = crsd_readb(io_base+SD_STATUS2);     \
+-                    *(u32 *)bus_status = crsd_readb(io_base+SD_BUS_STATUS);    \
+-            } while (0);
+-
+-#define rtkcr_get_sd_trans(io_base,status_addr) \
+-            *(u32 *)status_addr = crsd_readb(io_base+SD_TRANSFER)
+-#define rtkcr_get_dma_trans(io_base,status_addr) \
+-            *(u32 *)status_addr = crsd_readb(io_base+CR_DMA_CTL3)
+-#define rtkcr_clr_int_sta(io_base)                                                                              \
+-            do {                                                                                                \
+-                if (io_base == CR_BASE_ADDR)                                                                    \
+-                    crsd_writel( (crsd_readl(io_base+CR_SD_ISR)|(ISRSTA_INT1|ISRSTA_INT2))|CLR_WRITE_DATA ,io_base+CR_SD_ISR); \
+-                else if (io_base == EM_BASE_ADDR)                                                               \
+-                    crsd_writel( (crsd_readl(io_base+EMMC_SD_ISR)|(ISRSTA_INT1|ISRSTA_INT2))|CLR_WRITE_DATA ,io_base+EMMC_SD_ISR); \
+-                else                                                                                            \
+-                    crsd_writel( (crsd_readl(io_base+SDIO_SD_ISR)|(SDIO_ISRSTA_INT1|SDIO_ISRSTA_INT2|SDIO_ISRSTA_INT3|SDIO_ISRSTA_INT4))|CLR_WRITE_DATA ,io_base+SDIO_SD_ISR); \
+-            } while(0);
+-
+-#define rtkcr_hold_int_dec(io_base)    \
+-            do {                                                                                                \
+-                if (io_base == CR_BASE_ADDR)                                                                    \
+-                    crsd_writel( (crsd_readl(io_base+CR_SD_ISREN)|(ISRSTA_INT1EN|ISRSTA_INT2EN))|CLR_WRITE_DATA ,io_base+CR_SD_ISREN); \
+-                else if (io_base == EM_BASE_ADDR)                                                               \
+-                    crsd_writel( (crsd_readl(io_base+EMMC_SD_ISREN)|(ISRSTA_INT1EN|ISRSTA_INT2EN))|CLR_WRITE_DATA ,io_base+EMMC_SD_ISREN); \
+-                else                                                                                            \
+-                    crsd_writel( (crsd_readl(io_base+SDIO_SD_ISREN)|SDIO_ISRSTA_INT1EN)|CLR_WRITE_DATA ,io_base+SDIO_SD_ISREN); \
+-            } while(0);
+-
+-#define rtkcr_en_int(io_base)  \
+-            do {                                                                                                \
+-                if (io_base == CR_BASE_ADDR)                                                                    \
+-                    crsd_writel( (crsd_readl(io_base+CR_SD_ISREN)|(ISRSTA_INT1EN|ISRSTA_INT2EN))|WRITE_DATA ,io_base+CR_SD_ISREN); \
+-                else if (io_base == EM_BASE_ADDR)                                                               \
+-                    crsd_writel( (crsd_readl(io_base+EMMC_SD_ISREN)|(ISRSTA_INT1EN|ISRSTA_INT2EN))|WRITE_DATA ,io_base+EMMC_SD_ISREN); \
+-                else                                                                                            \
+-                    crsd_writel( (crsd_readl(io_base+SDIO_SD_ISREN)|SDIO_ISRSTA_INT1EN)|WRITE_DATA ,io_base+SDIO_SD_ISREN); \
+-            } while(0);
+-
+-
+-//---------------------------------------------------------------------------------------------------------------
+ #define rtk_crsd_get_int_sta(io_base,status_addr)                           \
+             do {                                                         \
+                 if (io_base == CR_BASE_ADDR)                             \
+@@ -578,9 +531,9 @@
+     {SD_CMD_UNKNOW ,SD_R0 }, {SD_CMD_UNKNOW ,SD_R0 }, {SD_CMD_UNKNOW ,SD_R0 }, {SD_CMD_UNKNOW ,SD_R0 }, //36~39
+     {SD_CMD_UNKNOW ,SD_R0 }, {SD_CMD_UNKNOW ,SD_R0 }, {SD_NORMALREAD ,SD_R1 }, {SD_CMD_UNKNOW ,SD_R0 }, //40~43
+     {SD_CMD_UNKNOW ,SD_R0 }, {SD_CMD_UNKNOW ,SD_R0 }, {SD_CMD_UNKNOW ,SD_R0 }, {SD_CMD_UNKNOW ,SD_R0 }, //44~47
+-    {SD_CMD_UNKNOW ,SD_R0 }, {SD_CMD_UNKNOW ,SD_R0 }, {SD_CMD_UNKNOW ,SD_R0 }, {SD_NORMALREAD ,SD_R1 }, //48~51
++    {SD_AUTOREAD2  ,SD_R1 }, {SD_AUTOWRITE2 ,SD_R1 }, {SD_CMD_UNKNOW ,SD_R0 }, {SD_NORMALREAD ,SD_R1 }, //48~51
+     {SD_CMD_UNKNOW ,SD_R0 }, {SD_CMD_UNKNOW ,SD_R0 }, {SD_CMD_UNKNOW ,SD_R0 }, {SD_CMD_UNKNOW ,SD_R0 }, //52~55
+-    {SD_AUTOREAD2  ,SD_R1 }, {SD_CMD_UNKNOW ,SD_R0 }, {SD_CMD_UNKNOW ,SD_R0 }, {SD_CMD_UNKNOW ,SD_R0 }  //56~59
++    {SD_AUTOREAD2  ,SD_R1 }, {SD_CMD_UNKNOW ,SD_R0 }, {SD_AUTOREAD2  ,SD_R1 }, {SD_AUTOWRITE2 ,SD_R1 }  //56~59
+ };
+ 
+ /* remove from c file &&& */
+diff -Nur linux-kernel/drivers/mmc/Kconfig linux-custom/drivers/mmc/Kconfig
+--- linux-kernel/drivers/mmc/Kconfig	2015-05-18 15:08:14.000000000 +0800
++++ linux-custom/drivers/mmc/Kconfig	2015-07-14 14:39:38.248605000 +0800
+@@ -29,10 +29,17 @@
+ 	help
+ 	  Support RealTek EMMC/SD/SDIO for Phoenix FPGA b/d.
+ 
+-config MMC_RTKSD
++menuconfig MMC_RTKSD
+ 	tristate "MMC RTK SD"
+ 	help
+ 	  Support RealTek SD for Phoenix.
++	  
++config MMC_RTKSD_INTERRUPT
++	bool "Interrupt Mode"
++	default y
++	depends on MMC_RTKSD
++	help
++	  RTK SD Card Reader Interrupt Mode
+ 
+ if MMC
+ 

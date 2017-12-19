@@ -1,0 +1,9 @@
+config BR2_PACKAGE_GPHOTO2
+	select BR2_PACKAGE_LIBUSB_COMPAT
+	select BR2_PACKAGE_LIBUSB
+	depends on BR2_PACKAGE_LIBGPHOTO2
+	bool "gphoto2"
+	help
+	  gphoto2 is a command line interface of PTP.
+
+	  http://sourceforge.net/projects/gphoto/files/latest/download

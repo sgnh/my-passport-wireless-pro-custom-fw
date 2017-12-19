@@ -1,0 +1,132 @@
+#!/bin/sh
+#
+# WD PowerProfile
+
+source /etc/power.conf
+
+RETVAL=0
+ACMode=`cat /tmp/battery | cut -d " " -f 1`
+CacheMode=
+
+check_CacheMod(){
+	if [ -f /proc/cache ]; then
+		CacheMode=`cat /proc/cache  | grep MODE | awk -F':' '{print $2}'`
+	fi
+}
+
+start() {
+
+	echo "Starting CPU Power Profile: ${ACMode}"
+	if [ "${powerprofile}" == "max_system_performance" ] ; then
+		check_CacheMod
+		[ "${CacheMode}" == " battery" ] && echo 1 > /proc/performance
+		echo "set max_system_performance"
+		cpu1=`cat /sys/bus/cpu/devices/cpu1/online`
+		if [ "${cpu1}" == "0" ]; then
+			echo 1 > /sys/bus/cpu/devices/cpu1/online
+		fi
+
+		echo 1100000 > /sys/bus/cpu/devices/cpu0/cpufreq/scaling_max_freq
+		echo 1100000 > /sys/bus/cpu/devices/cpu1/cpufreq/scaling_max_freq
+		echo ondemand > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
+		echo ondemand > /sys/devices/system/cpu/cpu1/cpufreq/scaling_governor
+		echo 1000 > /sys/devices/system/cpu/cpufreq/ondemand/sampling_down_factor
+		Current_speed=`cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq`
+
+		echo "percha current freq ${Current_speed}"
+
+	fi
+	
+	if [ "${powerprofile}" == "max_life" ] && [ "${ACMode}" == "charging" ] ; then
+		check_CacheMod
+		[ "${CacheMode}" == " battery" ] && echo 1 > /proc/performance
+		echo "set max_life"
+		cpu1=`cat /sys/bus/cpu/devices/cpu1/online`
+		if [ "${cpu1}" == "0" ]; then
+ 			echo 1 > /sys/bus/cpu/devices/cpu1/online
+		fi
+		echo ondemand > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
+		echo ondemand > /sys/devices/system/cpu/cpu1/cpufreq/scaling_governor
+		echo 1100000 > /sys/bus/cpu/devices/cpu0/cpufreq/scaling_max_freq
+		echo 1100000 > /sys/bus/cpu/devices/cpu1/cpufreq/scaling_max_freq
+		echo 1000 > /sys/devices/system/cpu/cpufreq/ondemand/sampling_down_factor
+		Current_speed=`cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq`
+		
+		echo "lifecha current freq ${Current_speed}"
+		
+	fi
+
+	if [ "${powerprofile}" == "max_life" ] && [ "${ACMode}" == "discharging" ] ; then
+		check_CacheMod
+		[ "${CacheMode}" == " performance" ] && echo 0 > /proc/performance
+		echo "set max_life"
+		cpu1=`cat /sys/bus/cpu/devices/cpu1/online`
+		if [ "${cpu1}" == "0" ]; then  #PMXCache need to run with dual core
+ 			echo 1 > /sys/bus/cpu/devices/cpu1/online
+		fi
+		echo performance > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
+		echo performance > /sys/devices/system/cpu/cpu1/cpufreq/scaling_governor
+		echo 500000 > /sys/bus/cpu/devices/cpu0/cpufreq/scaling_max_freq
+		echo 500000 > /sys/bus/cpu/devices/cpu1/cpufreq/scaling_max_freq
+		Current_speed=`cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq`
+
+		echo "lifedis current freq ${Current_speed}"
+	fi
+	echo -n "Starting HD Power Profile: "
+	/usr/local/sbin/getSerialNumber.sh > /dev/null 2>&1
+	for diskvolume in /sys/bus/scsi/devices/*; do
+		if [ -f "${diskvolume}/vendor" ] && [ -f "${diskvolume}/model" ] ; then
+			vendor=`cat "$diskvolume/vendor" | awk '{print $1}'`
+			model=`cat "$diskvolume/model"`
+			echo "path:${diskvolume} vendor:${vendor} model:${model}"
+			[ "$model" == "My Passport 25AF" ] && HDD_MODEL="My Passport 25AF"
+			[ "$model" == "My Passport 25BE" ] && HDD_MODEL="My Passport 25BE"
+			if [ "$vendor" == "WD" ] && [ "$model" == "$HDD_MODEL" ]; then
+				suspend_path=$diskvolume
+				echo "HDD path ${suspend_path}"
+				if [ "${ACMode}" == "discharging" ]; then
+					if [ "${powerprofile}" == "max_system_performance" ] ;then
+						timeout=60000
+					fi
+					if [ "${powerprofile}" == "max_life" ] ;then
+						timeout=30000
+					fi
+					echo auto >  $diskvolume/power/control
+					echo $timeout >  $diskvolume/power/autosuspend_delay_ms
+				else
+					echo on >  $diskvolume/power/control
+				fi
+                	#break #make sure HDD will not miss suspend
+			fi
+		fi
+	done
+	/usr/local/sbin/sendHWCollect.sh 104 ${ACMode}
+	echo "done"
+}	
+
+stop() {
+	echo -n "Stop CPU Power Profile: "
+	echo "done"	
+}	
+
+restart() {
+	stop
+	start
+}	
+
+case "$1" in
+  start)
+  	start
+  	;;
+  stop)
+  	stop
+  	;;
+  restart)
+  	restart
+  	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?

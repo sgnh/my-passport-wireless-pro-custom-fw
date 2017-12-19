@@ -1,0 +1,55 @@
+From ba83042c48ef78d7f2613ef2b7f10af2a72d06d3 Mon Sep 17 00:00:00 2001
+From: Yuan-Yi Chang <hank.chang@primax.com.tw>
+Date: Tue, 31 Mar 2015 16:10:32 +0800
+Subject: [PATCH 2/6] busybox-1.21.0-unlink.patch
+
+---
+ coreutils/link.c |   36 ++++++++++++++++++++++++++++++++++++
+ 1 file changed, 36 insertions(+)
+ create mode 100644 coreutils/link.c
+
+diff --git a/coreutils/link.c b/coreutils/link.c
+new file mode 100644
+index 0000000..fe3b5c0
+--- /dev/null
++++ b/coreutils/link.c
+@@ -0,0 +1,36 @@
++/* vi: set sw=4 ts=4: */
++/*
++ * link implementation for busybox
++ *
++ * Copyright (c) 2012 Pere Orga <gotrunks@gmail.com>
++ * Licensed under GPLv2 or later, see file LICENSE in this source tree.
++ */
++
++//config:config LINK
++//config:	bool "link"
++//config:	default y
++//config:	help
++//config:	  Call the link system function to create a link to a file
++
++//applet:IF_LINK(APPLET(link, BB_DIR_USR_BIN, BB_SUID_DROP))
++
++//kbuild:lib-$(CONFIG_LINK) += link.o
++
++//usage:#define link_trivial_usage
++//usage:       "TARGET LINK_NAME"
++//usage:#define link_full_usage "\n\n"
++//usage:       "Create a link named LINK_NAME to TARGET\n"
++
++#include "libbb.h"
++
++int link_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
++int link_main(int argc UNUSED_PARAM, char **argv)
++{
++	opt_complementary = "=2";
++	getopt32(argv, "");
++
++	if (link(argv[1], argv[2]))
++		bb_error_msg_and_die("cannot create link %s to %s", argv[2], argv[1]);
++
++	return EXIT_SUCCESS;
++}
+-- 
+1.7.9.5
+

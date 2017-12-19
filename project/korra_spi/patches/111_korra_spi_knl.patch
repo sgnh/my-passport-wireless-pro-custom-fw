@@ -1,0 +1,40 @@
+diff --git a/arch/arm/mach-rtk119x/driver/rtk_rtp5901_of.c b/arch/arm/mach-rtk119x/driver/rtk_rtp5901_of.c
+index 8b8dc97..10a9d9b 100644
+--- a/arch/arm/mach-rtk119x/driver/rtk_rtp5901_of.c
++++ b/arch/arm/mach-rtk119x/driver/rtk_rtp5901_of.c
+@@ -213,7 +213,7 @@ int uv_init(struct rtp5901_mfd_chip *chip)
+ 		return ret;
+ 	}
+ 
+-	ret = rtp5901_set_bits(chip, RTP5901_REG_PWR_OFF_CFG, 0x0C);
++	ret = rtp5901_set_bits(chip, RTP5901_REG_PWR_OFF_CFG, 0x08);
+ 	if (ret < 0) {
+ 		printk(KERN_ERR "Unable to config RTP5901_REG_PWR_OFF_CFG reg\n");
+ 		return ret;
+@@ -267,7 +267,7 @@ int buck_init(struct rtp5901_mfd_chip *chip)
+     }
+ 
+     //BUCK DVS
+-    val = 0x3F;
++    val = 0xcf;
+     ret = rtp5901_reg_write(chip, RTP5901_REG_DUMMY_FF, &val);
+     if (ret < 0) {
+         printk(KERN_ERR "Unable to write RTP5901_REG_DUMMY_FF reg\n");
+@@ -299,7 +299,7 @@ int buck_init(struct rtp5901_mfd_chip *chip)
+     /**********************************/
+ #define RTP5901_REG_PFM_PWM_CTRL_DC_PWM_FORCE(x)  (1U << (x-1))
+     /**********************************/
+-    val = 0x08;
++    val = 0x0A;
+ #if 1
+     val |= RTP5901_REG_PFM_PWM_CTRL_DC_PWM_FORCE(2);
+     val |= RTP5901_REG_PFM_PWM_CTRL_DC_PWM_FORCE(4);
+@@ -349,7 +349,7 @@ int buck_init(struct rtp5901_mfd_chip *chip)
+         return ret;
+     }
+ 
+-    val = 0x07;
++    val = 0x8F;
+     ret = rtp5901_reg_write(chip, RTP5901_REG_DC_UVOV_PD_PMU, &val);
+     if (ret < 0) {
+         printk(KERN_ERR "Unable to write RTP5901_REG_DC_UVOV_PD_PMU reg\n");

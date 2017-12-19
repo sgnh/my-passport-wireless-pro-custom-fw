@@ -1,0 +1,18 @@
+WDPACKAGE_WEBUI_VERSION = 1.3.0-13
+WDPACKAGE_WEBUI_SOURCE = ui-$(WDPACKAGE_WEBUI_VERSION).tar
+
+define WDPACKAGE_WEBUI_EXTRACT_CMDS
+	tar xvf $(DL_DIR)/$(WDPACKAGE_WEBUI_SOURCE) -C $(@D)
+endef
+
+define WDPACKAGE_WEBUI_INSTALL_TARGET_CMDS
+	cp -Ra $(@D)/src/*  $(TARGET_DIR)/var/www
+endef
+
+define WDPACKAGE_RESTAPI_UNINSTALL_TARGET_CMDS
+	rm -f $(TARGET_DIR)/var/local/bin
+	rm -f $(TARGET_DIR)/var/local/sbin
+	rm -f $(TARGET_DIR)/CacheVolume
+endef
+
+$(eval $(generic-package))

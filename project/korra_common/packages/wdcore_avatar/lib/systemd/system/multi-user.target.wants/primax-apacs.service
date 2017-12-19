@@ -1,0 +1,9 @@
+[Unit]
+Description=Primax AP Auto Channel Selection RC Script (S99apacs)
+DefaultDependencies=no
+After=primax-confchk.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash -c "/etc/init.d/S99apacs start"

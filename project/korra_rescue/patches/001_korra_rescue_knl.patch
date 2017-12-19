@@ -1,0 +1,22 @@
+diff -Nur linux-kernel.old/arch/arm/boot/dts/rtd-119x-nas-rescue.dts linux-kernel/arch/arm/boot/dts/rtd-119x-nas-rescue.dts
+--- linux-kernel.old/arch/arm/boot/dts/rtd-119x-nas-rescue.dts	2015-03-02 14:04:42.000000000 +0800
++++ linux-kernel/arch/arm/boot/dts/rtd-119x-nas-rescue.dts	2015-04-02 14:32:03.518914801 +0800
+@@ -36,7 +36,7 @@
+ 
+ 	memory {
+ 		device_type = "memory";
+-		reg =  <0x00000000 0x20000000>;					/* 512 MB */
++		reg =  <0x00000000 0x20000000>;					/* 256 MB -> 512 MB */
+ 	};
+ 
+ 
+@@ -112,9 +112,6 @@
+ 		<&rtk_misc_gpio 5 1 1>; 				/*usb3 power , output, default high */
+ 	};		
+ 
+-	rtk_iso_gpio: rtk_iso_gpio@18007100 {
+-		gpios = <&rtk_iso_gpio 13 1 1>; 			/*usb2 power , output, default high */
+-	};	
+ 
+ 	irda@18007400 {
+ 		reg-ir-dpir = <60>;							/*IR detect interval, NEC default=50ms, should less than 100ms, and bigger than 9ms*/

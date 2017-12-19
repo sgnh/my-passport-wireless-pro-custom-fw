@@ -1,0 +1,11 @@
+--- linux-kernel/drivers/usb/host/ehci-hub.c	2015-05-18 15:08:04.000000000 +0800
++++ linux-custom/drivers/usb/host/ehci-hub.c	2016-03-01 00:18:59.075387412 +0800
+@@ -904,7 +904,7 @@
+ 			 * this bit; seems too long to spin routinely...
+ 			 */
+ 			retval = handshake(ehci, status_reg,
+-					PORT_RESET, 0, 1000);
++					PORT_RESET, 0, 2000);
+ 			if (retval != 0) {
+ 				ehci_err (ehci, "port %d reset error %d\n",
+ 					wIndex + 1, retval);

@@ -1,0 +1,10 @@
+config BR2_PACKAGE_MTPFS
+	depends on BR2_PACKAGE_LIBMTP
+    select BR2_PACKAGE_LIBGLIB2
+    bool "mtpfs"
+	help
+	  MTPfs is a FUSE filesystem that supports reading and writing from any MTP device (as supported by libmtp)
+
+	  http://www.adebenham.com/files/mtp/mtpfs-1.1.tar.gz
+
+	

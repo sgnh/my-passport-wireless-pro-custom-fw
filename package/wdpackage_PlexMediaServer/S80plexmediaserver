@@ -1,0 +1,49 @@
+#!/bin/bash
+
+if [ ! -d /media/sdb1/.wdcache/.plexmediaserver ]; then
+    mkdir -p /media/sdb1/.wdcache/.plexmediaserver
+fi
+
+if [ ! -L /usr/local/plexmediaserver/Library ]; then
+    mkdir -p /media/sdb1/.wdcache/.plexmediaserver
+    mv /usr/local/plexmediaserver/Library/* /media/sdb1/.wdcache/.plexmediaserver/
+    rm -Rf /usr/local/plexmediaserver/Library
+    ln -sf /media/sdb1/.wdcache/.plexmediaserver /usr/local/plexmediaserver/Library
+fi
+
+startme() {
+   if [ "`/usr/local/sbin/getServiceStartup.sh twonky`" == "enabled" ]; then
+       exit 0
+   fi
+   if [ "`/usr/local/sbin/getServiceStartup.sh plexmediaserver`" == "disabled" ]; then
+       exit 0
+   fi
+   swapOn=`cat /proc/swaps | wc -l`
+   if [ ${swapOn} -eq 1 ]; then
+      /sbin/EnableDisableSwap.sh enable 
+   fi
+   cd /usr/local/plexmediaserver
+   ./plexmediaserver.sh start
+   sleep 30
+   curl -X PUT "http://localhost:32400/:/prefs?logDebug=0&LogVerbose=0&FSEventLibraryPartialScanEnabled=1&FSEventLibraryUpdatesEnabled=1&collectUsageData=0"
+   sleep 2
+   curl -X GET "http://localhost:32400/library/sections/all/refresh"
+}
+
+stopme() {
+   cd /usr/local/plexmediaserver
+   ./plexmediaserver.sh stop
+}
+case $1 in
+    start)
+        startme
+        ;;
+    stop)
+        stopme
+        ;;
+    restart)
+        stopme;startme
+        ;;
+    *)
+        echo "S80plexmediaserver needs one of the folling options (start|stop|restart)"
+esac

@@ -1,0 +1,215 @@
+diff -Nura dhcp-4.1-ESV-R10.orig/common/options.c dhcp-4.1-ESV-R10.mod/common/options.c
+--- dhcp-4.1-ESV-R10.orig/common/options.c	2014-08-07 07:14:00.000000000 +0800
++++ dhcp-4.1-ESV-R10.mod/common/options.c	2015-12-23 10:45:10.275675592 +0800
+@@ -42,6 +42,124 @@
+ 				 unsigned code, int terminatep,
+ 				 struct option_cache **opp);
+ 
++#ifdef DHCP_WITHOUT_ROUTERS // maintain Mac table in DHCP server for hybird mode - lester.hu@primax.com.tw [20151222]
++#define HYBRID_LIST_FILE	"/tmp/hybrid_list"
++static int addr_exist = 0;
++
++char *hex_decode(const char *in, size_t len, char *out)
++{
++	unsigned int i, t;
++	char hb, lb;
++
++	for (t = 0, i = 0; i < len; i+=2, ++t)
++	{
++		// high byte
++		if (in[i] >= '0' && in[i] <= '9') {
++			hb = in[i] - '0';
++		}
++
++		if (in[i] >= 'a' && in[i] <= 'f') {
++			hb = 10 + in[i] - 'a';
++		}
++
++		// low byte
++		if (in[i+1] >= '0' && in[i+1] <= '9') {
++			lb = in[i+1] - '0';
++		}
++
++		if (in[i+1] >= 'a' && in[i+1] <= 'f') {
++			lb = 10 + in[i+1] - 'a';
++		}
++
++		out[t] = (hb << 4) | lb;
++	}
++
++	return out;
++}
++
++void rm_hw_addr_colon_v4(char *s, char *d)
++{
++	int i = 0, coi = 2;
++	int s_len = strlen(s);
++	
++	memset(d, 0, s_len);
++	
++	for (i=0; i<s_len; i++, s++)
++	{
++		if (i != coi)
++			*d++ = *s;
++		else
++			coi += 3;
++	}
++	return;
++}
++
++int cmp_hw_addr_v4(char addr1[], char addr2[])
++{
++	// log_debug("[%s:%d] addr1[0] -> %02x, addr2[0] -> %02x\n", MDL, addr1[0], addr2[0]);
++	// log_debug("[%s:%d] addr1[1] -> %02x, addr2[1] -> %02x\n", MDL, addr1[1], addr2[1]);
++	// log_debug("[%s:%d] addr1[2] -> %02x, addr2[2] -> %02x\n", MDL, addr1[2], addr2[2]);
++	// log_debug("[%s:%d] addr1[3] -> %02x, addr2[3] -> %02x\n", MDL, addr1[3], addr2[3]);
++	// log_debug("[%s:%d] addr1[4] -> %02x, addr2[4] -> %02x\n", MDL, addr1[4], addr2[4]);
++	// log_debug("[%s:%d] addr1[5] -> %02x, addr2[5] -> %02x\n", MDL, addr1[5], addr2[5]);
++
++	return (memcmp(addr1, addr2, 6) == 0) ? 1 : 0;
++}
++
++int is_hw_addr_exist_v4(unsigned char addr[])
++{
++	int r = 0;	
++	if (access( HYBRID_LIST_FILE, F_OK ) != -1) {
++
++		FILE * fp;
++		char * line = NULL;
++		size_t len = 0;
++		ssize_t nread;
++		
++		fp = fopen(HYBRID_LIST_FILE, "r");
++		if (fp == NULL) {
++			return r;
++		} else {
++			
++			while ((nread = getline(&line, &len, fp)) != -1) {
++				if (nread == 18) {
++					char mac[12] = {0};
++					char out_mac[6] = {0};
++					
++					rm_hw_addr_colon_v4(line, mac);
++					hex_decode(mac, 12, out_mac);
++
++					// log_debug("[%s:%d] out_mac[0] (%02x)\n", MDL, out_mac[0]);
++					// log_debug("[%s:%d] out_mac[1] (%02x)\n", MDL, out_mac[1]);
++					// log_debug("[%s:%d] out_mac[2] (%02x)\n", MDL, out_mac[2]);
++					// log_debug("[%s:%d] out_mac[3] (%02x)\n", MDL, out_mac[3]);
++					// log_debug("[%s:%d] out_mac[4] (%02x)\n", MDL, out_mac[4]);
++					// log_debug("[%s:%d] out_mac[5] (%02x)\n", MDL, out_mac[5]);
++
++					if (r = cmp_hw_addr_v4(out_mac, addr) == 1) {
++					  	log_debug("[%s:%d] [r:%d]find the same chaddr (%s)\n", MDL, r, mac);
++					  	break;
++					}
++				}
++			}
++
++			fclose(fp);
++			if (line) {
++				free(line);
++				line = NULL;
++			}
++		}
++	} else {
++	    log_debug("[%s:%d] file doesn't exist\n", MDL);	// do nothing, file not exist
++	}
++
++	if (r == 0)
++		log_debug("[%s:%d] can't find the same chaddr\n", MDL);
++	
++	return r;	
++}
++#endif
++
+ /* Parse all available options out of the specified packet. */
+ 
+ int parse_options (packet)
+@@ -782,6 +900,15 @@
+ 	memcpy(buffer, DHCP_OPTIONS_COOKIE, 4);
+ 	index += 4;
+ 
++#ifdef DHCP_WITHOUT_ROUTERS // maintain Mac table in DHCP server for hybird mode - lester.hu@primax.com.tw [20151222]
++	if (local_family == AF_INET) {
++		addr_exist = is_hw_addr_exist_v4(outpacket->chaddr);
++		log_debug("[%s:%d] addr_exist -> %d\n", MDL, addr_exist);
++	} else {
++		addr_exist = 0;
++	}
++#endif
++
+ 	/* Copy the options into the big buffer... */
+ 	option_size = store_options(&overload_used, buffer, index, mb_max,
+ 				    inpacket, lease, client_state,
+@@ -1220,7 +1347,7 @@
+ 
+ 	    /* Code for next option to try to store. */
+ 	    code = priority_list [i];
+-	    
++		
+ 	    /* Look up the option in the site option space if the code
+ 	       is above the cutoff, otherwise in the DHCP option space. */
+ 	    if (code >= cfg_options -> site_code_min)
+@@ -1440,8 +1567,30 @@
+ 			incr = length;
+ 		    if (incr > 255)
+ 			incr = 255;
+-
+-		    /* Everything looks good - copy it in! */
++			
++#ifdef DHCP_WITHOUT_ROUTERS // maintain Mac table in DHCP server for hybird mode - lester.hu@primax.com.tw [20151222]
++			if (code == DHO_ROUTERS && addr_exist == 1) {
++				log_debug("[%s:%d] [%d] ignoring return routers when client is MAC (%d)\n", MDL, code, addr_exist);
++			}
++			else {
++				/* Everything looks good - copy it in! */
++				base [*pix] = code;
++				base [*pix + 1] = (unsigned char)incr;
++			    if (tto && incr == length) {
++					if (incr > 1)
++						memcpy (base + *pix + 2,
++							od.data + ix, (unsigned)(incr - 1));
++					base [*pix + 2 + incr - 1] = 0;
++				} else {
++					memcpy (base + *pix + 2,
++						od.data + ix, (unsigned)incr);
++				}
++				*pix += 2 + incr;
++			}
++			length -= incr;
++			ix += incr;
++#else	// original
++			/* Everything looks good - copy it in! */
+ 		    base [*pix] = code;
+ 		    base [*pix + 1] = (unsigned char)incr;
+ 		    if (tto && incr == length) {
+@@ -1456,6 +1605,7 @@
+ 		    length -= incr;
+ 		    ix += incr;
+ 		    *pix += 2 + incr;
++#endif
+ 	    }
+ 	    data_string_forget (&od, MDL);
+ 	}
+@@ -3798,7 +3948,7 @@
+ 			data_string_forget(&dp, MDL);
+ 		}
+ 	}
+-
++	
+ 	if (validate_packet(decoded_packet) != 0) {
+ 		if (decoded_packet->packet_type)
+ 			dhcp(decoded_packet);
+diff -Nura dhcp-4.1-ESV-R10.orig/server/dhcp.c dhcp-4.1-ESV-R10.mod/server/dhcp.c
+--- dhcp-4.1-ESV-R10.orig/server/dhcp.c	2014-08-07 07:14:02.000000000 +0800
++++ dhcp-4.1-ESV-R10.mod/server/dhcp.c	2015-12-23 10:28:03.881050117 +0800
+@@ -2933,7 +2933,7 @@
+ 			delayed_ack_enqueue(lease);
+ 		else 
+ #endif
+-			dhcp_reply(lease);
++		dhcp_reply(lease);
+ 	}
+ }
+ 

@@ -1,0 +1,579 @@
+#!/usr/bin/python
+
+import getopt, sys, os, subprocess, re, time
+	
+def check_board_version():
+	"""
+Check board version
+	- if gpio79 == 0, then Korra
+	- if gpio79 == 1, then Korra
+	"""
+	if os.path.exists("/sys/class/gpio/gpio79/value") == False:
+		f=open("/sys/class/gpio/export", "w")
+		f.write("79")
+		f.close()
+	fp=open("/sys/class/gpio/gpio79/value", "r")
+	board_check=fp.read().strip('\n')
+	fp.close()
+	f=open("/sys/class/gpio/unexport", "w")
+	f.write("79")
+	f.close()
+	if board_check == "0":
+		return "Korra"
+	elif board_check == "1":
+		return "Korra"
+	else:
+		error_code(1000)
+
+def set_ssid(ssid):
+	debug("set_ssid: start")
+	debug("set_ssid: SSID=" + ssid)
+	p=subprocess.Popen("wifi_ap_set_config.sh --ism_band \"2.4\" --enabled true --ssid \"" + ssid + "(2.4Ghz)\" --broadcast true", shell=True, stdout=open("/dev/null", "w"), stderr=subprocess.STDOUT)
+	p.communicate()
+	p=subprocess.Popen("wifi_ap_set_config.sh --ism_band \"5\" --enabled true --ssid \"" + ssid + "(5Ghz)\" --broadcast true", shell=True, stdout=open("/dev/null", "w"), stderr=subprocess.STDOUT)
+	p.communicate()
+	output("Set SSID success")
+	print "-OK-"
+	
+def get_ssid():
+	p=subprocess.Popen("wifi_ap_get_config.sh", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+	msg=p.communicate()
+	obj = eval(msg[0].strip('\n'))
+	ssid_24g = obj['2.4']['ssid']
+	ssid_5g = obj['5']['ssid']
+	output("5G SSID=" + ssid_5g)
+	output("2.4G SSID=" + ssid_24g)
+	print "-OK-"
+
+class MP:
+	"""
+A class for MP including base get/set/test function.
+	"""
+
+	options=["set-default", "get-ssid", "get-battery","get-mac", "get-region","get-efuse", "get-version", "test-hdd", "test-wifi-rx", "test-wifi-tx=", "test-wifi-test", "test-led=", "help", "version", "debug"]
+	_DEBUG="FALSE"
+	
+	def __init__(self):
+		_DEBUG="FALSE"
+		if os.name != 'posix':
+			self.error_code(9000)
+		if os.path.exists("/tmp/mptool_on") == False:
+			self.disable_mcu_msg()
+			self.disable_kernel_msg()
+			f=open("/tmp/mptool_on", "w")
+			f.write("on")
+			f.close()
+	
+	def set_default(self):
+		self.debug("set_default: start")
+		p=subprocess.Popen("factoryRestore.sh noreformat", shell=True, stdout=open("/dev/null", "w"), stderr=subprocess.STDOUT)
+		p.communicate()
+		p=subprocess.Popen("rm /etc/nas/config/factory.conf", shell=True, stdout=open("/dev/null", "w"), stderr=subprocess.STDOUT)
+		p.communicate()
+		self.output("Set to default done")
+		print "-OK-"
+		
+	def set_mac(self, bandwitdh):
+		self.debug("set_mac: start")
+		p=subprocess.Popen("", shell=True, stdout=open("/dev/null", "w"), stderr=subprocess.STDOUT)
+		p.communicate()
+
+	def get_version(self):
+		self.debug("get_version: start")
+		try:
+			f=open("/etc/version", "r")
+			fw_version=f.read().strip('\n')
+			f.close()
+		except IOError:
+			self.debug("get_version:")
+			self.error_code(1011)
+		if os.path.exists("/tmp/MCU_Version") == False:
+			try:
+				f=open("/tmp/MCU_Cmd", "w")
+				f.write("1;0")
+				f.close()
+			except IOError:
+				self.debug("get_version:")
+				self.error_code(1012)
+			time.sleep(2)
+		try:
+			f=open("/tmp/MCU_Version", "r")
+			mcu_version=f.read().strip('\n')
+			f.close()
+		except IOError:
+			self.debug("get_version:")
+			self.error_code(1013)
+		p=subprocess.Popen("stbtool -v \"`cat /tmp/HDDDevNode`\"", shell=True, stdout=subprocess.PIPE)
+		msg=p.communicate()
+		# TODO: stbtool doesn't return error
+		if p.returncode != 0:
+			self.error_code(1014)
+		r_get_version_asmedia = re.compile(r'ASM Firmware Version: (?P<asmedia_version>\d+)')
+		m = r_get_version_asmedia.match(msg[0].strip('\n'))
+		if m == False:
+			self.error_code(1015)
+		asmedia_version=m.group('asmedia_version')
+		try:
+			f=open("/proc/cmdline", "r")
+			cmdline=f.read().strip('\n')
+		except IOError:
+			self.error_code(1016)
+		r_get_version_bootcode = re.compile(r'.*ubv=(?P<bootcode_version>\w+)')
+		m = r_get_version_bootcode.match(cmdline)
+		if m == False:
+			error_code(1017)
+		bootcode_version=m.group('bootcode_version')
+		self.output("FW Version=" + fw_version)
+		self.output("MCU Version=" + mcu_version)
+		self.output("AsMeida Version=" + asmedia_version)
+		self.output("Bootcode Version=" + bootcode_version)
+		print "-OK-"
+
+	def get_battery(self):
+		self.debug("get_battery: start")
+		battery_level = {}
+		p=subprocess.Popen("cat /tmp/battery", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+		msg=p.communicate()
+		if p.returncode != 0:
+			error_code(1091)
+		r_get_battery = re.compile(r'discharging (?P<battery_level>\w+)')
+		m = r_get_battery.match(msg[0].strip('\n'))
+		if m == False:
+			error_code(1092)
+		battery_level = m.group('battery_level')
+		self.output("Battery_Level=" + battery_level)
+		print "-OK-"
+		
+	def get_mac(self, chip):
+		self.debug("get_mac: start")
+		mac_address = {}
+		if "8811" in chip:
+			p=subprocess.Popen("iwpriv wlan0 efuse_get realmap", shell=True, stdout=subprocess.PIPE)	
+			msg=p.communicate()
+			m = re.search(r'^0x100	\w\w \w\w \w\w \w\w \w\w \w\w \w\w (?P<mac0>\w\w)\s+(?P<mac1>\w\w) (?P<mac2>\w\w) (?P<mac3>\w\w) (?P<mac4>\w\w) (?P<mac5>\w\w)', msg[0], re.MULTILINE)
+			if m == None:
+				self.error_code(1031)
+			mac_address['8811'] = m.group("mac0") + ":" +  m.group("mac1") + ":" + m.group("mac2") + ":" + m.group("mac3") + ":" + m.group("mac4") + ":" + m.group("mac5")
+			self.output("5G Mac Address=" + mac_address['8811'])
+		if "8189" in chip:
+			p=subprocess.Popen("iwpriv wlan2 efuse_get realmap", shell=True, stdout=subprocess.PIPE)	
+			msg=p.communicate()
+			m = re.search(r'^0x110	\w\w \w\w \w\w \w\w \w\w \w\w \w\w \w\w\s+\w\w \w\w (?P<mac0>\w\w)\s+(?P<mac1>\w\w) (?P<mac2>\w\w) (?P<mac3>\w\w) (?P<mac4>\w\w) (?P<mac5>\w\w)', msg[0], re.MULTILINE)
+			if m == None:
+				self.error_code(1032)
+			mac_address['8189'] = m.group("mac0") + ":" +  m.group("mac1") + ":" + m.group("mac2") + ":" + m.group("mac3") + ":" + m.group("mac4") + ":" + m.group("mac5")
+			self.output("2.4G Mac Address=" + mac_address['8189'])
+		print "-OK-"
+
+	def get_region(self, chip):
+		self.debug("get_region: start")
+		channel_plan = {}
+		if "8811" in chip:
+			p=subprocess.Popen("iwpriv wlan0 efuse_get rmap,b8,1", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+			msg=p.communicate()
+			if p.returncode != 0:
+				error_code(1021)
+			r_get_region_8811 = re.compile(r'wlan0     efuse_get:0x(?P<channel_plan>\w\w)')
+			m = r_get_region_8811.match(msg[0].strip('\n'))
+			if m == False:
+				error_code(1022)
+			channel_plan['8811'] = m.group('channel_plan')
+			self.output("5G Channel Plan=" + channel_plan['8811'])
+		if "8189" in chip:
+			p=subprocess.Popen("iwpriv wlan2 efuse_get rmap,b8,1", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+			msg=p.communicate()
+			if p.returncode != 0:
+				error_code(1023)
+			r_get_region_8189 = re.compile(r'wlan2     efuse_get:0x(?P<channel_plan>\w\w)')
+			m = r_get_region_8189.match(msg[0].strip('\n'))
+			if m == False:
+				error_code(1024)
+			channel_plan['8189'] = m.group('channel_plan')
+			self.output("2.4G Channel Plan=" + channel_plan['8189'])
+
+		print "-OK-"
+
+	def get_efuse_size(self, chip):
+		self.debug("get_region: start")
+		efuse_size = {}
+		if "8811" in chip:
+			p=subprocess.Popen("iwpriv wlan0 efuse_get ableraw", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+			msg=p.communicate()
+			if p.returncode != 0:
+				error_code(1081)
+			r_get_efuse_8811 = re.compile(r'wlan0     efuse_get:\[available raw size\]= (?P<efuse_size>\S+\w+)')
+			m = r_get_efuse_8811.match(msg[0].strip('\n'))
+			if m == False:
+				error_code(1082)
+			efuse_size['8811'] = m.group('efuse_size')
+			self.output("5G efuseSize=" + efuse_size['8811'])
+		if "8189" in chip:
+			p=subprocess.Popen("iwpriv wlan2 efuse_get ableraw", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+			msg=p.communicate()
+			if p.returncode != 0:
+				error_code(1083)
+			r_get_region_8189 = re.compile(r'wlan2     efuse_get:\[available raw size\]= (?P<efuse_size>\S+\w+)')
+			m = r_get_region_8189.match(msg[0].strip('\n'))
+			if m == False:
+				error_code(1084)
+			efuse_size['8189'] = m.group('efuse_size')
+			self.output("2.4G efuseSize=" + efuse_size['8189'])
+
+		print "-OK-"
+
+	def test_hdd(self):
+		self.debug("test_hdd: start")
+		mountpoint = {}
+		p=subprocess.Popen("mount | grep /media/sdb1 | wc -l", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+		msg=p.communicate()
+		if p.returncode != 0:
+			error_code(1061)
+		mountpoint = msg[0].strip('\n')
+		if mountpoint == "1":
+		#	self.output("check_hdd=" + mountpoint)	
+			self.output("Test HDD Pass")	
+		else:
+			self.output("Test HDD fail")
+			error_code(1062)
+		
+		print "-OK-"
+
+	def test_rw(self, path):
+		test_str=str(time.time())
+		self.debug("test_rw: path=" + path)
+		self.debug("test_rw: test_str=" + test_str)
+		try:
+			f=open(path, "w")
+		except IOError, e:
+			self.debug("test_rw:")
+			self.debug(e)
+			self.error_code(1041)
+		f.write(test_str)
+		f.close()
+		try:
+			f=open(path, "r")
+		except IOError, e:
+			self.debug("test_rw:")
+			self.debug(e)
+			self.error_code(1042)
+		if f.read().strip('\n') != test_str:
+			self.error_code(1043)
+		f.close()
+
+	def test_led(self, value):
+		self.debug("test_led: start")
+		self.debug("test_led: value=" + value)
+		if value == "on":
+			self.send_mcu_msg(33,0)
+			self.send_mcu_msg(34,10)
+		elif value == "off":
+			self.send_mcu_msg(34,0)
+		elif value == "normal":
+			self.send_mcu_msg(35,0)
+		print "-OK-"
+
+	#def test_wifi_rx(self):
+	#	self.debug("test_wifi_rx: start")
+	#	p=subprocess.Popen("iperf -s -w 1M &", shell=True, stdout=open("/dev/null", "w"), stderr=subprocess.STDOUT)
+	#	p.communicate()
+	#	self.output("Test Wifi Rx on")
+	#		
+	#	print "-OK-"
+
+	def test_wifi_rx(self):
+		self.debug("test_wifi_rx: start")
+		p=subprocess.Popen("killall iperf", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+		p.communicate()
+		start_time=time.time()
+		p=subprocess.Popen("iperf -s -w 1M", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+		pid=os.fork()
+		if pid == 0:
+			while True:
+				m = re.search(r'^\[SUM\]\s(.*)\s(?P<bandwidth>.+) Mbits/sec', p.stdout.readline(), re.MULTILINE)
+				if m != None:
+					self.output("Test Wifi Rx=" + m.group('bandwidth'))
+					print "-OK-"
+					p.terminate()
+					break
+			sys.exit()
+		elif pid > 0:
+			while p.poll() is None:
+				end_time=time.time()
+				if end_time-start_time >= 20:
+					p.terminate()
+					self.error_code(1072)
+
+	def test_wifi_tx(self, ip):
+		self.debug("test_wifi_tx: start")
+		p=subprocess.Popen("iperf -c " + ip +" -t 5 -w 1M -P 3", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+		msg=p.communicate()
+		# TODO could be Kbit/s
+		m = re.search(r'^\[SUM\]\s(.*)\s(?P<bandwidth>.+) Mbits/sec', msg[0], re.MULTILINE)
+		if m == None:
+			self.error_code(1002)
+		#self.output("Test Wifi Tx=" + m.group('bandwidth'))
+		print "-OK-"
+
+	def send_mcu_msg(self, command, value):
+		self.debug("send_mcu_msg: start")
+		f=open("/tmp/MCU_Cmd", "w")
+		f.write(str(command)+ ";" + str(value))
+		f.close()
+		time.sleep(1)
+
+	def disable_kernel_msg(self):
+		try:
+			f=open("/proc/sys/kernel/printk", "w")
+			f.write("1")
+			f.close()
+		except IOError:
+			self.error_code(1003)
+		
+	def disable_mcu_msg(self):
+		try:
+			f=open("/tmp/mcu_to_null", "w")
+			f.write("p close(1)\n")
+			f.write("p creat(\"/dev/null\")\n")
+			f.write("q\n")
+			f.write("y\n")
+			f.close()
+		except IOError:
+			self.error_code(1001)
+
+		p=subprocess.Popen("pidof mcu_daemon", shell=True, stdout=subprocess.PIPE, stderr=open("/dev/null", "w"))
+		msg=p.communicate()
+		if msg == None:
+			self.error_code(1002)
+		pidof_mcu_daemon = msg[0].strip('\n')
+		p=subprocess.Popen("gdb -x /tmp/mcu_to_null -p " + pidof_mcu_daemon + " /bin/mcu_daemon", shell=True, stdout=open("/dev/null", "w"), stderr=open("/dev/null", "w"))
+		msg=p.communicate()
+
+	def output(self, msg):
+		print "*****", msg, "*****"
+
+	def error_code(self, code):
+		self.output("ERROR " + str(code))
+		print "-FAIL-"
+		sys.exit(1)
+	
+	def debug(self, msg):
+		if self._DEBUG == 'TRUE':
+			print msg
+		
+	def version(self):
+		print("mptool - Tools for MP")
+		print("Version: 1.4.0")
+	
+	def usage(self):
+		self.version()
+		print "\tmptool [--set-default|--set-ssid ssid]"
+		print "\tmptool [--get-mac|--get-region|--get-verion|--get-ssid]"
+		print "\tmpyool [--test-hdd|--test-sd|--test-usb|--test-wifi|--test-led [on|off]]"
+		print "\tmptool [--help] | [--version]"
+		print "\tmptool [--get-mptool-config]"
+
+class KORRA(MP):
+
+	def __init__(self):
+		MP.__init__(self)
+		self.options.append("test-sd")
+		self.options.append("test-usb")
+		self.options.append("set-5G-mac")
+		self.options.append("set-24G-mac")
+    		#self.options.append("get-efuse")
+		#self.options.append("get-battery")
+
+	def get_mac(self):
+		MP.get_mac(self, ("8811", "8189"))
+
+	def get_region(self):
+		MP.get_region(self, ("8811", "8189"))
+
+	def get_efuse_size(self):
+		MP.get_efuse_size(self, ("8811", "8189"))
+
+	def test_sd(self):
+		self.debug("test_sd: start")
+		if os.path.ismount("/tmp/KORRASD") == False:
+			self.error_code(1044)
+		self.test_rw("/tmp/KORRASD/test_sd")
+		self.output("Test SD card Pass")
+		print "-OK-"
+
+	def test_usb(self):
+		self.debug("test_usb: start")
+		if os.path.ismount("/tmp/KORRAUSB") == False:
+			self.error_code(1054)
+		self.test_rw("/tmp/KORRAUSB/test_usb")
+		self.output("Test USB Pass")
+		print "-OK-"
+
+
+	def run(self, argv):
+		try:
+			options, args = getopt.getopt(argv, "", self.options)
+		except getopt.GetoptError:
+			sys.exit()
+		for name, value in options:
+			if name in ("--debug"):
+				self._DEBUG='TRUE'
+			if name in ("--set-ssid"):
+				self.set_ssid(value)
+			if name in ("--set-default"):
+				self.set_default()
+			if name in ("--set-5G-mac"):
+				self.set_mac("5G", value)
+			if name in ("--set-24G-mac"):
+				self.set_mac("2.4G", value)
+			if name in ("--get-mac"):
+				self.get_mac()
+			if name in ("--get-ssid"):
+				self.get_ssid()
+			if name in ("--get-region"):
+				self.get_region()
+			if name in ("--get-version"):
+				self.get_version()
+			if name in ("--get-battery"):
+				self.get_battery()
+			if name in ("--get-efuse"):
+				self.get_efuse_size()
+			if name in ("--test-hdd"):
+				self.test_hdd()
+			if name in ("--test-sd"):
+				self.test_sd()
+			if name in ("--test-usb"):
+				self.test_usb()
+			if name in ("--test-wifi-rx"):
+				self.test_wifi_rx()
+			if name in ("--test-wifi-tx"):
+				self.test_wifi_tx(value)
+			if name in ("--test-led"):
+				self.test_led(value)
+			if name in ("--help"):
+				self.usage()
+			if name in ("--version"):
+				self.version()
+		
+class KORRALITE(MP):
+	def __init__(self):
+		MP.__init__(self)
+		self.options.append("set-to-2G")
+		self.options.append("set-to-5G")
+		self.options.append("check-2G")
+		self.options.append("check-5G")
+
+	def get_mac(self):
+		MP.get_mac(self, ("8811"))
+
+	def get_region(self):
+		MP.get_region(self, ("8811"))
+
+	def get_efuse_size(self):                                                                                     
+                MP.get_efuse_size(self, ("8811"))
+
+	def set_to_2G(self):
+		self.debug("set_to_2G: start")
+		p=subprocess.Popen("nohup wifi_ap_set_config.sh --ism_band 2.4 --enabled true --ism_band 5 --enabled false &", shell=True, stdout=open("/dev/null", "w"), stderr=subprocess.STDOUT)
+		p.communicate()
+		msg=p.communicate()
+		if p.returncode != 0:
+			self.error_code(2000)
+		print "-OK-"
+
+	def check_2G(self):
+		self.debug("check_2G: start")
+		check2G = {}
+		#p=subprocess.Popen("/usr/local/sbin/wifi_ap_broadcast_check.sh AP2G4", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+		p=subprocess.Popen("ps | grep /etc/hostapd/hostapd.conf.2G | wc -l", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+		msg=p.communicate()
+		if p.returncode != 0:
+			self.error_code(2002)
+		check2G = msg[0].strip('\n')
+		if check2G == "3":
+			self.output("check2G=OK")
+		else:
+			self.output("check2G=NG")
+			self.output("check2G=" + check2G)
+			self.error_code(2003)
+		print "-OK-"
+	
+	def set_to_5G(self):
+		self.debug("set_to_5G: start")
+		p=subprocess.Popen("nohup wifi_ap_set_config.sh --ism_band 2.4 --enabled false --ism_band 5 --enabled true &", shell=True, stdout=open("/dev/null", "w"), stderr=subprocess.STDOUT)
+		p.communicate()
+		msg=p.communicate()
+		if p.returncode != 0:
+			self.error_code(2001)
+		print "-OK-"	
+
+	def check_5G(self):
+		self.debug("check_5G: start")
+		check5G = {}
+		#p=subprocess.Popen("/usr/local/sbin/wifi_ap_broadcast_check.sh AP5G", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+		p=subprocess.Popen("ps | grep /etc/hostapd/hostapd.conf.5G | wc -l", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+		msg=p.communicate()
+		if p.returncode != 0:
+			self.error_code(2004)
+		check5G = msg[0].strip('\n')
+		if check5G == "3":
+			self.output("check5G=OK")
+		else:
+			self.output("check5G=NG")
+			self.output("check5G=" + check5G)
+			self.error_code(2005)
+		print "-OK-"
+
+	def run(self, argv):
+		try:
+			options, args = getopt.getopt(argv, "", self.options)
+		except getopt.GetoptError:
+			sys.exit()
+		for name, value in options:
+			if name in ("--debug"):
+				self._DEBUG="TRUE"
+			if name in ("--set-ssid"):
+				self.set_ssid(value)
+			if name in ("--set-to-2G"):
+				self.set_to_2G()
+			if name in ("--set-to-5G"):
+				self.set_to_5G()
+			if name in ("--check-2G"):
+				self.check_2G()
+			if name in ("--check-5G"):
+				self.check_5G()
+			if name in ("--set-ssid"):
+				self.set_ssid(value)
+			if name in ("--set-default"):
+				self.set_default()
+			if name in ("--get-mac"):
+				self.get_mac()
+			if name in ("--get-efuse"):                     
+				self.get_efuse_size()
+			if name in ("--get-ssid"):
+				self.get_ssid()
+			if name in ("--get-region"):
+				self.get_region()
+			if name in ("--get-version"):
+				self.get_version()
+			if name in ("--get-battery"):
+				self.get_battery()
+			if name in ("--test-hdd"):
+				self.test_hdd()
+			if name in ("--test-wifi-rx"):
+				self.test_wifi_rx()
+			if name in ("--test-wifi-tx"):
+				self.test_wifi_tx(value)
+			if name in ("--test-led"):
+				self.test_led(value)
+			if name in ("--help"):
+				self.usage()
+			if name in ("--version"):
+				self.version()
+
+if __name__ == '__main__':
+	board_version=check_board_version()
+	if board_version == "Korra":
+		mp=KORRA()
+	elif board_version == "Korra Lite":
+		mp=KORRALITE()
+	mp.run(sys.argv[1:])

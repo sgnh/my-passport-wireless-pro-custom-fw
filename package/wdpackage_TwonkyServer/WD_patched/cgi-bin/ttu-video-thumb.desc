@@ -1,0 +1,18 @@
+# Generate video thumbnail using internal Twonky Thumbnail Utility (TTU)
+#(c) 2012 by PacketVideo
+# Usage:  ttu  filenameIn  jpgFilenameOut  thumbWidth thumbHeight  jpegQuality (0-100)  #keyFramesRequested  clipOfstPercent  sizePercentile (0-100)
+# where
+#  clipOfstPercent is percent of clip duration at which keyframes are collected
+#  sizePercentile of the keyframe bitstream sizes is the selected key frame
+#  width=0 or height=0 sets the thumbnail size to be same as the picture size
+## Comment out the following line:
+## 1. As the Packet Video (PV) TTU (Twonky Thumbnail Utility) produces only a subset of the thumbnails produced by ffmpeg.
+## 2. Since PV documentation defers to ffmpeg if available.
+## 3. Since it appears PV is no longer enhancing TTU.   
+##exec: ttu  $infile  $outfile  $targetwidth  $targetheight  100  20  25  70
+# capabilities
+## Comment out the following four lines as they are part of the above exec, which is commented out.
+##from=video/*
+##to=image/jpeg
+##videothumb
+##synchronous

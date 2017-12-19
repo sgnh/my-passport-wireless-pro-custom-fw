@@ -1,0 +1,5 @@
+config BR2_PACKAGE_PMXPACKAGE_RESCUEFS
+	bool "pmxpackage(rescuefs)"
+	help
+	  The pmx package(rescuefs) setup required environment for rescue mode
+

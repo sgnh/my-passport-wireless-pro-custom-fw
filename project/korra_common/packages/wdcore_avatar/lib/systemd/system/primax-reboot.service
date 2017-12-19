@@ -1,0 +1,14 @@
+[Unit]
+Description=Primax Reboot
+Before=shutdown.target reboot.target
+DefaultDependencies=no
+
+[Service]
+ExecStart=/bin/sh -c "/etc/init.d/rcK"
+ExecStart=/bin/sh -c "echo \"16;0\" > /tmp/MCU_Cmd"
+Type=oneshot
+RemainAfterExit=yes
+TimeoutSec=120s
+
+[Install]
+WantedBy=reboot.target

@@ -1,0 +1,17 @@
+--- netatalk-3.0.ori/config/afp.conf.tmpl	2012-04-20 20:22:18.000000000 +0800
++++ netatalk-3.0/config/afp.conf.tmpl	2013-09-06 11:02:10.976773493 +0800
+@@ -4,9 +4,14 @@
+ 
+ [Global]
+ ; Global server settings
++admin auth user = root
++uam list = uams_guest.so
+ 
+ ; [Homes]
+ ; basedir regex = /xxxx
+ 
+ ; [My AFP Volume]
+ ; path = /path/to/volume
++
++[myVolume]
++path = /root

@@ -1,0 +1,21 @@
+diff -Nur linux-kernel/fs/notify/mark.c linux-custom/fs/notify/mark.c
+--- linux-kernel/fs/notify/mark.c	2015-05-18 15:07:32.000000000 +0800
++++ linux-custom/fs/notify/mark.c	2015-06-24 21:56:06.412492559 +0800
+@@ -152,8 +152,6 @@
+ 
+ 	if (inode && (mark->flags & FSNOTIFY_MARK_FLAG_OBJECT_PINNED))
+ 		iput(inode);
+-	/* release lock temporarily */
+-	mutex_unlock(&group->mark_mutex);
+ 
+ 	spin_lock(&destroy_lock);
+ 	list_add(&mark->destroy_list, &destroy_list);
+@@ -186,8 +184,6 @@
+ 	 */
+ 
+ 	atomic_dec(&group->num_marks);
+-
+-	mutex_lock_nested(&group->mark_mutex, SINGLE_DEPTH_NESTING);
+ }
+ 
+ void fsnotify_destroy_mark(struct fsnotify_mark *mark,

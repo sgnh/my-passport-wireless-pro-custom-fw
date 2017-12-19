@@ -1,0 +1,20 @@
+#!/bin/bash -x
+
+# This wrapper script invokes ImageMagick's convert with five input parameters: $infile -sample $targetgeometry -auto-orient $outfile.
+# Normally, we would use the standard wrapper script, convert-any-to-jpeg-wrapper, however it doesn't work for animated GIF.
+# This script provides a workaround for animated GIF. Animated GIF contains a series of frames, we're just interested in the first one at index [0].
+# Twonky adds a trailing space in the $infile parameter which prevents us from concatenating a [0] index.
+# This script strips off the trailing space from $infile and then gives $infile the rest of the parameters to the convert utility.
+
+# Define the WD media crawler component locations on which Twonky depends, including the INSTALL_DIR.
+source /usr/local/twonkymedia-7/cgi-bin/wdmc-defs.sh
+
+ARRAY=("${@}")
+trailing_space_removed=$(echo "${ARRAY[0]}" | sed 's/ *$//g')
+# The following echos are for debugging purposes.
+#echo trailing space removed $trailing_space_removed >> /tmp/imagemagick
+#echo value: "${ARRAY[1]}" >> /tmp/imagemagick
+#echo value: "${ARRAY[2]}" >> /tmp/imagemagick
+#echo value: "${ARRAY[3]}" >> /tmp/imagemagick
+#echo value: "${ARRAY[4]}" >> /tmp/imagemagick
+$INSTALL_DIR/bin/convert "$trailing_space_removed"[0] "${ARRAY[1]}" "${ARRAY[2]}" "${ARRAY[3]}" "${ARRAY[4]}"

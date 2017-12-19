@@ -1,0 +1,21 @@
+diff -uNr simple-mtpfs/src/simple-mtpfs-mtp-device.cpp new-simple-mtpfs/src/simple-mtpfs-mtp-device.cpp
+--- simple-mtpfs/src/simple-mtpfs-mtp-device.cpp	2016-10-12 13:48:18.785557366 +0800
++++ new-simple-mtpfs/src/simple-mtpfs-mtp-device.cpp	2016-10-12 10:51:29.988238017 +0800
+@@ -150,7 +150,7 @@
+     // Try to reset USB device, so we don't wait until LIBMTP times out.
+     // We do this every time we are about to mount a device, but better
+     // connect on first try, than wait for 60s timeout.
+-    smtpfs_reset_device(raw_device);
++    //smtpfs_reset_device(raw_device);
+ #endif // HAVE_LIBUSB1
+ 
+     // Do not output LIBMTP debug stuff
+@@ -196,7 +196,7 @@
+     // Try to reset USB device, so we don't wait until LIBMTP times out.
+     // We do this every time we are about to mount a device, but better
+     // connect on first try, than wait for 60s timeout.
+-    smtpfs_reset_device(raw_device);
++    //smtpfs_reset_device(raw_device);
+ 
+     bool rval = connect(raw_device);
+ 

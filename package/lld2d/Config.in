@@ -1,0 +1,4 @@
+config BR2_PACKAGE_LLD2D
+	bool "lld2d"
+	help
+        Link Layer Topology Discovery

@@ -1,0 +1,9 @@
+/tmp/apache_access_log /tmp/apache_error_log {
+	su root root
+	size=200k
+	missingok
+	copytruncate
+	rotate 2
+	compress
+	notifempty
+}

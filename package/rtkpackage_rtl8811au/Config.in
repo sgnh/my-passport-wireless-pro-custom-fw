@@ -1,0 +1,4 @@
+config BR2_PACKAGE_RTKPACKAGE_RTL8811AU
+	bool "rtl8811au"
+	help
+		RTK wifi 8811au driver

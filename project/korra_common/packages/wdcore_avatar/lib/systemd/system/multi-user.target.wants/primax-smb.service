@@ -1,0 +1,10 @@
+[Unit]
+Description=Primax samba RC Script (S75smb)
+DefaultDependencies=no
+After=primax-dhcp-server.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash -c "/etc/init.d/S75smb start"
+ExecStop=/bin/bash -c "/etc/init.d/S75smb stop"

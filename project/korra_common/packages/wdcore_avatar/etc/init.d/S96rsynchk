@@ -1,0 +1,34 @@
+#!/bin/sh
+#
+# Start initialize
+#
+
+case "$1" in
+  start)
+	touch /tmp/rsync_ready
+	/sbin/mtpmount.sh bootingCheck > /dev/null 2>&1 &
+    wifi_client_ap_scan.sh > /dev/null 2>&1 &
+	;;
+  stop)
+	killall rsync
+	sed -i 's/TransferStatus=.*/TransferStatus=completed/' /etc/nas/config/sdcard-transfer-status.conf
+	if [ -f "/tmp/rsync_ready" ]; then
+		rm /tmp/rsync_ready
+	fi
+	;;
+  restart|reload)
+	;;
+  status)
+	if [ -f "/tmp/rsync_ready" ]; then
+		echo 1
+	else
+		echo 0
+	fi 
+	;;
+	
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?

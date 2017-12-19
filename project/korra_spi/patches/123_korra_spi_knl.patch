@@ -1,0 +1,17 @@
+--- linux-kernel.orig/arch/arm/mach-rtk119x/suspend.c	2016-08-02 09:47:36.562869973 +0800
++++ linux-kernel.mod/arch/arm/mach-rtk119x/suspend.c	2016-08-05 10:18:42.793263447 +0800
+@@ -577,7 +577,13 @@
+             }
+ 
+             iprintk("[%s] platform resume ...\n", __func__);
+-            notify_acpu(NOTIFY_RESUME_PLATFORM);
++
++			/*
++			* Fix "PHOENIX-76/31" issue.
++			* Workaround: system resume fail, jamestai20150917
++			*/
++			mdelay(30);
++			notify_acpu(NOTIFY_RESUME_PLATFORM);
+ 
+ #if 1 // legacy
+             if (wifi_gpio != -1)

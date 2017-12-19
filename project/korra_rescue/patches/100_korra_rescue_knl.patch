@@ -1,0 +1,120 @@
+diff -Nur linux-kernel/arch/arm/boot/dts/rtd-119x.dtsi linux-custom/arch/arm/boot/dts/rtd-119x.dtsi
+--- linux-kernel/arch/arm/boot/dts/rtd-119x.dtsi	2015-05-27 16:34:53.277460940 +0800
++++ linux-custom/arch/arm/boot/dts/rtd-119x.dtsi	2015-05-27 16:37:25.776441295 +0800
+@@ -472,6 +472,8 @@
+     suspend@18007400 {
+         compatible = "Realtek,suspend";
+         suspend-mode = <1>; // 0:SUSPEND_TO_RAM 1:SUSPEND_TO_COOLBOOT 2:SUSPEND_TO_WFI
++        reg-restore = <0x18000000 0x18000004 0x18000008 0x1800000c 0x18000010>;
++        reg-restore-size = <5>;
+     };
+ 
+     thermal@18000310 {
+diff -Nur linux-kernel/arch/arm/boot/dts/rtd-119x-nas.dts linux-custom/arch/arm/boot/dts/rtd-119x-nas.dts
+--- linux-kernel/arch/arm/boot/dts/rtd-119x-nas.dts	2015-05-27 16:34:53.241460940 +0800
++++ linux-custom/arch/arm/boot/dts/rtd-119x-nas.dts	2015-05-27 16:45:37.859446332 +0800
+@@ -134,8 +134,9 @@
+ 		wakeup-gpio-enable = <1>, <1>, <1>; /* (0) disable (1) enable */
+ 		wakeup-gpio-list =  <&rtk_iso_gpio 17 0 0>, <&rtk_iso_gpio 18 0 0>, <&rtk_iso_gpio 1 0 0>; /* list : <&rtk_iso_gpio {num} {force input (2) } {default N/A (0)] }> */
+ 		wakeup-gpio-activity = <0>, <0>, <1>; /* (0) low activity (1) high activity */
++		wakeup-flags = <0x0c>; /*Bits[5]cec [4]timer [3]alarm [2]gpio [1]ir [0]lan */
+ 		status = "okay";
+-
++		suspend-mode = <0>;
+ 	};
+ 	bt@0{	/* GPIO for rtk_rfkill to disable/enable BT */
+ 		compatible = "Realtek,bt";
+diff -Nur linux-kernel/arch/arm/boot/dts/rtd-119x-pmx.dts linux-custom/arch/arm/boot/dts/rtd-119x-pmx.dts
+--- linux-kernel/arch/arm/boot/dts/rtd-119x-pmx.dts	2015-05-27 16:34:53.313460939 +0800
++++ linux-custom/arch/arm/boot/dts/rtd-119x-pmx.dts	2015-05-27 16:47:56.013382211 +0800
+@@ -136,7 +136,7 @@
+ 		wakeup-gpio-activity = <0>, <0>, <1>; /* (0) low activity (1) high activity */
+ 		wakeup-flags = <0x0c>; /*Bits[5]cec [4]timer [3]alarm [2]gpio [1]ir [0]lan */
+ 		status = "okay";
+-
++		suspend-mode = <0>;
+ 	};
+ 	bt@0{	/* GPIO for rtk_rfkill to disable/enable BT */
+ 		compatible = "Realtek,bt";
+diff -Nur linux-kernel/arch/arm/boot/dts/rtd-119x-pmxkl.dts linux-custom/arch/arm/boot/dts/rtd-119x-pmxkl.dts
+--- linux-kernel/arch/arm/boot/dts/rtd-119x-pmxkl.dts	2015-05-27 16:34:53.277460940 +0800
++++ linux-custom/arch/arm/boot/dts/rtd-119x-pmxkl.dts	2015-05-27 16:48:28.747961306 +0800
+@@ -136,7 +136,7 @@
+ 		wakeup-gpio-activity = <0>, <0>, <1>; /* (0) low activity (1) high activity */
+ 		wakeup-flags = <0x0c>; /*Bits[5]cec [4]timer [3]alarm [2]gpio [1]ir [0]lan */
+ 		status = "okay";
+-
++		suspend-mode = <0>;
+ 	};
+ 	bt@0{	/* GPIO for rtk_rfkill to disable/enable BT */
+ 		compatible = "Realtek,bt";
+diff -Nur linux-kernel/arch/arm/mach-rtk119x/suspend.c linux-custom/arch/arm/mach-rtk119x/suspend.c
+--- linux-kernel/arch/arm/mach-rtk119x/suspend.c	2015-05-27 16:34:52.937460947 +0800
++++ linux-custom/arch/arm/mach-rtk119x/suspend.c	2015-05-27 16:54:09.571100127 +0800
+@@ -51,6 +51,7 @@
+ #define BT_WAKEUP_IGPIO(n)	        (0x1 << n)//n:0 to 20
+ #define RTK_VIRT_ADDR_MAP(addr)     (RBUS_BASE_VIRT + ((unsigned int)addr - RBUS_BASE_PHYS))
+ #define WRITE_REG_INT32U(addr,val)  writel(val, IOMEM(RTK_VIRT_ADDR_MAP(addr)))
++#define READ_REG_INT32U(addr)		readl(IOMEM(RTK_VIRT_ADDR_MAP(addr)))
+ 
+ #define rtd_setbits(offset, Mask)	writel(((readl(RTK_VIRT_ADDR_MAP(offset)) | Mask)),     RTK_VIRT_ADDR_MAP(offset))
+ #define rtd_clearbits(offset, Mask)	writel(((readl(RTK_VIRT_ADDR_MAP(offset)) & ~Mask)),    RTK_VIRT_ADDR_MAP(offset))
+@@ -511,6 +512,9 @@
+ static int rtk_suspend_enter(suspend_state_t suspend_state)
+ {
+     int ret = 0;
++    struct device_node  *p_suspend_nd       = NULL;
++    unsigned int *reg_restore,*reg_value;
++    unsigned int i,reg_size=0;
+     iprintk("[%s]\n",__func__);
+ 
+     if (!rtk_suspend_valid(suspend_state)) {
+@@ -522,6 +526,28 @@
+         case PM_SUSPEND_MEM:
+ 
+             iprintk("[%s] rtk_ip_power_off() ...\n", __func__);
++
++            //Save specific registers
++            p_suspend_nd = of_find_compatible_node(NULL, NULL, "Realtek,suspend");
++            if(p_suspend_nd)
++            {
++                if(of_property_read_u32_index(p_suspend_nd,"reg-restore-size", 0, &reg_size)>=0)
++                {
++                    reg_restore = kzalloc(reg_size*sizeof(unsigned int),GFP_KERNEL);
++                    reg_value = kzalloc(reg_size*sizeof(unsigned int),GFP_KERNEL);
++
++                    if(of_property_read_u32_array(p_suspend_nd, "reg-restore",reg_restore,reg_size)>=0)
++                    {
++                        iprintk("[%s] Save Register\n", __func__);
++                        for(i=0;i<reg_size;i++)
++                        {
++                            reg_value[i]=READ_REG_INT32U(reg_restore[i]);
++                            //iprintk("[%s] Reg[0x%08x]=0x%08x\n", __func__,reg_restore[i],reg_value[i]);
++                        }
++                    }
++                }
++            }
++
+             rtk_ip_power_off();
+ 
+ #if 1 // legacy
+@@ -559,6 +585,19 @@
+ #endif
+             rtk_suspend_gpip_output_change_resume();
+ 
++            //Restore specific registers
++            if(p_suspend_nd && (reg_size>0))
++            {
++                iprintk("[%s] Restore Register\n", __func__);
++                for(i=0;i<reg_size;i++)
++                {
++                    WRITE_REG_INT32U(reg_restore[i],reg_value[i]);
++                    //iprintk("[%s] Write Reg[0x%08x] whith value 0x%08x\n", __func__,reg_restore[i],reg_value[i]);
++                }
++                kfree(reg_restore);
++                kfree(reg_value);
++            }
++
+             rtk_ip_power_on();
+ 
+             break;

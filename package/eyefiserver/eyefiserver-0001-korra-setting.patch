@@ -1,0 +1,40 @@
+diff -uNr eyefiserver/etc/eyefiserver.conf new-eyefiserver/etc/eyefiserver.conf
+--- eyefiserver/etc/eyefiserver.conf	2010-08-06 05:15:12.000000000 +0800
++++ new-eyefiserver/etc/eyefiserver.conf	2015-12-10 17:07:38.407704640 +0800
+@@ -14,14 +14,15 @@
+ # or ~/Applications Data/Eye-Fi/Settings.xml on mac
+ # search for it and paste it here:
+ 
+-upload_key:774e46f14990456a9ab7b4d22f1da138
++#upload_key:774e46f14990456a9ab7b4d22f1da138
++upload_key:00000000000000000000000000000000
+ 
+ # When connecting, all files are downloaded in one directory
+ # the name of the directory can be a strftime formatted string like 
+ # /home/myblog/pictures/%%Y-%%m-%%d
+ # notice the double percent sign to escape % from ini interpolation
+ 
+-upload_dir:/home/pike/Desktop/eyefifolder/%%Y/%%Y%%m%%d
+-
++#upload_dir:/home/pike/Desktop/eyefifolder/%%Y/%%Y%%m%%d
++upload_dir:/media/sdb1/eyefiserver
+ 
+ 
+diff -uNr eyefiserver/etc/init.d/eyefiserver new-eyefiserver/etc/init.d/eyefiserver
+--- eyefiserver/etc/init.d/eyefiserver	2010-08-06 03:59:41.000000000 +0800
++++ new-eyefiserver/etc/init.d/eyefiserver	2015-12-10 17:08:40.125195369 +0800
+@@ -36,12 +36,14 @@
+ EYEFIGROUP=www-data
+ PIDFILE=/var/run/$NAME.pid
+ SCRIPTNAME=/etc/init.d/$NAME
++TARGETDIR=/media/sdb1/eyefiserver
+ 
+ #
+ #	Function that starts the daemon/service.
+ #
+ d_start() {
+ 	touch $LOGFILE
++	mkdir -p $TARGETDIR
+ 	chown $EYEFIUSER:$EYEFIGROUP $LOGFILE
+ 	start-stop-daemon --start   \
+                 --chuid $EYEFIUSER:$EYEFIGROUP \

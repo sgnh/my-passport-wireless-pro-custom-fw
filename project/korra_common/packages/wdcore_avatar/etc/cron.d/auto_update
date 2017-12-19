@@ -1,0 +1,1 @@
+00 3 * * * root  /usr/local/sbin/getNewFirmwareUpgrade.sh immediate send_alert; /usr/local/sbin/checkAutoUpdate.sh

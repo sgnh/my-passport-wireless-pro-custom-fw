@@ -1,0 +1,9 @@
+[Unit]
+Description=Primax multi-role RC Script (S73multi-role)
+DefaultDependencies=no
+After=primax-ifplugd.service
+
+[Service]
+Type=forking
+ExecStart=/bin/bash -c "/etc/init.d/S73multi-role start"
+ExecStop=/bin/bash -c "/etc/init.d/S73multi-role stop"

@@ -1,0 +1,68 @@
+diff -Nur linux-kernel/drivers/mtd/chips/rtk_sfc.c linux-custom/drivers/mtd/chips/rtk_sfc.c
+--- linux-kernel/drivers/mtd/chips/rtk_sfc.c	2015-12-10 01:13:39.260097827 +0800
++++ linux-custom/drivers/mtd/chips/rtk_sfc.c	2015-11-17 16:19:00.000000000 +0800
+@@ -733,6 +733,9 @@
+ [MXIC MX25L6455E]
+ 	erase size:  4KB / 32KB / 64KB
+ 
++[MXIC MX25L6433F]
++        erase size:  4KB / 32KB / 64KB
++
+ [MXIC MX25L12855E]
+ 	erase size: 4KB / 32KB / 64KB
+ 
+@@ -776,7 +779,7 @@
+ 		case 0x17:
+ 			read_rems(sfc_info, &manufacturer_id, &device_id);
+ 			if(manufacturer_id == 0xc2 && device_id == 0x16) {
+-				printk(KERN_NOTICE "RtkSFC MTD: MXIC MX25L6445E detected....\n");
++				printk(KERN_NOTICE "RtkSFC MTD: MXIC MX25L6445E/MX25L6433F detected....\n");
+ 				SFC_4KB_ERASE;
+ 				//sfc_info->attr |= RTK_SFC_ATTR_SUPPORT_DUAL_IO;				
+ 				sfc_info->sec_64k_en = sfc_info->sec_32k_en = sfc_info->sec_4k_en = SUPPORTED;
+@@ -3275,14 +3278,14 @@
+ 
+ 		} else {
+ 			//REG_WRITE_U32(0x01070007, SFC_SCK);
+-			REG_WRITE_U32(gSFCReg.sfc_ce, SFC_CE);
+-            REG_WRITE_U32(gSFCReg.sfc_wp, SFC_WP);     
+-            REG_WRITE_U32(gSFCReg.sfc_sck, SFC_SCK);
+-            REG_WRITE_U32(gSFCReg.sfc_pos_latch, SFC_POS_LATCH);
+-            SFC_SYNC;
+-        }
++                        REG_WRITE_U32(gSFCReg.sfc_ce, SFC_CE);
++                        REG_WRITE_U32(gSFCReg.sfc_wp, SFC_WP);
++                        REG_WRITE_U32(gSFCReg.sfc_sck, SFC_SCK);
++                        REG_WRITE_U32(gSFCReg.sfc_pos_latch, SFC_POS_LATCH);
++                        SFC_SYNC;
++                }
+ 
+-        if(is_neptune_cpu() || is_mars_cpu() || is_jupiter_cpu())
++                if(is_neptune_cpu() || is_mars_cpu() || is_jupiter_cpu())
+ 			REG_WRITE_U32(0x1, SFC_POS_LATCH);
+ 
+ 		SYS_REG_TRY_UNLOCK;//add by alexchang 0722-2010
+@@ -3304,7 +3307,7 @@
+ 		} else if ( is_macarthur_cpu()) {
+ 		} else {// 200MHz / 5 ~= 40MHz
+ 			//REG_WRITE_U32(0x01040004, SFC_SCK);
+-        }
++                }
+ 	
+ 		// use falling edge to latch data because clock rate is changed to high
+ 		if(is_neptune_cpu() || is_mars_cpu() || is_jupiter_cpu() )
+@@ -3341,10 +3344,10 @@
+ 	}
+ #endif
+ 
+-    gSFCReg.sfc_ce = REG_READ_U32(SFC_CE);
+-    gSFCReg.sfc_wp = REG_READ_U32(SFC_WP);
+-    gSFCReg.sfc_sck = REG_READ_U32(SFC_SCK);
+-    gSFCReg.sfc_pos_latch = REG_READ_U32(SFC_POS_LATCH);
++        gSFCReg.sfc_ce = REG_READ_U32(SFC_CE);
++        gSFCReg.sfc_wp = REG_READ_U32(SFC_WP);
++        gSFCReg.sfc_sck = REG_READ_U32(SFC_SCK);
++        gSFCReg.sfc_pos_latch = REG_READ_U32(SFC_POS_LATCH);
+ 
+ 	while((REG_READ_U32(MD_FDMA_CTRL1)) & 0x1);
+ 	//while((*(volatile unsigned char *)FLASH_POLL_ADDR) & 0x1);

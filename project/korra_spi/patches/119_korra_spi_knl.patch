@@ -1,0 +1,15 @@
+--- linux-kernel.orig/drivers/mmc/host/rtksd.c	2016-02-26 14:11:44.020101402 +0800
++++ linux-kernel.mod/drivers/mmc/host/rtksd.c	2016-03-24 15:43:30.975803542 +0800
+@@ -476,9 +476,9 @@
+ 
+         	}else{
+ 
+-        		crsd_writeb(0XFF, sdport->base_io+CARD_SD_CLK_PAD_DRIVE);
+-        		crsd_writeb(0XEE, sdport->base_io+CARD_SD_CMD_PAD_DRIVE);
+-        		crsd_writeb(0XEE, sdport->base_io+CARD_SD_DAT_PAD_DRIVE);
++        		crsd_writeb(0XDD, sdport->base_io+CARD_SD_CLK_PAD_DRIVE);
++        		crsd_writeb(0XDD, sdport->base_io+CARD_SD_CMD_PAD_DRIVE);
++        		crsd_writeb(0XDD, sdport->base_io+CARD_SD_DAT_PAD_DRIVE);
+ 
+ 				crsd_writel(crsd_readl( sdport->base_io + CR_SD_CKGEN_CTL) | 0x00070000, sdport->base_io + CR_SD_CKGEN_CTL); //Switch SD source clock to 4MHz by Hsin-yin
+ 				crsd_writel( 0x00b64388,  sdport->base_pll_io+CR_PLL_SD3);	//bus clock to 208MHz jamestai20150319

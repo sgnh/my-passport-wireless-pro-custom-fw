@@ -1,0 +1,5 @@
+config BR2_PACKAGE_PMXPACKAGE_FWUPGFS
+	bool "pmxpackage(fwupgfs)"
+	help
+	  The pmx package(fwupgfs) setup required environment for fwupg mode
+

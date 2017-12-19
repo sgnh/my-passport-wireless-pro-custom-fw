@@ -1,0 +1,6 @@
+config BR2_PACKAGE_LIBAVL
+	bool "libavl"
+	help
+	  GNU libavl is the most complete, well-documented collection of binary search tree and balanced tree library routines anywhere
+
+	  http://www.debian.co.il/debian/pool/main/liba/libavl/

@@ -1,0 +1,8 @@
+config BR2_PACKAGE_LIBGPHOTO2
+	select BR2_PACKAGE_LIBUSB_COMPAT
+	select BR2_PACKAGE_LIBUSB
+	bool "libgphoto2"
+	help
+	  libgphoto2 is a LGPL library implementation of MTP and PTP.
+
+	  http://sourceforge.net/projects/gphoto/files/latest/download

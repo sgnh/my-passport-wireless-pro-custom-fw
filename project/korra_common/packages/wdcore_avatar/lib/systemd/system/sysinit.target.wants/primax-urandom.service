@@ -1,0 +1,11 @@
+[Unit]
+Description=Primax urandom RC Script (S15urandom)
+DefaultDependencies=no
+After=systemd-remount-fs.service
+Before=sysinit.target shutdown.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash -c "/etc/init.d/S15urandom start"
+ExecStop=/bin/bash -c "/etc/init.d/S15urandom stop"

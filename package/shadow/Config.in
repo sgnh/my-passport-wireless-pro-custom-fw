@@ -1,0 +1,13 @@
+config BR2_PACKAGE_SHADOW
+	bool "shadow"
+	help
+	  The shadow-utils package includes the necessary programs for
+	  converting UNIX password files to the shadow password format, plus
+	  programs for managing user and group accounts. The pwconv command
+	  converts passwords to the shadow password format. The pwunconv command
+	  unconverts shadow passwords and generates an npasswd file (a standard
+	  UNIX password file). The pwck command checks the integrity of password
+	  and shadow files. The lastlog command prints out the last login times
+	  for all users. The useradd, userdel, and usermod commands are used for
+	  managing user accounts. The groupadd, groupdel, and groupmod commands
+	  are used for managing group accounts.

@@ -1,0 +1,7 @@
+[Unit]
+Description=Discard unused blocks
+After=primax-mdev.service
+
+[Service]
+Type=oneshot
+ExecStart=/sbin/fstrim -a

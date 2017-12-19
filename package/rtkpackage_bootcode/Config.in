@@ -1,0 +1,14 @@
+config BR2_PACKAGE_RTKPACKAGE_BOOTCODE
+	bool "bootcode"
+if BR2_PACKAGE_RTKPACKAGE_BOOTCODE
+choice
+    prompt "U-boot configuration"
+    default BR2_PACKAGE_RTKPACKAGE_BOOTCODE_KORRA
+	config BR2_PACKAGE_RTKPACKAGE_BOOTCODE_KORRA
+		bool "Korra"
+	config BR2_PACKAGE_RTKPACKAGE_BOOTCODE_KORRA_LITE
+		bool "Korra Lite"
+	config BR2_PACKAGE_RTKPACKAGE_BOOTCODE_KORRA_DOCK
+		bool "Korra Dock"
+endchoice
+endif

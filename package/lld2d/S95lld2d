@@ -1,0 +1,32 @@
+start(){
+    echo -n "Starting LLD2D: "
+    /sbin/lld2d wlan0
+    /sbin/lld2d wlan1
+    echo "OK"    
+}
+stop(){
+    echo -n "Stopping LLD2D: "
+    rm /var/run/lld2d*
+    echo "OK";
+    
+}
+restart(){
+    stop
+    start
+}
+case $1 in
+    start)
+        start
+        ;;
+    stop)
+        stop
+        ;;
+    restart|reload)
+        restart
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart}"
+        exit 1
+esac
+
+exit $?

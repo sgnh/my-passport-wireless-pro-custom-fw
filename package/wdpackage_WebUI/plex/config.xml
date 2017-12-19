@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config>
+	<views>
+		<main>
+			<navigation>
+				<navigation_item id="head_settings_nav_media_link" group="2" order="500">CONTENT_SETTINGS_STRING_MEDIA</navigation_item>
+			</navigation>	
+			<views>
+				<media>
+					<layout>container.php</layout>
+					<title>CONTENT_SETTINGS_STRING_MEDIA</title>
+					<views>
+						<plex order="100">
+							<layout>blank.php</layout>
+							<!--title>CONTENT_SETTINGS_HEAD2_PLEX</title-->
+							<contents>
+								<content order="100">partial/plex.php</content>
+								<content>partial/popups/plex_more_info.php</content>
+								<content>partial/popups/plex_update.php</content>
+								<content>partial/plexsettings/get_plex_download_status.php</content>
+								<content>partial/plexsettings/get_plex_update_status.php</content>
+							</contents>
+						</plex>
+						<dlna order="100">
+							<layout>content_title.php</layout>
+							<title>CONTENT_SETTINGS_HEAD2_DLNA</title>
+							<contents>
+								<content order="100">partial/dlna.php</content>
+								<content order="200">partial/dlna_database.php</content>
+							</contents>
+							<!--
+							<views>
+								<dlna_database>
+									<layout>settings_div_container.php</layout>
+									<contents>
+										<content>partial/dlna_database.php</content>
+									</contents>
+								</dlna_database>
+							</views>
+							-->
+						</dlna>
+						<media_crawler order="150">
+							<layout>content_title.php</layout>
+							<title>CONTENT_SETTINGS_HEAD2_MEDIA_COUNT</title>
+							<contents>
+								<content order="100">partial/media_crawler.php</content>
+							</contents>
+						</media_crawler>
+					</views>
+				</media>
+				<!--
+				<dashboard>
+					<views>
+						<counts>
+							<contents>
+								<content order="400">partial/dashboard.php</content>
+							</contents>
+						</counts>
+					</views>
+				</dashboard>
+				-->
+			</views>
+		</main>
+	</views>
+</config>

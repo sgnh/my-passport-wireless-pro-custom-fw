@@ -1,0 +1,10 @@
+config BR2_PACKAGE_WDPACKAGE_BASIC
+	bool "wdpackage(basic)"
+    depends on BR2_PACKAGE_NETATALK
+	help
+	  The wd package(basic) setup required environment for WD packages
+
+if BR2_PACKAGE_WDPACKAGE_BASIC
+config BR2_TOOLCHAIN_EXTRA_EXTERNAL_LIBS
+    default "libthread_db.so"
+endif
