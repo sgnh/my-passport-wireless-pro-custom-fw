@@ -1,5 +1,5 @@
-WDPACKAGE_BASIC_VERSION = 0.04.067
-WDPACKAGE_BASIC_RELEASE_DATE = 2017-03-07
+WDPACKAGE_BASIC_VERSION = 0.05.075
+WDPACKAGE_BASIC_RELEASE_DATE = 2017-12-15
 WDPACKAGE_BASIC_SITE_METHOD = local
 WDPACKAGE_BASIC_SITE = $(TOPDIR)/project/prjPackages/wdcore_avatar
 WDPACKAGE_BASIC_DEPENDENCIES = tzdata netatalk
@@ -508,13 +508,13 @@ define WDPACKAGE_BASIC_INSTALL_TARGET_CMDS
 
 	ln -sf ../hwcollect.mount $(TARGET_DIR)/lib/systemd/system/local-fs.target.wants/hwcollect.mount
 
-	$(INSTALL) -m 0644 -D $(@D)/lib/systemd/system/fstrim.service \
-		$(TARGET_DIR)/lib/systemd/system/fstrim.service
+#	$(INSTALL) -m 0644 -D $(@D)/lib/systemd/system/fstrim.service \
+#		$(TARGET_DIR)/lib/systemd/system/fstrim.service
 
-	ln -sf ../fstrim.service $(TARGET_DIR)/lib/systemd/system/multi-user.target.wants/fstrim.service
+#	ln -sf ../fstrim.service $(TARGET_DIR)/lib/systemd/system/multi-user.target.wants/fstrim.service
 
-	mkdir -p $(TARGET_DIR)/lib/systemd/system/timers.target.wants
-	ln -sf ../fstrim.timer $(TARGET_DIR)/lib/systemd/system/timers.target.wants/fstrim.timer
+#	mkdir -p $(TARGET_DIR)/lib/systemd/system/timers.target.wants
+#	ln -sf ../fstrim.timer $(TARGET_DIR)/lib/systemd/system/timers.target.wants/fstrim.timer
 
 	rm -rf $(TARGET_DIR)/etc/fstab
 

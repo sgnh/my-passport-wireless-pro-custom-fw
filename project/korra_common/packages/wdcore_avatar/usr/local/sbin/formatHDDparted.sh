@@ -65,9 +65,15 @@ format(){
 			fi
 			;;
 		"ntfs")
-			echo "y
-			
-			"|mkntfs ${hdd}1 -v:"My Passport";
+			#echo "y
+			#
+			#"|mkntfs ${hdd}1 -v:"My Passport";
+			if [ $size -gt 3984588800 ]; then
+				mkfs.fat -n EFI -F 32 ${hdd}1
+				mkntfs ${hdd}2 -v:"My Passport" -f --nodiscard;
+			else
+				mkntfs ${hdd}1 -v:"My Passport" -f --nodiscard;
+			fi
 			;;
 	esac
 	sleep 3;

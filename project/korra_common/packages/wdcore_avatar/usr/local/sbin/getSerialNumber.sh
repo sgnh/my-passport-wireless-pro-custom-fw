@@ -13,8 +13,8 @@ if [ "${Node}" == "" ]; then
 fi
 #hdparm -I `cat /tmp/HDDDevNode` | sed -n -e 's/.*Serial Number=\(.*\)/\1/p' | sed -e 's/^[ \t]*//' | awk '{gsub("WD-","",$0); print $0}'
 
-hdparm -I `cat /tmp/HDDDevNode` | sed -n -e 's/.*Serial Number:\(.*\)/\1/p' | sed -e 's/^[ \t]*//' | awk '{gsub("WD-","",$0); print $0}'
-
+serial_number=`hdparm -I ${Node} | sed -n -e 's/.*Serial Number:\(.*\)/\1/p' | sed -e 's/^[ \t]*//' | awk '{gsub("WD-","",$0); print $0}'`
+echo ${serial_number// /}
 #driveList=(`internalDrives`)
 #serial_number=`fw_printenv model 2>/dev/null | cut -d '=' -f 2`
 

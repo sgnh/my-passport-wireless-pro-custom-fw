@@ -16,6 +16,7 @@ etc/power.conf
 etc/shadow
 etc/standby.conf
 etc/timezone
+etc/timezone_offset
 etc/wpa_supplicant.conf
 etc/wpa2G4_supplicant.conf
 etc/cron.d/auto_update

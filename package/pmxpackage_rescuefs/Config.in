@@ -3,3 +3,11 @@ config BR2_PACKAGE_PMXPACKAGE_RESCUEFS
 	help
 	  The pmx package(rescuefs) setup required environment for rescue mode
 
+if BR2_PACKAGE_PMXPACKAGE_RESCUEFS
+config BR2_PACKAGE_PMXPACKAGE_RESCUEFS_MASTERDRIVE
+    bool "Include tools for MasterDrive"
+    help
+      Include tools for MasterDrive
+
+endif
+

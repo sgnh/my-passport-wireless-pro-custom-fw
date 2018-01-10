@@ -1,0 +1,27 @@
+--- gphotofs-0.5.org/gphotofs.c	2012-07-10 15:46:32.000000000 +0800
++++ gphotofs-0.5/gphotofs.c	2016-03-25 06:04:15.916369015 +0800
+@@ -34,6 +34,7 @@
+ static gchar *sModel = NULL;
+ static gchar *sUsbid = NULL;
+ static gint sSpeed = 0;
++static gint sTime_offset = 0;
+ static gboolean sHelp;
+ 
+ static struct timeval glob_tv_zero;
+@@ -219,7 +220,7 @@
+          stbuf->st_uid = getuid();
+          stbuf->st_gid = getgid();
+          stbuf->st_size = info.file.size;
+-         stbuf->st_mtime = info.file.mtime;
++         stbuf->st_mtime = info.file.mtime - (sTime_offset * 60);
+          stbuf->st_blocks = (info.file.size / 512) +
+                             (info.file.size % 512 > 0 ? 1 : 0);
+ 
+@@ -856,6 +857,7 @@
+    { "speed", 0, 0, G_OPTION_ARG_INT, &sSpeed, N_("Specify serial transfer speed"), "speed" },
+    { "camera", 0, 0, G_OPTION_ARG_STRING, &sModel, N_("Specify camera model"), "model" },
+    { "usbid", 0, 0, G_OPTION_ARG_STRING, &sUsbid, N_("(expert only) Override USB IDs"), "usbid" },
++   { "time_offset", 0, 0, G_OPTION_ARG_INT, &sTime_offset, N_("Specify time_offset"), "time_offset" },
+    { "help-fuse", 'h', 0, G_OPTION_ARG_NONE, &sHelp, N_("Show FUSE help options"), NULL },
+ };
+ 

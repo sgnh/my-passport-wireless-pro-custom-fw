@@ -18,10 +18,6 @@ case "$1" in
     	fi
     fi
     
-    if [ -f /tmp/KLITE ]; then
-    	sed -i 's/modelName=.*/modelName=My Passport Wireless\<\/txt-record\>/' ${SERVICES}/web.service
-    	sed -i 's/modelName=.*/modelName=My Passport Wireless\<\/txt-record\>/' ${SERVICES}/wd2go.service
-    fi
     
     if [ ! -d "/etc/avahi/AvahiService" ]; then
        	sed -i 's/modelNumber=.*/modelNumber='${modelNumber}'\<\/txt-record\>/' ${SERVICES}/web.service

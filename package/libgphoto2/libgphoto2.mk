@@ -4,7 +4,7 @@
 #
 ###########################################################
 
-LIBGPHOTO2_VERSION = 2.5.10
+LIBGPHOTO2_VERSION = 2.5.16
 LIBGPHOTO2_SITE = http://sourceforge.net/projects/gphoto/files/latest/download
 LIBGPHOTO2_SOURCE = libgphoto2-$(LIBGPHOTO2_VERSION).tar.bz2 
 LIBGPHOTO2_DIR = $(BUILD_DIR)/libgphoto2-$(LIBGPHOTO2_VERSION)

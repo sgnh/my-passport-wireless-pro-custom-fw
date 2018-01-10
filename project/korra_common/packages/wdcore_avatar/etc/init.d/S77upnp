@@ -49,12 +49,12 @@ function upnpinfoCreate(){
    	sed -i 's/<serialNumber>.*/\<serialNumber\>'$SerialNumeber'\<\/serialNumber\>/' /tmp/upnp/webUplink/nasdevicedesc.xml
    	sed -i 's/<serialNumber>.*/\<serialNumber\>'$SerialNumeber'\<\/serialNumber\>/' /tmp/upnp/webDownlink/nasdevicedesc.xml
    	
-    if [ "$modelNumber" == "" ] || [ "$modelNumber" == "AV1W" ]; then
-    	echo "Unknown modelNumber"
-    	modelNumber=WDBP2P
-   	fi
-   	sed -i 's/<modelNumber>.*/\<modelNumber\>'${modelNumber}'\<\/modelNumber\>/' /tmp/upnp/webUplink/nasdevicedesc.xml
-    sed -i 's/<modelNumber>.*/\<modelNumber\>'${modelNumber}'\<\/modelNumber\>/' /tmp/upnp/webDownlink/nasdevicedesc.xml
+        if [ "$modelNumber" == "" ] || [ "$modelNumber" == "AV1W" ]; then
+            echo "Unknown modelNumber"
+            modelNumber=WDBP2P
+        fi
+        sed -i 's/<modelNumber>.*/\<modelNumber\>'${modelNumber}'\<\/modelNumber\>/' /tmp/upnp/webUplink/nasdevicedesc.xml
+        sed -i 's/<modelNumber>.*/\<modelNumber\>'${modelNumber}'\<\/modelNumber\>/' /tmp/upnp/webDownlink/nasdevicedesc.xml
 }
 
 start() { 

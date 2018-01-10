@@ -27,51 +27,44 @@ PATH=/sbin:/bin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin
 timestamp=$(date "+%Y.%m.%d-%H.%M.%S")
 echo $timestamp ": SDCard_AutoStorageTransfer.sh" $@ >> /tmp/backup.log
 
+sdmethod=${TransferMode}
+
 if [ "${AutoTransfer}" == "false" ]; then
 	exit 0
 else
-	if [ -f "/tmp/SDCard_AutoProcessing" ]; then
+	if [ -f "/tmp/SDCard_AutoProcessing" ] || [ "${TransferStatus}" != "completed" ]; then
+		echo $timestamp ": SDCard_AutoStorageTransfer.sh exit: TransferStatus" ${TransferStatus} >> /tmp/backup.log
 		exit 1
 	fi
-	
-	if [ "${TransferStatus}" == "process" ]; then
+
+	SDpartitionNum=`ls /tmp/mmcblk0*-info | wc -l`
+	if [ "${SDpartitionNum}" == "0" ]; then
+		echo $timestamp ":  SDCard_AutoStorageTransfer None SDpartitionNum:" ${SDpartitionNum} >> /tmp/backup.log
 		exit 1
 	fi
 	
 	if [ "$USB_TransferStatus" != "completed" ]; then
-		echo "TransferStatus=standby:Auto:""$method" > /etc/nas/config/sdcard-transfer-status.conf
+		echo "TransferStatus=standby:Auto:""$sdmethod" > /etc/nas/config/sdcard-transfer-status.conf
 	else
-		partitionNum=`ls /tmp/mmcblk0*-info | wc -l`
-		totalNum="${partitionNum}"
-		if [ "${partitionNum}" != "0" ]; then
-			echo "TransferStatus=checkin" > /etc/nas/config/sdcard-transfer-status.conf
-			touch /tmp/SDCard_AutoProcessing
-		fi
-		while [ "$partitionNum" != "0" ]; do
-			SD_backup=`cat /etc/nas/config/sdcard-transfer-status.conf | awk -F= '{print $NF}'`
-			if [ "$SD_backup" == "completed" ] || [ "$SD_backup" == "checkin" ]; then
-				echo "partitionNum" ${partitionNum}
-		
-				if [ "$totalNum" == "1" ]; then 
-					sdshare=`cat /tmp/mmcblk0*-info | awk -F: '{print $1}'`
-				else
-					sdshare=`cat /tmp/mmcblk0*-info | awk -F: '{print $1}' | sed -n ${partitionNum}p`
-				fi
-				partitionNum=`expr $partitionNum - 1`
-			
-				method=${TransferMode}
-				autotransfer=${AutoTransfer}
-				
-				echo $timestamp ": SDCard_AutoStorageTransfer.sh backup triggering" >> /tmp/backup.log
-			 	#Running=`sqlite3 /usr/local/nas/orion/jobs.db  'select jobstate_id from Jobs where jobstate_id=2' | wc -l`
-   				#Waiting=`sqlite3 /usr/local/nas/orion/jobs.db  'select jobstate_id from Jobs where jobstate_id=1' | wc -l`	
-                #if [ "${Running}" -eq "0" ] && [ "${Waiting}" -eq "0" ]; then
-    				#echo status=waiting > /tmp/transfer_state
-					#echo "sdshare" ${sdshare}
-   					/usr/local/sbin/storage_transfer_job_start.sh "/${sdshare}" &	
-       				sleep 30
-				#fi
+		touch /tmp/SDCard_AutoProcessing
+		DiskNum="${SDpartitionNum}"
+	
+		while [ "$DiskNum" != "0" ]; do
+			if [ "$SDpartitionNum" == "1" ]; then 
+				sdshare=`cat /tmp/mmcblk0*-info | awk -F: '{print $1}'`
+			else
+				sdshare=`cat /tmp/mmcblk0*-info | awk -F: '{print $1}' | sed -n ${DiskNum}p`
 			fi
+			DiskNum=`expr $DiskNum - 1`
+		
+			#Running=`sqlite3 /usr/local/nas/orion/jobs.db  'select jobstate_id from Jobs where jobstate_id=2' | wc -l`
+   			#Waiting=`sqlite3 /usr/local/nas/orion/jobs.db  'select jobstate_id from Jobs where jobstate_id=1' | wc -l`	
+            #if [ "${Running}" -eq "0" ] && [ "${Waiting}" -eq "0" ]; then
+    		#echo status=waiting > /tmp/transfer_state
+   			/usr/local/sbin/storage_transfer_job_start.sh "/${sdshare}" &	
+   			echo $timestamp ": SDCard_AutoStorageTransfer.sh SD jobs trigger" $sdshare >> /tmp/backup.log
+       		sleep 30
+			#fi
 		done
    	fi
    	if [ -f "/tmp/SDCard_AutoProcessing" ]; then

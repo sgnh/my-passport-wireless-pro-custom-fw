@@ -1,1 +1,1 @@
-00 3 * * * root  /sbin/fstrim -a
+00 3 * * * root  /sbin/fstrim_trigger.sh

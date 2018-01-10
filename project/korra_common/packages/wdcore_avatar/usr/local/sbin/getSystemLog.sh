@@ -49,6 +49,10 @@ cp -a /CacheVolume/.wd-alert/wd-alert.db /CacheVolume/${logname}
 cp -Ra "/CacheVolume/.plexmediaserver/Application Support/Plex Media Server/Logs" /CacheVolume/${logname}/
 cp -Ra "/CacheVolume/.plexmediaserver/Application Support/Plex Media Server/Crash Reports" /CacheVolume/${logname}/
 
+if [ -d /CacheVolume/log ]; then
+	cp -Ra /CacheVolume/log /CacheVolume/${logname}/
+fi
+
 # collect current status
 cp -a /tmp/ApCliRetry /CacheVolume/${logname}/current_status
 cp -a /tmp/ConnectionMode /CacheVolume/${logname}/current_status
@@ -76,10 +80,22 @@ cp -a /etc/nas/hybrid_list /CacheVolume/${logname}/current_status
 cp -a /tmp/remodeIP_mac_debugger.log /CacheVolume/${logname}/current_status
 cp -a /tmp/getDrives /CacheVolume/${logname}/current_status
 
+if [ -f /tmp/chkdisk.log ]; then
+    cp -a /tmp/chkdisk.log /CacheVolume/${logname}/current_status
+fi
+
+if [ -f /tmp/fstrim.log ]; then
+    cp -a /tmp/fstrim.log /CacheVolume/${logname}/current_status
+fi
+
+if [ -f /hwcollect/hwcollect.log ]; then
+    cp -a /hwcollect/hwcollect.log /CacheVolume/${logname}/current_status
+fi
+
 getCurrentFirmwareDesc.sh > /CacheVolume/${logname}/version_info
 cp -a /etc/version.packages /CacheVolume/${logname}/version_package_info
 if [ -f /CacheVolume/update.log ]; then
-	cp /CacheVolume/update.log /CacheVolume/${logname}
+    cp /CacheVolume/update.log /CacheVolume/${logname}
 fi
 
 drive=`cat /tmp/HDDDevNode`
@@ -97,14 +113,14 @@ cat /etc/saveconfigfiles.txt | xargs tar cvf /CacheVolume/${logname}/current_con
 # save Access DLNA information
 if [ ${option} == "dlna" ]; then
     if [ -f /etc/init.d/access ]; then
-	access_dir="/CacheVolume/${logname}/access-dlna"
-	mkdir -p ${access_dir}
-	find /shares -type d -name .nflc_data -print | xargs -I {} find {} -maxdepth 1 -type f -print | tar cf ${access_dir}/access.tar --files-from=- 2>/dev/null
-	cp /usr/local/dlna-access/xml/pg_device_list.xml ${access_dir}
+        access_dir="/CacheVolume/${logname}/access-dlna"
+        mkdir -p ${access_dir}
+        find /shares -type d -name .nflc_data -print | xargs -I {} find {} -maxdepth 1 -type f -print | tar cf ${access_dir}/access.tar --files-from=- 2>/dev/null
+        cp /usr/local/dlna-access/xml/pg_device_list.xml ${access_dir}
     fi
     if [ -f /etc/init.d/twonky ]; then
-	mkdir -p /CacheVolume/${logname}/twonky-dlna
-	cp -a /CacheVolume/.twonkymedia/twonkymedia-log.txt /CacheVolume/${logname}/twonky-dlna
+        mkdir -p /CacheVolume/${logname}/twonky-dlna
+        cp -a /CacheVolume/.twonkymedia/twonkymedia-log.txt /CacheVolume/${logname}/twonky-dlna
     fi
 fi
 

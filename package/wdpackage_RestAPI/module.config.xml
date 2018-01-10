@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module>
+    <name>Plex</name>
+    <version>2.1</version>
+    <description>Module has {}</description >
+    
+    <components>
+        <component>
+            <name>Plex_server_configuration</name>
+            <module>Plex</module>
+            <controller_class>\Plex\Controller\Configuration</controller_class>
+            <auth_security>
+                <get>ADMIN_AUTH_LAN</get>
+                <put>ADMIN_AUTH_LAN</put>
+            </auth_security>
+        </component>
+        <component>
+            <name>Plex_server_database</name>
+            <module>Plex</module>
+            <controller_class>\Plex\Controller\Database</controller_class>
+            <auth_security>
+                <get>USER_AUTH</get>
+                <put>ADMIN_AUTH_LAN</put>
+            </auth_security>
+        </component>
+        <component>
+            <name>plex_firmware_info</name>
+            <module>Plex</module>
+            <controller_class>\Plex\Controller\Info</controller_class>
+            <auth_security>
+                <get>NO_AUTH_LAN</get>
+                <put>ADMIN_AUTH_LAN</put>
+            </auth_security>
+        </component>
+    </components>
+    
+</module>

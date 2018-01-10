@@ -1,6 +1,7 @@
-diff -uNr simple-mtpfs/src/simple-mtpfs-mtp-device.cpp new-simple-mtpfs/src/simple-mtpfs-mtp-device.cpp
---- simple-mtpfs/src/simple-mtpfs-mtp-device.cpp	2016-10-12 13:48:18.785557366 +0800
-+++ new-simple-mtpfs/src/simple-mtpfs-mtp-device.cpp	2016-10-12 10:51:29.988238017 +0800
+Binary files simple-mtpfs-0.2/.DS_Store and simple-mtpfs-0.2-new/.DS_Store differ
+diff -uNr simple-mtpfs-0.2/src/simple-mtpfs-mtp-device.cpp simple-mtpfs-0.2-new/src/simple-mtpfs-mtp-device.cpp
+--- simple-mtpfs-0.2/src/simple-mtpfs-mtp-device.cpp	2017-11-07 14:52:36.612104759 +0800
++++ simple-mtpfs-0.2-new/src/simple-mtpfs-mtp-device.cpp	2017-11-07 14:51:46.522529282 +0800
 @@ -150,7 +150,7 @@
      // Try to reset USB device, so we don't wait until LIBMTP times out.
      // We do this every time we are about to mount a device, but better
@@ -19,3 +20,11 @@ diff -uNr simple-mtpfs/src/simple-mtpfs-mtp-device.cpp new-simple-mtpfs/src/simp
  
      bool rval = connect(raw_device);
  
+@@ -245,6 +245,7 @@
+     if (LIBMTP_Get_Storage(m_device, LIBMTP_STORAGE_SORTBY_NOTSORTED) < 0) {
+         std::cerr << "Could not retrieve device storage.\n";
+         std::cerr << "For android phones make sure the screen is unlocked.\n";
++        system("echo For android phones make sure the screen is unlocked >> /tmp/debugmtpdev");
+         logerr("Could not retrieve device storage. Exiting.\n");
+         LIBMTP_Dump_Errorstack(m_device);
+         LIBMTP_Clear_Errorstack(m_device);

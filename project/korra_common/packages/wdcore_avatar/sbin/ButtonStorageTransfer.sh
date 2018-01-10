@@ -30,100 +30,79 @@ Auto="${3}"
 timestamp=$(date "+%Y.%m.%d-%H.%M.%S")
 echo $timestamp ": ButtonStorageTransfer.sh" $@ >> /tmp/backup.log
 
-factory_conf=/etc/nas/config/factory.conf                                                                                                                   
-                                                                                                                                                            
+factory_conf=/etc/nas/config/factory.conf                                                                                                                                                                                                                                      
 if [ -f "$factory_conf" ] && [ `grep FACTORY_MODE $factory_conf | wc -l` == "1" ] && [ `grep FACTORY_MODE $factory_conf | awk -F= '{print $2}'` == "1" ]; then
-    timestamp=$(date "+%Y.%m.%d-%H.%M.%S")
 	echo $timestamp ":  ButtonStorageTransfer Factory mode" >> /tmp/backup.log
     exit 0
 fi
 
-if [ "${targetDst}" == "" ] || [ "${targetDst}" == "SD" ]; then
-	targetDst=SD
+targetDst=SD
 
-	if [ "${AutoTransfer}" == "true" ] || [ -f "/tmp/SDCard_ButtonProcessing" ] || [ "${TransferStatus}" == "process" ]; then
+if [ -f "/tmp/SDCard_ButtonProcessing" ] || [ "${TransferStatus}" != "completed" ]; then
+	sdTransfer=0
+	echo $timestamp ":  ButtonStorageTransfer TransferStatus:" ${TransferStatus} >> /tmp/backup.log
+else
+	SDpartitionNum=`ls /tmp/mmcblk0*-info | wc -l`
+	echo $timestamp ":  ButtonStorageTransfer SDpartitionNum:" ${SDpartitionNum} >> /tmp/backup.log
+	if [ "${SDpartitionNum}" == "0" ]; then
 		sdTransfer=0
 	else
-		partitionNum=`ls /tmp/mmcblk0*-info | wc -l`
-		if [ "${partitionNum}" == "0" ]; then
-			sdTransfer=0
-		else
-			sdTransfer=1
-		fi
+		sdTransfer=1
 	fi
+fi
 
-	if [ "${USB_TransferAuto}" == "true" ] || [ -f "/tmp/USB_ButtonProcessing" ] || [ "${USB_TransferStatus}" == "process" ]; then
+if [ -f "/tmp/USB_ButtonProcessing" ] || [ "${USB_TransferStatus}" != "completed" ]; then
+	usbTransger=0
+	echo $timestamp ":  ButtonStorageTransfer USB_TransferStatus:" ${USB_TransferStatus} >> /tmp/backup.log
+else
+	USBpartitionNum=`ls /tmp/sd*-info | wc -l`
+	echo $timestamp ":  ButtonStorageTransfer USBpartitionNum:" ${USBpartitionNum} >> /tmp/backup.log
+	if [ "${USBpartitionNum}" == "0" ]; then
 		usbTransger=0
+		
 	else
-		partitionNum=`ls /tmp/sd*-info | wc -l`
-		if [ "${partitionNum}" == "0" ]; then
-			usbTransger=0
-		else
-			usbTransger=1
-		fi
-	fi
-elif [ "${targetDst}" == "USB" ]; then
-	if [ "${USB_TransferAuto}" == "true" ] || [ -f "/tmp/USB_ButtonProcessing" ] || [ "${USB_TransferStatus}" == "process" ]; then
-		usbTransger=0
-	else
-		partitionNum=`ls /tmp/sd*-info | wc -l`
-		if [ "${partitionNum}" == "0" ]; then
-			usbTransger=0
-		else
-			usbTransger=1
-		fi
+		usbTransger=1
 	fi
 fi
 
 if [ "${sdTransfer}" == "0" ] && [ "${usbTransger}" == "0" ]; then
-	timestamp=$(date "+%Y.%m.%d-%H.%M.%S")
-	echo $timestamp ":  ButtonStorageTransfer No External Drive Insert" >> /tmp/backup.log
+	echo $timestamp ":  ButtonStorageTransfer No External Drive:" ${sdTransfer} ${usbTransger} >> /tmp/backup.log
 	exit 0
 fi 
 
 source /etc/nas/config/sdcard-transfer-status.conf
 source /etc/nas/config/usb-transfer-status.conf
+sdmethod=${TransferMode}
+usbmethod=${USB_ModeTransfer}
 	
 if [ "${sdTransfer}" == "1" ]; then
 	if [ "$USB_TransferStatus" != "completed" ]; then
-		echo "TransferStatus=standby:Button:""$method" > /etc/nas/config/sdcard-transfer-status.conf
+		echo "TransferStatus=standby:Button:""$sdmethod" > /etc/nas/config/sdcard-transfer-status.conf #put sd card backup to standby
 	else
-		partitionNum=`ls /tmp/mmcblk0*-info | wc -l`
-		totalNum="${partitionNum}"
-	
-		echo "TransferStatus=checkin" > /etc/nas/config/sdcard-transfer-status.conf
-			
 		touch /tmp/SDCard_ButtonProcessing
-		while [ "${partitionNum}" != "0" ]; do
-			SD_backup=`cat /etc/nas/config/sdcard-transfer-status.conf | awk -F= '{print $NF}'`
-			if [ "$SD_backup" == "completed" ] || [ "$SD_backup" == "checkin" ]; then
-				
-				if [ "$totalNum" == "1" ]; then 
+
+		DiskNum="${SDpartitionNum}"
+		while [ "${DiskNum}" != "0" ]; do
+			#SD_status=`cat /etc/nas/config/sdcard-transfer-status.conf | awk -F= '{print $NF}'`
+			#if [ "$SD_status" == "completed" ]; then
+				if [ "$SDpartitionNum" == "1" ]; then 
 					sdshare=`cat /tmp/mmcblk0*-info | awk -F: '{print $1}'`
 				else
-					sdshare=`cat /tmp/mmcblk0*-info | awk -F: '{print $1}' | sed -n ${partitionNum}p`
+					sdshare=`cat /tmp/mmcblk0*-info | awk -F: '{print $1}' | sed -n ${DiskNum}p`
 				fi
-				partitionNum=`expr $partitionNum - 1`
+				DiskNum=`expr $DiskNum - 1`
 			
-				method=${TransferMode}
-				autotransfer=${AutoTransfer}
-		
- 				Running=`sqlite3 /usr/local/nas/orion/jobs.db  'select jobstate_id from Jobs where jobstate_id=2' | wc -l`
-   				Waiting=`sqlite3 /usr/local/nas/orion/jobs.db  'select jobstate_id from Jobs where jobstate_id=1' | wc -l`
-   				timestamp=$(date "+%Y.%m.%d-%H.%M.%S")
-				echo $timestamp ": ButtonStorageTransfer.sh SD jobs Running" $Running >> /tmp/backup.log
-				echo $timestamp ": ButtonStorageTransfer.sh SD jobs Waiting" $Waiting >> /tmp/backup.log
-   				if [ "${Running}" -eq "0" ] && [ "${Waiting}" -eq "0" ]; then
-       				echo status=waiting > /tmp/transfer_state
-       				
-					#echo "sdshare" ${sdshare}
+ 				#Running=`sqlite3 /usr/local/nas/orion/jobs.db  'select jobstate_id from Jobs where jobstate_id=2' | wc -l`
+   				#Waiting=`sqlite3 /usr/local/nas/orion/jobs.db  'select jobstate_id from Jobs where jobstate_id=1' | wc -l`
+				#echo $timestamp ": ButtonStorageTransfer.sh SD jobs Running" $Running >> /tmp/backup.log
+				#echo $timestamp ": ButtonStorageTransfer.sh SD jobs Waiting" $Waiting >> /tmp/backup.log
+   				#if [ "${Running}" -eq "0" ] && [ "${Waiting}" -eq "0" ]; then
+       				#echo status=waiting > /tmp/transfer_state
    					/usr/local/sbin/storage_transfer_job_start.sh "/${sdshare}" 2>&1 &
-   					
-   					#timestamp=$(date "+%Y.%m.%d-%H.%M.%S")
-					echo $timestamp ": ButtonStorageTransfer.sh SD jobs Running share" $sdshare >> /tmp/backup.log
-       				sleep 30
-       			fi
-   			fi                     
+					echo $timestamp ": ButtonStorageTransfer.sh SD jobs trigger" $sdshare >> /tmp/backup.log
+       				sleep 30 #wait for restapi database ready
+       			#fi
+   			#fi                     
 		done
 	fi
 	
@@ -132,69 +111,47 @@ if [ "${sdTransfer}" == "1" ]; then
 	fi
 fi
 
-if [ "${sdTransfer}" == "1" ]; then
-	status=`storage_transfer_status.sh | grep "status" | cut -d '=' -f 2`
-	breakcount=0
-	while [ "${status}" != completed ]; do
-		status=`storage_transfer_status.sh | grep "status" | cut -d '=' -f 2`
-		sleep 10
-		breakcount=`expr $breakcount + 1`
-		if [ "${breakcount}" -gt 5 ]; then
-			break;
-		fi
-	done
-	sleep 10
-fi
+#if [ "${sdTransfer}" == "1" ]; then
+#	status=`storage_transfer_status.sh | grep "status" | cut -d '=' -f 2`
+#	breakcount=0
+#	while [ "${status}" != completed ]; do
+#		status=`storage_transfer_status.sh | grep "status" | cut -d '=' -f 2`
+#		sleep 10
+#		breakcount=`expr $breakcount + 1`
+#		if [ "${breakcount}" -gt 5 ]; then
+#			break;
+#		fi
+#	done
+#	sleep 10
+#fi
 
 if [ "${usbTransger}" == "1" ]; then
 	if [ "$TransferStatus" != "completed" ]; then
-		echo "USB_TransferStatus=standby:Button:""$method" > /etc/nas/config/usb-transfer-status.conf
+		echo "USB_TransferStatus=standby:Button:""$usbmethod" > /etc/nas/config/usb-transfer-status.conf
 	else
 		touch /tmp/USB_ButtonProcessing
-
-		partitionNum=`ls /tmp/sd*-info | wc -l`
-		totalNum="${partitionNum}"
+		DiskNum="${USBpartitionNum}"
 		
-		echo "USB_TransferStatus=checkin" > /etc/nas/config/usb-transfer-status.conf
-		echo $timestamp ": ButtonStorageTransfer.sh USB" $partitionNum >> /tmp/backup.log
-		
-		while [ "$partitionNum" != "0" ]; do
-			USB_backup=`cat /etc/nas/config/usb-transfer-status.conf | awk -F= '{print $NF}'`
-			echo $timestamp ": ButtonStorageTransfer.sh USB status" $USB_backup >> /tmp/backup.log
-			if [ "$USB_backup" == "completed" ] || [ "$USB_backup" == "checkin" ]; then
+		while [ "$DiskNum" != "0" ]; do
 			
-				if [ "$totalNum" == "1" ]; then 
-					USBshare=`cat /tmp/sd*-info | awk -F: '{print $1}'`
-				else	
-					USBshare=`cat /tmp/sd*-info | awk -F: '{print $1}' | sed -n ${partitionNum}p`
-				fi
-				partitionNum=`expr $partitionNum - 1`
+			if [ "$USBpartitionNum" == "1" ]; then 
+				USBshare=`cat /tmp/sd*-info | awk -F: '{print $1}'`
+			else	
+				USBshare=`cat /tmp/sd*-info | awk -F: '{print $1}' | sed -n ${DiskNum}p`
+			fi
+			DiskNum=`expr $DiskNum - 1`
 			
-				method=${USB_ModeTransfer}
-				autotransfer=${USB_TransferAuto}
-		
-    			Running=`sqlite3 /usr/local/nas/orion/jobs.db  'select jobstate_id from Jobs where jobstate_id=2' | wc -l`
-   				Waiting=`sqlite3 /usr/local/nas/orion/jobs.db  'select jobstate_id from Jobs where jobstate_id=1' | wc -l`
-   				timestamp=$(date "+%Y.%m.%d-%H.%M.%S")
-				echo $timestamp ": ButtonStorageTransfer.sh USB jobs Running" $Running >> /tmp/backup.log
-				echo $timestamp ": ButtonStorageTransfer.sh USB jobs Waiting" $Waiting >> /tmp/backup.log
-   				if [ "${Running}" -eq "0" ] && [ "${Waiting}" -eq "0" ]; then
-       				echo status=waiting > /tmp/transfer_state
-       				
-					#devicefound=`cat /tmp/detectInterface`
-					#if [ "$devicefound" == "MTP" ]; then
-					#	USBshare="USB_MTP"
-					#elif [ "$devicefound" == "PTP" ]; then # Louis
-					#	USBshare="USB_PTP"
-					#fi
-					#echo "USBshare" ${USBshare}
-   					/usr/local/sbin/storage_transfer_job_start.sh "/${USBshare}" 2>&1 &
-   					
-   					#timestamp=$(date "+%Y.%m.%d-%H.%M.%S")
-					#echo $timestamp ": ButtonStorageTransfer.sh SD jobs Running share" $USBshare >> /tmp/backup.log
-       				sleep 30
-   				fi                     	
-   			fi
+			#Running=`sqlite3 /usr/local/nas/orion/jobs.db  'select jobstate_id from Jobs where jobstate_id=2' | wc -l`
+   			#Waiting=`sqlite3 /usr/local/nas/orion/jobs.db  'select jobstate_id from Jobs where jobstate_id=1' | wc -l`
+   			#timestamp=$(date "+%Y.%m.%d-%H.%M.%S")
+			#echo $timestamp ": ButtonStorageTransfer.sh USB jobs Running" $Running >> /tmp/backup.log
+			#echo $timestamp ": ButtonStorageTransfer.sh USB jobs Waiting" $Waiting >> /tmp/backup.log
+   			#if [ "${Running}" -eq "0" ] && [ "${Waiting}" -eq "0" ]; then
+       			#echo status=waiting > /tmp/transfer_state
+   				/usr/local/sbin/storage_transfer_job_start.sh "/${USBshare}" 2>&1 &
+				echo $timestamp ": ButtonStorageTransfer.sh USB jobs trigger" $USBshare >> /tmp/backup.log
+       			sleep 30
+   			#fi
 		done
 	fi
 	if [ -f "/tmp/USB_ButtonProcessing" ]; then

@@ -251,21 +251,24 @@ start_update_korra()
 			touch /media/sdb1/.wdcache/update/UpdateDone
 		fi
 	fi
-	RCmajorver="$FactoryFWVersion_Major"
-	RCminorver="$FactoryFWVersion_Minor"
+	RCmajorver="${FactoryFWVersion_Major}"
+	RCminorver="${FactoryFWVersion_Minor}"
 	HDDCapacity=`cat /tmp/HDDCapacity`
 	if [ "$HDDCapacity" == "" ]; then
 		HDDCapacity=4
 	fi
-	if [ "${HDDCapacity}"  == "4" ]; then
+	if [ "${HDDCapacity}"  == "4" ] || [ "${HDDCapacity}"  == "20" ] || [ -f /etc/WD20SPZX ]; then
 		version_newmajor=`cat /CacheVolume/chktmp/fw.version | awk -F. '{print $1}' | cut -d '_' -f 2`
 		version_newminor=`cat /CacheVolume/chktmp/fw.version | awk -F. '{print $2}'`
 
-		if [ "$RCmajorver" == "" ] || [ "$RCminorver" == "" ]; then
+		if [ "${RCmajorver}" == "" ] || [ "${RCminorver}" == "" ]; then
 			if [ -f "/etc/FactoryFwVer" ]; then
 				RCmajorver=`cat /etc/FactoryFwVer | awk -F. '{print $1}' | cut -d '_' -f 2`
 				RCminorver=`cat /etc/FactoryFwVer | awk -F. '{print $2}'`	
 			fi
+		fi
+		if [ -f /etc/WD20SPZX ]; then
+			RCminorver="04"
 		fi
 		if [ "${version_newminor}" -lt "${RCminorver}" ]; then
 			echo "cannot downgrade!!"

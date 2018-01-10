@@ -5,6 +5,22 @@
 
 source /etc/system.conf
 
+check_default_FW_version()
+{
+	mount -t ext4 /dev/sdb1 /mnt
+	RecoveryFWversion=`ls /mnt/MyPassport* | awk -F\/ '{print $NF}'`
+
+	if [ "${RecoveryFWversion}" == "" ]; then
+		isSSD=`/usr/sbin/get_capacity.sh`
+		if [ $isSSD -eq 20 ]; then
+			echo "MyPassportWirelessGen2_1.04.02.bin" > /etc/FactoryFwVer
+		fi
+	else
+		echo "${RecoveryFWversion}" > /etc/FactoryFwVer
+	fi
+	umount /mnt
+}
+
 case "$1" in
   start)
 	[ -f /usr/local/sbin/checkApacheConf.sh ] && checkApacheConf.sh
@@ -71,13 +87,65 @@ case "$1" in
 	if [ -f /tmp/batteryCount ]; then
 		/usr/local/sbin/sendHWCollect.sh 105 `cat /tmp/batteryCount`
 	fi
-	
+	if [ -f /etc/FactoryFwVer ]; then
+		FactoryVer=`cat /etc/FactoryFwVer  | grep "MyPassportWirelessGen2_1" | wc -l`
+		if [ $FactoryVer -eq 0 ]; then
+			check_default_FW_version
+		fi
+	else
+		check_default_FW_version
+	fi
 	if [ "$FactoryFWVersion_Major" == "" ] || [ "$FactoryFWVersion_Major" == "" ]; then
 		if [ -f "/etc/FactoryFwVer" ]; then
 			majorver=`cat /etc/FactoryFwVer | awk -F. '{print $1}' | cut -d '_' -f 2`
 			minorver=`cat /etc/FactoryFwVer | awk -F. '{print $2}'`
 			sed -i 's/FactoryFWVersion_Major=.*/FactoryFWVersion_Major='${majorver}'/' /etc/system.conf
 			sed -i 's/FactoryFWVersion_Minor=.*/FactoryFWVersion_Minor='${minorver}'/' /etc/system.conf
+		fi
+	fi
+	isSSD=`/usr/sbin/get_capacity.sh`
+	if [ $isSSD -eq 20 ]; then
+		ListSSDPID=`lsusb  | grep "1058:2601" | wc -l`
+		if [ $ListSSDPID -eq 0 ]; then
+			/sbin/asmupdate -p `cat /tmp/HDDDevNode` -p
+		fi
+	fi
+	mcu_daemon_pid=`pidof mcu_daemon`
+	if [ -f /proc/${mcu_daemon_pid}/oom_score_adj ]; then
+		echo -1000 > proc/${mcu_daemon_pid}/oom_score_adj
+	fi
+	if [ -d /media/sdb1/.wdcache/coredump ] && [ ! -f /root/AdvanceDebugMode ]; then
+		rm -f /media/sdb1/.wdcache/coredump/core.*
+	fi
+	echo 1 > /proc/sys/kernel/sysrq
+	if [ -f /root/AdvanceDebugMode ]; then
+		if [ ! -d /media/sdb1/.wdcache/log ]; then
+			mkdir -p /media/sdb1/.wdcache/log
+		fi
+		/usr/sbin/logrotate -vf /etc/logrotate.conf
+		tar cvfz /media/sdb1/.wdcache/log/`date +%s`-log-backup.tgz /var/log
+	fi
+	if [ -f /media/sdb1/.wdcache/EnableAdvanceDebugMode ]; then
+		isEnabled=`cat /media/sdb1/.wdcache/EnableAdvanceDebugMode`
+		if [ "${isEnabled}" == "" ] || [ ! -f /root/AdvanceDebugMode ]; then
+			echo "Enabled" > /media/sdb1/.wdcache/EnableAdvanceDebugMode
+			touch /root/AdvanceDebugMode
+			if [ -L /var/log ]; then
+				rm /var/log
+				mkdir -p /var/log
+			fi
+			sed -i 's/.*Storage=.*/Storage=persistent/g' /etc/systemd/journald.conf
+			reboot
+		fi
+	else
+		if [ -f /root/AdvanceDebugMode ]; then
+			rm -f /root/AdvanceDebugMode
+			sed -i 's/.*Storage=.*/#Storage=auto/g' /etc/systemd/journald.conf
+			if [ -d /var/log ]; then
+				rm -Rf /var/log
+				ln -sf ../tmp/ /var/log
+			fi
+			reboot
 		fi
 	fi
 	;;

@@ -144,6 +144,7 @@ struct security_priv
 	union Keytype	dot11wBIPKey[6];		// BIP Key, for index4 and index5
 	union pn48		dot11wBIPtxpn;			// PN48 used for Grp Key xmit.
 	union pn48		dot11wBIPrxpn;			// PN48 used for Grp Key recv.
+	u8				iv_seq[4][8];
 #endif //CONFIG_IEEE80211W
 #ifdef CONFIG_AP_MODE
 	//extend security capabilities for AP_MODE 

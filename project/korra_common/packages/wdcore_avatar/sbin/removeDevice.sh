@@ -61,6 +61,25 @@ if [ -f /var/lock/addDevice ] ; then
 		fi
 		rm -f /tmp/"${DeviceNode}"-device
 		/usr/local/sbin/wdAutoMountAdm.pm getRealDrives > /tmp/getDrives 2>&1
+		if [ ! -f /tmp/HDSerial ]; then
+			HDSerial_temp=`hdparm -I \`cat /tmp/HDDDevNode\` | sed -n -e 's/.*Serial Number:\(.*\)/\1/p' | sed -e 's/^[ \t]*//' | awk '{gsub("WD-","",$0); print $0}'`
+			HDSerial=${HDSerial_temp// /}
+			echo "${HDSerial}" > /tmp/HDSerial
+		else
+			HDSerial=`cat /tmp/HDSerial`
+		fi
+		result=`sqlite3 /usr/local/nas/orion/orion.db 'select * from Volumes' | grep "${HDSerial}"_1  | wc -l`
+		if [ ${result} == "0" ]; then
+			FStype=`cat /proc/mounts | grep "/media/sdb1 " | cut -d " " -f 3`
+			echo "${PPID} Detecting Storage Volume removed from orion.db" >> /tmp/removeDeviceLogs.log
+			/usr/local/sbin/volume_mount.sh mount "${HDSerial}"_1 "" `cat /tmp/MountedDevNode` ${FStype}
+			result=`sqlite3 /usr/local/nas/orion/orion.db 'select * from Volumes' | grep "${HDSerial}"_1  | wc -l`
+			if [ ${result} == "0" ]; then
+				sleep 1
+				/usr/local/sbin/volume_mount.sh mount "${HDSerial}"_1 "" `cat /tmp/MountedDevNode` ${FStype}
+			fi
+			result=`sqlite3 /usr/local/nas/orion/orion.db 'select * from Volumes' | grep "${HDSerial}"_1  | wc -l`
+		fi
 	fi
 	flock -u 300
 fi

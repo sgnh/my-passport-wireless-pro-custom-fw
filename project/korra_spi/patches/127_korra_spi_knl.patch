@@ -1,0 +1,62 @@
+--- linux-kernel.orig/drivers/scsi/sd.c	2017-09-17 17:43:22.560205013 +0800
++++ linux-kernel.mod/drivers/scsi/sd.c	2017-09-17 17:50:45.896484875 +0800
+@@ -687,12 +687,25 @@
+ 	unsigned int logical_block_size = sdkp->device->sector_size;
+ 	unsigned int max_blocks = 0;
+ 
+-	q->limits.discard_zeroes_data = sdkp->lbprz;
+-	q->limits.discard_alignment = sdkp->unmap_alignment *
+-		logical_block_size;
+-	q->limits.discard_granularity =
+-		max(sdkp->physical_block_size,
+-		    sdkp->unmap_granularity * logical_block_size);
++	q->limits.discard_zeroes_data = 0;
++
++	/*
++	 * When LBPRZ is reported, discard alignment and granularity
++	 * must be fixed to the logical block size. Otherwise the block
++	 * layer will drop misaligned portions of the request which can
++	 * lead to data corruption. If LBPRZ is not set, we honor the
++	 * device preference.
++	 */
++	if (sdkp->lbprz) {
++		q->limits.discard_alignment = 0;
++		q->limits.discard_granularity = logical_block_size;
++	} else {
++		q->limits.discard_alignment = sdkp->unmap_alignment *
++			logical_block_size;
++		q->limits.discard_granularity =
++			max(sdkp->physical_block_size,
++		    	sdkp->unmap_granularity * logical_block_size);
++	}
+ 
+ 	sdkp->provisioning_mode = mode;
+ 
+--- linux-kernel.orig/drivers/usb/storage/scsiglue.c	2017-09-19 23:32:27.135750504 +0800
++++ linux-kernel.mod/drivers/usb/storage/scsiglue.c	2017-09-19 23:33:14.176258849 +0800
+@@ -190,7 +190,10 @@
+ 		sdev->skip_ms_page_8 = 1;
+ 
+ 		/* Some devices don't handle VPD pages correctly */
+-		sdev->skip_vpd_pages = 1;
++		if (us->pusb_dev->speed == USB_SPEED_SUPER)
++			sdev->skip_vpd_pages = 0;
++		else
++			sdev->skip_vpd_pages = 1;
+ 
+ 		/* Do not attempt to use REPORT SUPPORTED OPERATION CODES */
+ 		sdev->no_report_opcodes = 1;
+--- linux-kernel.orig/drivers/usb/storage/unusual_devs.h	2017-09-19 23:32:42.435751113 +0800
++++ linux-kernel.mod/drivers/usb/storage/unusual_devs.h	2017-09-19 23:32:48.829477305 +0800
+@@ -1522,6 +1522,11 @@
+ 		"My Passport HDD",
+ 		USB_SC_DEVICE, USB_PR_DEVICE, NULL, US_FL_WRITE_CACHE),
+ 
++UNUSUAL_DEV(0x1058, 0x2601, 0x0000, 0x9999,
++		"Western Digital",
++		"My Passport Wireless",
++		USB_SC_DEVICE, USB_PR_DEVICE, NULL, US_FL_NEEDS_CAP16),
++
+ /* Reported by Fabio Venturi <f.venturi@tdnet.it>
+  * The device reports a vendor-specific bDeviceClass.
+  */

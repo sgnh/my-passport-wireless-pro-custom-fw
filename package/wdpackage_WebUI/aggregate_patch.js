@@ -28384,6 +28384,7 @@ $(document).ready(function() {
                 var dateStamp = new Date();
                 var seconds = Math.round(dateStamp.getTime() / 1000);
                 gDateTime = seconds;
+                updateTimeTick(0);
                 if (Math.abs(seconds - data.date_time_configuration.datetime) > 120) {
                     $("#footer_device_timestamp_datetime").val(seconds);
                 }
@@ -28456,7 +28457,7 @@ $(document).ready(function() {
 });
 function initDashboard() {
     $("#footer_device_timestamp_form").restForm("refreshForm");
-    updateTimeTick(0);
+
     if (gIsMobile) {
         $("#shortcut_toolbar").hide();
     }
@@ -28694,7 +28695,7 @@ var gModelNumber = "";
 var gModelName = "";
 var gMacAddress = "";
 var gTimezoneName = "";
-var BYTE_DIVISOR = 1024;
+var BYTE_DIVISOR = 1000;
 var deviceName = "";
 var redirectURL = "/" + SITE_BASE_URL;
 var systemStatepoll = 5000;
@@ -30030,9 +30031,13 @@ var DLNAPoll = 10000;
 var gMediaServerEnable = false;
 var checkMediacrawlerRebuildInProgress = false;
 var frequency_channel = 0;
+var plex_current_version;
+var plex_new_version;
 $(document).ready(function() {
     pollingHandler.addPoll("media_server_database", ["media_container"], settingsDLNAPollSuccess, settingsMediaPollError);
     pollingHandler.addPoll("mediacrawler_status", ["media_container"], settingsMediacrawlerPollSuccess, settingsMediaPollError);
+    getPlexCurrentVersion();
+    
     $("#head_settings_nav_media_link").navItem({
         "contentId": "media_container",
         "refreshDataCall": function() {
@@ -30052,7 +30057,12 @@ $(document).ready(function() {
     $("#head_settings_nav_media_link").click(function() {
         $("#head_nav").hide();
         $("#head_nav_link").removeClass("selected");
-       	getPlexNewVersion();
+        
+        if($("#plex_setting_container").css("display") != "none"){
+            $("#plex_version").text(plex_current_version);
+            $("#plex_new_ver_download_button").hide();
+        }
+        checkForPlexFirmwareAvailable();
     });
     $("#settings_media_toggle_dlna_service_form").restForm({
         "refreshDataCallback": function(data) {
@@ -30340,26 +30350,71 @@ $(document).ready(function() {
         title: '<div class="wizard_dialog_title">' + $("#plex_reset_reboot_dialog").attr("title") + "</div>"
     });
     
-    getPlexNewVersion();
 });
-function getPlexNewVersion() {
-	var plex_new_version = $.ajax({type: "GET", url: "views/media/partial/plexsettings/check_plex_version.php", async: false}).responseText;
-    if(plex_new_version != "no upgrade") {
-    	$("#new_version span").val(plex_new_version);
-    }
-	var latest_plex_version_split = $("#new_version span").text().split("-");
-	var current_plex_version_split = $("#current_version span").text().split("-");
-	var latest_plex_version = latest_plex_version_split[0].replace(/[-\.]/g,'') + parseInt(latest_plex_version_split[1], 16);
-	var current_plex_version = current_plex_version_split[0].replace(/[-\.]/g,'') + parseInt(current_plex_version_split[1], 16);
 
-    if(latest_plex_version > current_plex_version){
-		$("#plex_version").text("");
-    	$("#plex_new_ver_download_button").show();
-    }
-    else {
-    	$("#plex_version").text($("#current_version span").text());
-		$("#plex_new_ver_download_button").hide();
-    }
+function checkForPlexFirmwareAvailable() {
+    var urlPrefix = apiUrlPrefix;
+    var url = "plex_firmware_info";
+    
+    $.ajaxAPI({
+        "urlPrefix": urlPrefix,
+        "url": url,
+        "type": "put",
+        "error": function(request, status, error) {
+            processAndDisplayError(request.responseText, "put_plex_firmware_info", request.status);
+        },
+        "success": function(data) {
+            getPlexNewVersion();
+        }
+    });
+}
+
+function getPlexCurrentVersion() {
+    var urlPrefix = apiUrlPrefix;
+    var url = "Plex_server_database";
+    
+    $.ajaxAPI({
+        "urlPrefix": urlPrefix,
+        "url": url,
+        "type": "get",
+        "error": function(request, status, error) {
+            processAndDisplayError(request.responseText, "get_Plex_server_database", request.status);
+        },
+        "success": function(data) {
+            if ((data != null ) && (data.Plex_server_database != null )) {
+                plex_current_version = data.Plex_server_database.version;
+            }
+        }
+    });
+}
+
+function getPlexNewVersion() {
+    var urlPrefix = apiUrlPrefix;
+    var url = "plex_firmware_info";
+    
+    $.ajaxAPI({
+        "urlPrefix": urlPrefix,
+        "url": url,
+        "type": "get",
+        "error": function(request, status, error) {
+            processAndDisplayError(request.responseText, "get_plex_firmware_info", request.status);
+        },
+        "success": function(data) {
+            if ((data != null ) && (data.firmware_info != null )) {
+                plex_new_version = data.firmware_info.status.replace(/\r?\n|\r|\"/g, "");
+                
+                if(plex_new_version != "no upgrade" && plex_new_version != "error") {
+                    var plex_new_version_major = parseInt(plex_new_version.split("-")[0].replace(/[-\.]/g,''));
+                    var plex_current_version_major = parseInt(plex_current_version.split("-")[0].replace(/[-\.]/g,''));
+                      
+                    if(plex_new_version_major > plex_current_version_major){
+                        $("#plex_version").text("");
+                        $("#plex_new_ver_download_button").show();
+                    }
+                }
+            }
+        }
+    });
 }
 
 function doPlexRebuild() {
@@ -34793,7 +34848,7 @@ $(document).ready(function() {
                     processAndDisplayError(request.responseText, "put" + "_" + "wifi_aps", request.status);
                 },
                 "success": function() {
-                    
+                    isWifiOn = "true";
                 }
             });
 		}else{
@@ -34813,7 +34868,8 @@ $(document).ready(function() {
                 	    processAndDisplayError(request.responseText, "put" + "_" + "wifi_aps", request.status);
                 	},
                 	"success": function() {
-               	 }
+                            isWifiOn_5g = "true";
+               	        }
             	});
             }
 		}  
@@ -34850,7 +34906,14 @@ $(document).ready(function() {
             "error": function(request, status, error) {
                 processAndDisplayError(request.responseText, "put" + "_" + "wifi_aps", request.status);
             },
-            "success": function() {}
+            "success": function() {
+                if(gconnectingBand == 5) {
+                    isWifiOn_5g = "false";
+                    reconnectWirelessStartTimeStamp = new Date().getTime();
+                    $("#reconnect_network_dialog").dialog("open");
+                    setTimeout("reconnectWirelessNetwork();", startReconnectWirelessDelay);
+    	        }
+            }
         });
     });
     $("#dashboard_battery_dialog").dialog({
@@ -39300,7 +39363,6 @@ function getInternetConnectivity() {
                 if (data.internet_access.connectivity.toLowerCase() == "true") {
                     $("#no_internet_access").hide();
                     gInternetAccess = true;
-                    getPlexNewVersion();
                 } else {
                     gInternetAccess = false;
                 }
@@ -40781,13 +40843,13 @@ $(document).ready(function() {
         },
         "processFormSuccessCallback": function(data, textStatus, jqXHR) {
             $("#cancel_usb_transfer_button").removeClass("ui-state-disabled");
-            $("#usb_copy_move_now_button").removeClass("ui-state-disabled");
+            $("#usb_copy_now_button").removeClass("ui-state-disabled");
             hideLoading();
             currentUSBCopyMoveDevice = 0;
         },
         "processFormErrorCallback": function(request, status, error) {
             $("#cancel_usb_transfer_button").removeClass("ui-state-disabled");
-            $("#usb_copy_move_now_button").removeClass("ui-state-disabled");
+            $("#usb_copy_now_button").removeClass("ui-state-disabled");
             hideLoading();
         }
     });
@@ -40808,33 +40870,33 @@ $(document).ready(function() {
         "useStubs": false,
         "refreshDataCallback": function(data) {
             if (data.storage_transfer.usb.transfer_mode == "copy") {
-                $("#settings_usb_transfer_copy_mode_button").addClass("button-selected");
-                $("#settings_usb_transfer_move_mode_button").removeClass("button-selected");
-                $("#usb_copy_move_now_button").val(dictionaryList["copy_now"]);
+                $("#settings_usb_transfer_copy_new_mode_button").addClass("button-selected");
+                $("#settings_usb_transfer_copy_all_mode_button").removeClass("button-selected");
+                $("#usb_copy_now_button").val(dictionaryList["copy_now"]);
             } else {
-                $("#settings_usb_transfer_move_mode_button").addClass("button-selected");
-                $("#settings_usb_transfer_copy_mode_button").removeClass("button-selected");
-                $("#usb_copy_move_now_button").val(dictionaryList["move_now"]);
+                $("#settings_usb_transfer_copy_all_mode_button").addClass("button-selected");
+                $("#settings_usb_transfer_copy_new_mode_button").removeClass("button-selected");
+                $("#usb_copy_now_button").val(dictionaryList["copy_now"]);
             }
         },
         "processFormSuccessCallback": function(data) {
             if ($("#settings_usb_transfer_mode").val() == "copy") {
-                $("#settings_usb_transfer_copy_mode_button").addClass("button-selected");
-                $("#settings_usb_transfer_move_mode_button").removeClass("button-selected");
-                $("#usb_copy_move_now_button").val(dictionaryList["copy_now"]);
+                $("#settings_usb_transfer_copy_new_mode_button").addClass("button-selected");
+                $("#settings_usb_transfer_copy_all_mode_button").removeClass("button-selected");
+                $("#usb_copy_now_button").val(dictionaryList["copy_now"]);
             } else {
-                $("#settings_usb_transfer_move_mode_button").addClass("button-selected");
-                $("#settings_usb_transfer_copy_mode_button").removeClass("button-selected");
-                $("#usb_copy_move_now_button").val(dictionaryList["move_now"]);
+                $("#settings_usb_transfer_copy_all_mode_button").addClass("button-selected");
+                $("#settings_usb_transfer_copy_new_mode_button").removeClass("button-selected");
+                $("#usb_copy_now_button").val(dictionaryList["copy_now"]);
             }
         }
     });
-    $("#settings_usb_transfer_copy_mode_button").click(function() {
+    $("#settings_usb_transfer_copy_new_mode_button").click(function() {
         $("#settings_usb_transfer_mode").val("copy");
         $("#usb_after_transfer_form").submit();
     });
-    $("#settings_usb_transfer_move_mode_button").click(function() {
-        $("#settings_usb_transfer_mode").val("move");
+    $("#settings_usb_transfer_copy_all_mode_button").click(function() {
+        $("#settings_usb_transfer_mode").val("copy_all");
         $("#usb_after_transfer_form").submit();
     });
     $("#usb_automatic_transfer_form").restForm({
@@ -40913,7 +40975,7 @@ $(document).ready(function() {
         },
         "processFormErrorCallback": function(request, status, error) {
             hideLoading();
-            $("#usb_copy_move_now_button").removeClass("ui-state-disabled");
+            $("#usb_copy_now_button").removeClass("ui-state-disabled");
             $("#usb_transfer_now").restForm("processFormError", request, status, error);
         },
         "hideProcessingCallback": function() {}
@@ -40941,7 +41003,7 @@ $(document).ready(function() {
                     for (var i in data.jobs.job) {
                         var status = data.jobs.job[i].status.toLowerCase();
                         if (status == "running" || status == "waiting") {
-                        	$("#copy_move_now_button").addClass("ui-state-disabled");
+                        	$("#copy_now_button").addClass("ui-state-disabled");
                         	usbrunning = true;
                         	updateUSBTransferProgress(data.jobs.job[i]);
                             if ($("#usb_media_transfer").is(":visible")) {
@@ -40952,12 +41014,12 @@ $(document).ready(function() {
 		                    	currentUSBCopyMoveDevice++;
 								if (typeof usbData[currentUSBCopyMoveDevice] !== "undefined" && 
 									usbData[currentUSBCopyMoveDevice].shareName != "") {
-									$("#usb_copy_move_now_button").submit();
+									$("#usb_copy_now_button").submit();
 								}
 								else{
 	                                usbJobCompletedFlag = true;
-	                                $("#usb_copy_move_now_button").removeClass("ui-state-disabled");
-	                                $("#copy_move_now_button").removeClass("ui-state-disabled");
+	                                $("#usb_copy_now_button").removeClass("ui-state-disabled");
+	                                $("#copy_now_button").removeClass("ui-state-disabled");
 	                                var complete_work = 0;
 	                                if (data.jobs.job[i].complete_work != null  && data.jobs.job[i].complete_work != "") {
 	                                    complete_work = parseInt(data.jobs.job[i].complete_work);
@@ -40975,7 +41037,7 @@ $(document).ready(function() {
                             else {
                                	if (status == "canceled") {
                                 	$("#cancel_usb_transfer_button").click();
-                                	$("#copy_move_now_button").removeClass("ui-state-disabled");
+                                	$("#copy_now_button").removeClass("ui-state-disabled");
         						}
                                 $("#usb_transfer_in_progress_container").hide();
                                 usbJobInProgress = false;
@@ -41076,14 +41138,14 @@ $(document).ready(function() {
     $("#importing_usb_content_dialog_ok_button").click(function() {
         $("#importing_usb_content_dialog").dialog("close");
     });
-    $("#usb_copy_move_now_button").click(function() {
+    $("#usb_copy_now_button").click(function() {
         var r = $.Deferred();
  		//updateCountHandler.startPolling();
  			if (typeof usbData[currentUSBCopyMoveDevice] !== "undefined") {
 	            if (usbData[currentUSBCopyMoveDevice].shareName === "") {
 	                showError("no_usb_error")
 	            } else {
-	                $("#usb_copy_move_now_button").submit()
+	                $("#usb_copy_now_button").submit()
 	            }
 	        } else {
 	            showError("no_usb_error")
@@ -41101,13 +41163,15 @@ $(document).ready(function() {
     initUSB();
 });
 function showUsbTransferFailed(data) {
-    if (data.error_code != null  && data.error_code != "") {
-        showError("get_jobs_" + data.error_code);
-    } else {
-        if (data.error_message != null  && data.error_message != "") {
-            showError("", data.error_message);
+    if(data.error_code != 500) {
+        if (data.error_code != null  && data.error_code != "") {
+            showError("get_jobs_" + data.error_code);
         } else {
-            showError("get_jobs_unk");
+            if (data.error_message != null  && data.error_message != "") {
+                showError("", data.error_message);
+            } else {
+                showError("get_jobs_unk");
+            }
         }
     }
 }
@@ -41208,7 +41272,7 @@ function checkUSBTransferStarted() {
         "complete": function(jqXHR, textStatus) {
             if (status != "waiting") {
                 hideLoading();
-                $("#usb_copy_move_now_button").removeClass("ui-state-disabled");
+                $("#usb_copy_now_button").removeClass("ui-state-disabled");
             }
         }
     });
@@ -41335,33 +41399,33 @@ $(document).ready(function() {
         "useStubs": false,
         "refreshDataCallback": function(data) {
             if (data.storage_transfer.sdcard.transfer_mode == "copy") {
-                $("#settings_sdcard_transfer_copy_mode_button").addClass("button-selected");
-                $("#settings_sdcard_transfer_move_mode_button").removeClass("button-selected");
-                $("#copy_move_now_button").val(dictionaryList["copy_now"]);
+                $("#settings_sdcard_transfer_copy_new_mode_button").addClass("button-selected");
+                $("#settings_sdcard_transfer_copy_all_mode_button").removeClass("button-selected");
+                $("#copy_now_button").val(dictionaryList["copy_now"]);
             } else {
-                $("#settings_sdcard_transfer_move_mode_button").addClass("button-selected");
-                $("#settings_sdcard_transfer_copy_mode_button").removeClass("button-selected");
-                $("#copy_move_now_button").val(dictionaryList["move_now"]);
+                $("#settings_sdcard_transfer_copy_all_mode_button").addClass("button-selected");
+                $("#settings_sdcard_transfer_copy_new_mode_button").removeClass("button-selected");
+                $("#copy_now_button").val(dictionaryList["copy_now"]);
             }
         },
         "processFormSuccessCallback": function(data) {
             if ($("#settings_sdcard_transfer_mode").val() == "copy") {
-                $("#settings_sdcard_transfer_copy_mode_button").addClass("button-selected");
-                $("#settings_sdcard_transfer_move_mode_button").removeClass("button-selected");
-                $("#copy_move_now_button").val(dictionaryList["copy_now"]);
+                $("#settings_sdcard_transfer_copy_new_mode_button").addClass("button-selected");
+                $("#settings_sdcard_transfer_copy_all_mode_button").removeClass("button-selected");
+                $("#copy_now_button").val(dictionaryList["copy_now"]);
             } else {
-                $("#settings_sdcard_transfer_move_mode_button").addClass("button-selected");
-                $("#settings_sdcard_transfer_copy_mode_button").removeClass("button-selected");
-                $("#copy_move_now_button").val(dictionaryList["move_now"]);
+                $("#settings_sdcard_transfer_copy_all_mode_button").addClass("button-selected");
+                $("#settings_sdcard_transfer_copy_new_mode_button").removeClass("button-selected");
+                $("#copy_now_button").val(dictionaryList["copy_now"]);
             }
         }
     });
-    $("#settings_sdcard_transfer_copy_mode_button").click(function() {
+    $("#settings_sdcard_transfer_copy_new_mode_button").click(function() {
         $("#settings_sdcard_transfer_mode").val("copy");
         $("#sdcard_after_transfer_form").submit();
     });
-    $("#settings_sdcard_transfer_move_mode_button").click(function() {
-        $("#settings_sdcard_transfer_mode").val("move");
+    $("#settings_sdcard_transfer_copy_all_mode_button").click(function() {
+        $("#settings_sdcard_transfer_mode").val("copy_all");
         $("#sdcard_after_transfer_form").submit();
     });
     $("#sdcard_transfer_now").restForm({
@@ -41381,7 +41445,7 @@ $(document).ready(function() {
         },
         "processFormErrorCallback": function(request, status, error) {
             hideLoading();
-            $("#copy_move_now_button").removeClass("ui-state-disabled");
+            $("#copy_now_button").removeClass("ui-state-disabled");
             $("#sdcard_transfer_now").restForm("processFormError", request, status, error);
         },
         "hideProcessingCallback": function() {}
@@ -41416,7 +41480,7 @@ $(document).ready(function() {
                         var status = data.jobs.job[i].status.toLowerCase();
                         if (status == "running" || status == "waiting") {
                         	sdcardrunning = true;
-                        	$("#usb_copy_move_now_button").addClass("ui-state-disabled");
+                        	$("#usb_copy_now_button").addClass("ui-state-disabled");
                             updateSDCardTransferProgress(data.jobs.job[i]);
                             if ($("#sd_card_media_transfer").is(":visible")) {
                                 setTimeout(checkSDCardTransferProgress, 5000);
@@ -41429,7 +41493,7 @@ $(document).ready(function() {
 									$("#sdcard_transfer_now").submit();
 								}
 								else { 
-	                            	$("#usb_copy_move_now_button").removeClass("ui-state-disabled");
+	                            	$("#usb_copy_now_button").removeClass("ui-state-disabled");
 	                                sdJobCompletedFlag = true;
 	                                var complete_work = 0;
 	                                if (data.jobs.job[i].complete_work != null  && data.jobs.job[i].complete_work != "") {
@@ -41447,7 +41511,7 @@ $(document).ready(function() {
                             } else {
                             	if (status == "canceled") {
             						$("#cancel_sdcard_transfer_button").click();
-            						$("#usb_copy_move_now_button").removeClass("ui-state-disabled");
+            						$("#usb_copy_now_button").removeClass("ui-state-disabled");
         						}
                                 $("#sdcard_transfer_in_progress_container").hide();
                                 sdcardJobInProgress = false;
@@ -41559,7 +41623,7 @@ $(document).ready(function() {
     $("#importing_sdcard_content_dialog_ok_button").click(function() {
         $("#importing_sdcard_content_dialog").dialog("close");
     });
-    $("#copy_move_now_button").click(function() {
+    $("#copy_now_button").click(function() {
         var r = $.Deferred();
  		//updateCountHandler.startPolling();
 			if (typeof sdcardData[currentSDCopyMoveDevice] !== "undefined") {
@@ -41661,19 +41725,21 @@ function checkSDCardTransferStarted() {
         "complete": function(jqXHR, textStatus) {
             if (status != "waiting") {
                 hideLoading();
-                $("#copy_move_now_button").removeClass("ui-state-disabled");
+                $("#copy_now_button").removeClass("ui-state-disabled");
             }
         }
     });
 }
 function showSDCardTransferFailed(data) {
-    if (data.error_code != null  && data.error_code != "") {
-        showError("get_jobs_" + data.error_code);
-    } else {
-        if (data.error_message != null  && data.error_message != "") {
-            showError("", data.error_message);
+    if(data.error_code != 500) {
+        if (data.error_code != null  && data.error_code != "") {
+            showError("get_jobs_" + data.error_code);
         } else {
-            showError("get_jobs_unk");
+            if (data.error_message != null  && data.error_message != "") {
+                showError("", data.error_message);
+            } else {
+                showError("get_jobs_unk");
+            }
         }
     }
 }

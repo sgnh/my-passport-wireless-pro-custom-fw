@@ -1,0 +1,11 @@
+diff -uNr libmtp-1.1.14/src/libmtp.c libmtp-1.1.14-new/src/libmtp.c
+--- libmtp-1.1.14/src/libmtp.c	2017-06-10 22:35:54.000000000 +0800
++++ libmtp-1.1.14-new/src/libmtp.c	2017-11-07 15:30:26.086577181 +0800
+@@ -2099,6 +2099,7 @@
+     add_error_to_errorstack(mtp_device,
+ 			    LIBMTP_ERROR_GENERAL,
+ 			    "Get Storage information failed.");
++    printf("For android phones make sure the screen is unlocked\n");
+     mtp_device->storage = NULL;
+   }
+ 

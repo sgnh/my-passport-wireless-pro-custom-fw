@@ -6,6 +6,7 @@
 case "$1" in
   start)
 	[ "$model" == "My Passport 25AF" ] && HDD_MODEL="My Passport 25AF" && echo "This is Korra HDD"
+	[ "$model" == "My Passport 2601" ] && HDD_MODEL="My Passport 2601" && echo "This is Korra SSD"
 	echo "insmod usfd module..."
 	insmod /lib/modules/3.10.24-rtk-nas/kernel/external/ufsd/jnl.ko
 	insmod /lib/modules/3.10.24-rtk-nas/kernel/external/ufsd/ufsd.ko

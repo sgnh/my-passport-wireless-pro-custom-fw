@@ -1,5 +1,6 @@
 #!/bin/sh
-/usr/local/sbin/sendHWCollect.sh 101 Reboot
+/usr/local/sbin/sendHWCollect.sh 101 Reboot $1
+timeout -t 60 /usr/local/sbin/ejectExternalDevices.sh
 nohup /sbin/queueReboot.sh&
 exit 0
 

@@ -26,6 +26,16 @@ my_umount()
     if grep -qs "^/dev/$1 " /proc/mounts ; then
         umount /dev/$1;
     fi
+    if grep -qs "^/dev/$1 " /proc/mounts ; then
+        sleep 1
+        echo "${PPID} my_umount $1 retry 1" >> /tmp/automount.log
+        umount -l /dev/$1;
+    fi
+    if grep -qs "^/dev/$1 " /proc/mounts ; then
+        sleep 1
+	echo "${PPID} my_umount $1 retry 2" >> /tmp/automount.log
+        umount -l /dev/$1;
+    fi
     [ -d "${destdir}/${mount_point}" ] && umount -f "${destdir}/${mount_point}" && rmdir "${destdir}/${mount_point}"
 
     if [ ! -d "${destdir}/${mount_point}" ]; then
@@ -48,6 +58,19 @@ my_umount()
 my_mount()
 {
     echo "$dev SD:$SDdev HD:$HDDdev"
+    timeoffset=`cat /etc/timezone_offset`
+    if [ "$timeoffset" == "" ]; then
+        timeoffset=-8
+    fi
+
+
+    if [ "${timeoffset}" != "" ];then
+        timeoffset_min=`dc ${timeoffset} 60 mul p`
+        timeoffset_min_exfat=`dc ${timeoffset} -60 mul p`
+    else
+        timeoffset_min=-480
+        timeoffset_min_exfat=480
+    fi
     mount_point=`blkid /dev/$1 | sed -n 's/.*UUID="\([^"]*\)".*/\1/p'`
     if [ "${mount_point}" == "" ]; then
         mount_point=`blkid /dev/$1 | sed -n 's/.*UUID="\([^"]*\)".*/\1/p'`
@@ -71,7 +94,7 @@ my_mount()
        if [ $isMounted -eq 0 ]; then
            isDirty=`fsck.fat -n "/dev/$1" | grep "Dirty bit is set"  | wc -l`
        fi
-       if ! mount -t auto -o async -o utf8=1 "/dev/$1" "${destdir}/$mount_point"; then
+       if ! mount -t auto -o async,utf8=1,noatime,nodiratime,time_offset=${timeoffset_min} "/dev/$1" "${destdir}/$mount_point"; then
            rmdir "${destdir}/${mount_point}"
            /sbin/StorageAlert.sh ${mount_point} ${devstr} ${dev} &
            echo "43;0" > /tmp/MCU_Cmd
@@ -86,12 +109,23 @@ my_mount()
        if [ $isMounted -eq 0 ]; then
            isDirty=`blkid /dev/$1 | grep DIRTY | wc -l`
        fi
-       if ! mount -t ufsd -o trace=off,async,force,fmask=0000,dmask=0000 "/dev/$1" "${destdir}/$mount_point"; then
-            # failed to mount, clean up mountpoint
-            rmdir "${destdir}/${mount_point}" 2>&1 > /dev/null
-            /sbin/StorageAlert.sh ${mount_point} ${devstr} ${dev} &
-            echo "43;0" > /tmp/MCU_Cmd
-            exit 1
+       isExFat=`blkid /dev/$1 | grep exfat | wc -l`
+       if [ $isExFat -eq 1 ]; then
+           if ! mount -t ufsd -o trace=off,async,force,fmask=0000,dmask=0000,bias=${timeoffset_min_exfat} "/dev/$1" "${destdir}/$mount_point"; then
+               # failed to mount, clean up mountpoint
+               rmdir "${destdir}/${mount_point}" 2>&1 > /dev/null
+               /sbin/StorageAlert.sh ${mount_point} ${devstr} ${dev} &
+               echo "43;0" > /tmp/MCU_Cmd
+               exit 1
+           fi
+       else
+           if ! mount -t ufsd -o trace=off,async,force,fmask=0000,dmask=0000 "/dev/$1" "${destdir}/$mount_point"; then
+               # failed to mount, clean up mountpoint
+               rmdir "${destdir}/${mount_point}" 2>&1 > /dev/null
+               /sbin/StorageAlert.sh ${mount_point} ${devstr} ${dev} &
+               echo "43;0" > /tmp/MCU_Cmd
+               exit 1
+           fi
        fi
        echo "18;2;" > /tmp/MCU_Cmd
     fi
@@ -135,7 +169,7 @@ my_mount()
         echo "/dev/${SDdev}" > /tmp/SDDevNode
     	fi
     fi
-    echo 4096 > /sys/devices/virtual/bdi/179\:0/read_ahead_kb
+    echo 4096 > /sys/block/mmcblk0/bdi/read_ahead_kb
     /sbin/addDevice.sh SDcard $1 ${destdir}/${mount_point} ${fstype}
 }
 
@@ -156,7 +190,7 @@ add|"")
         exit 1
     fi
     echo "SD ADD event of $1"
-    isGPT=`blkid /dev/$1 | grep EFI | wc -l`
+    isGPT=`blkid /dev/$1 | grep -i "efi system" | wc -l`
     if [ ${isGPT} -eq 1 ]; then
           echo "***GPT found, ignore $1***"
           exit 1

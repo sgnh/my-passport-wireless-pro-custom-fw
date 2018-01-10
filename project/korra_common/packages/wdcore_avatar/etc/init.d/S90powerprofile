@@ -6,6 +6,7 @@ source /etc/power.conf
 
 RETVAL=0
 ACMode=`cat /tmp/battery | cut -d " " -f 1`
+BatteryLevel=`cat /tmp/battery | cut -d " " -f 2`
 CacheMode=
 
 check_CacheMod(){
@@ -80,7 +81,7 @@ start() {
 			model=`cat "$diskvolume/model"`
 			echo "path:${diskvolume} vendor:${vendor} model:${model}"
 			[ "$model" == "My Passport 25AF" ] && HDD_MODEL="My Passport 25AF"
-			[ "$model" == "My Passport 25BE" ] && HDD_MODEL="My Passport 25BE"
+			[ "$model" == "My Passport 2601" ] && HDD_MODEL="My Passport 2601"
 			if [ "$vendor" == "WD" ] && [ "$model" == "$HDD_MODEL" ]; then
 				suspend_path=$diskvolume
 				echo "HDD path ${suspend_path}"
@@ -100,7 +101,7 @@ start() {
 			fi
 		fi
 	done
-	/usr/local/sbin/sendHWCollect.sh 104 ${ACMode}
+	/usr/local/sbin/sendHWCollect.sh 104 ${ACMode} ${BatteryLevel}
 	echo "done"
 }	
 

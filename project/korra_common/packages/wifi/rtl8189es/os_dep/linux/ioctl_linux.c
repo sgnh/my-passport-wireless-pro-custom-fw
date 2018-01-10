@@ -1559,6 +1559,9 @@ _func_enter_;
 						}
 						padapter->securitypriv.binstallGrpkey = _TRUE;	
 						//DEBUG_ERR((" param->u.crypt.key_len=%d\n", param->u.crypt.key_len));
+						if (param->u.crypt.idx < 4) {
+							_rtw_memcpy(padapter->securitypriv.iv_seq[param->u.crypt.idx], param->u.crypt.seq, 8);							
+						}
 						DBG_871X(" ~~~~set sta key:groupkey\n");
 	
 						padapter->securitypriv.dot118021XGrpKeyid = param->u.crypt.idx;

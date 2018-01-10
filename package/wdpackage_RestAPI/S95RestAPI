@@ -13,8 +13,9 @@ start() {
 		fi
 	fi
 	if [ ! -f /tmp/HDSerial ]; then
-		HDSerial=`hdparm -I \`cat /tmp/HDDDevNode\` | sed -n -e 's/.*Serial Number:\(.*\)/\1/p' | sed -e 's/^[ \t]*//' | awk '{gsub("WD-","",$0); print $0}'`
-		echo "$HDSerial" > /tmp/HDSerial
+		HDSerial_temp=`hdparm -I \`cat /tmp/HDDDevNode\` | sed -n -e 's/.*Serial Number:\(.*\)/\1/p' | sed -e 's/^[ \t]*//' | awk '{gsub("WD-","",$0); print $0}'`
+		HDSerial=${HDSerial_temp// /}
+		echo "${HDSerial}" > /tmp/HDSerial
 	else
 		HDSerial=`cat /tmp/HDSerial`
 	fi
@@ -147,12 +148,6 @@ start() {
 
 stop() {
 	killall monitor
-#	if [ ! -f /tmp/HDSerial ]; then
-#		HDSerial=`hdparm -I \`cat /tmp/HDDDevNode\` | sed -n -e 's/.*Serial Number:\(.*\)/\1/p' | sed -e 's/^[ \t]*//' | awk '{gsub("WD-","",$0); print $0}'`
-#		echo "$HDSerial" > /tmp/HDSerial
-#	else
-#		HDSerial=`cat /tmp/HDSerial`
-#	fi
 	mountdevices=`find /tmp/ -name "*-info"`
 	for device in ${mountdevices} ; do
 		VolumeUUID=`cat ${device} | cut -f 2 -d ':'`

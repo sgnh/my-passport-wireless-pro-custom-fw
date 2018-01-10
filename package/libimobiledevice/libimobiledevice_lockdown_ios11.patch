@@ -1,0 +1,76 @@
+diff -uNr libimobiledevice-1.2.0/src/idevice.c libimobiledevice-1.2.0-new/src/idevice.c
+--- libimobiledevice-1.2.0/src/idevice.c	2015-01-28 09:10:32.000000000 +0800
++++ libimobiledevice-1.2.0-new/src/idevice.c	2017-10-17 18:45:37.896203213 +0800
+@@ -236,6 +236,7 @@
+ 		dev->udid = strdup(muxdev.udid);
+ 		dev->conn_type = CONNECTION_USBMUXD;
+ 		dev->conn_data = (void*)(long)muxdev.handle;
++		dev->version = 0;
+ 		*device = dev;
+ 		return IDEVICE_E_SUCCESS;
+ 	}
+diff -uNr libimobiledevice-1.2.0/src/idevice.h libimobiledevice-1.2.0-new/src/idevice.h
+--- libimobiledevice-1.2.0/src/idevice.h	2015-01-28 09:10:32.000000000 +0800
++++ libimobiledevice-1.2.0-new/src/idevice.h	2017-10-17 18:46:09.904611724 +0800
+@@ -76,6 +76,7 @@
+ 	char *udid;
+ 	enum connection_type conn_type;
+ 	void *conn_data;
++	int version;
+ };
+ 
+ #endif
+diff -uNr libimobiledevice-1.2.0/src/lockdown.c libimobiledevice-1.2.0-new/src/lockdown.c
+--- libimobiledevice-1.2.0/src/lockdown.c	2015-01-28 09:10:32.000000000 +0800
++++ libimobiledevice-1.2.0-new/src/lockdown.c	2017-10-17 18:48:46.529942836 +0800
+@@ -688,6 +688,19 @@
+ 	}
+ 	free(type);
+ 
++	if (device->version == 0) {
++		plist_t p_version = NULL;
++		if (lockdownd_get_value(client_loc, NULL, "ProductVersion", &p_version) == LOCKDOWN_E_SUCCESS) {
++			int vers[3] = {0, 0, 0};
++			char *s_version = NULL;
++			plist_get_string_val(p_version, &s_version);
++			if (s_version && sscanf(s_version, "%d.%d.%d", &vers[0], &vers[1], &vers[2]) >= 2) {
++				device->version = ((vers[0] & 0xFF) << 16) | ((vers[1] & 0xFF) << 8) | (vers[2] & 0xFF);
++			}
++			free(s_version);
++		}
++	}
++
+ 	userpref_read_pair_record(client_loc->udid, &pair_record);
+ 	if (pair_record) {
+ 		pair_record_get_host_id(pair_record, &host_id);
+@@ -704,18 +717,18 @@
+ 	plist_free(pair_record);
+ 	pair_record = NULL;
+ 
+-	/* in any case, we need to validate pairing to receive trusted host status */
+-	ret = lockdownd_validate_pair(client_loc, NULL);
+-
+-	/* if not paired yet, let's do it now */
+-	if (LOCKDOWN_E_INVALID_HOST_ID == ret) {
+-		free(host_id);
+-		host_id = NULL;
+-		ret = lockdownd_pair(client_loc, NULL);
+-		if (LOCKDOWN_E_SUCCESS == ret) {
+-			ret = lockdownd_validate_pair(client_loc, NULL);
+-		} else if (LOCKDOWN_E_PAIRING_DIALOG_RESPONSE_PENDING == ret) {
+-			debug_info("Device shows the pairing dialog.");
++	if (device->version < 0x070000) {
++		/* for older devices, we need to validate pairing to receive trusted host status */
++		ret = lockdownd_validate_pair(client_loc, NULL);
++
++		/* if not paired yet, let's do it now */
++		if (LOCKDOWN_E_INVALID_HOST_ID == ret) {
++			free(host_id);
++			host_id = NULL;
++			ret = lockdownd_pair(client_loc, NULL);
++			if (LOCKDOWN_E_SUCCESS == ret) {
++				ret = lockdownd_validate_pair(client_loc, NULL);
++			}
+ 		}
+ 	}
+ 

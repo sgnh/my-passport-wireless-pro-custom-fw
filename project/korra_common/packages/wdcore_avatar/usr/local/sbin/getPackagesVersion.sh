@@ -28,11 +28,11 @@ fi
 if [ ! -f /etc/installed_packages/${packageName} ]; then
 # Comment this command because of restapi doesn't want it
 	echo "notfound"
-	exit 1
+	exit 0
 fi
 
 cat /etc/installed_packages/${packageName}|cut -d ":" -f 2
-
+exit 0
 #---------------------
 # End Script
 #---------------------

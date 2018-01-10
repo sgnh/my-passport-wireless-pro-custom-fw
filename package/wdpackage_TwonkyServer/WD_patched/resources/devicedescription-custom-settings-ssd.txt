@@ -1,0 +1,23 @@
+#MANUFACTURER#Western Digital Corporation
+#MANUFACTURERURL#http://www.wdc.com
+#MODELNAME#My Passport Wireless SSD
+#MODELURL#http://products.wdc.com/mypassportwirelessssd
+#MODELDESCRIPTION#Wi-Fi Mobile Storage
+#MODELNUMBER#IN-0030
+//SERIALNUMBER#as default will be the version number of TMS, please remove comment and set custom number if needed
+#PVEXTENSION#
+#TMS_PNPX_X_HARDWAREWID#VEN_011A&amp;DEV_0409&amp;REV_01
+#TMS_PNPX_X_COMPATIBLEID#MS_DigitalMediaDeviceClass_DMS_V001
+#TMS_PNPX_X_DEVICECATEGORY#MediaDevices
+#TMS_DFX_X_DEVICECATEGORY#Multimedia.DMS
+#TMS_DFX_MODELID#{26A8531F-3C8C-4A3A-9772-FBF5EABB3DCA}
+#TMS_PNPX_X_CONTAINERID#{F16F7FDD-7991-472A-828C-51096CA526CF}
+
+// Notes:
+// The character encoding of this file is expected to be UTF-8
+//
+// Remember these values are inserted into an XML document;
+// special characters must be appropriately coded as entity references.
+//
+// TMS_DFX_MODELID and TMS_PNPX_X_CONTAINERID are optional, and can be left empty.
+// In that case they are removed from the document (empty tag is not added)

@@ -8,7 +8,23 @@ fi
 
 DEV=$(cat /tmp/HDDDevNode);
 STR=$(smartctl -a -d sat $DEV | grep 'User Capacity' | cut -d '[' -f2 | cut -d ' ' -f1 | cut -d '.' -f1);
-	
+
+isSSD=`hdparm -I ${DEV} | grep "Solid State Device" | wc -l`
+
+isWD20SPZX=`hdparm -I ${DEV} | grep "WD20SPZX" | wc -l`
+
+if [ $isSSD -eq 1 ]; then
+    echo 20;
+    echo 20 > /tmp/HDDCapacity
+    exit 0
+fi
+
+if [ $isWD20SPZX -eq 1 ]; then
+    if [ ! -f /etc/WD20SPZX ]; then
+        touch /etc/WD20SPZX
+    fi
+fi
+
 if [ "$STR" == "500" ]; then
     echo 0;
     echo 0 > /tmp/HDDCapacity

@@ -31,7 +31,7 @@ Change_BatteryPerformance()
 {
     DEBUG echo "Change to BatteryPerformance"
     cpu1=`cat /sys/bus/cpu/devices/cpu1/online`
-    /usr/local/sbin/setcpu.sh 1 500000
+    /usr/local/sbin/setcpu.sh 2 500000
 }
 
 if [ ! -f /tmp/BatteryHDDTempWarning ]; then
@@ -41,7 +41,7 @@ if [ ! -f /tmp/BatteryHDDTempWarning ]; then
             DEBUG echo "Over Heat: Battery $1, SMART $2, Shutdown System...."
             /usr/local/sbin/sendAlert.sh 0006
             /usr/local/sbin/sendHWCollect.sh 103 Over $1 $2 ${powerprofile}
-            halt
+            halt TempOver
             exit 0
         fi
         if [ "$1" -gt "${BatteryTemp2}" ] || [ "$2" -gt "${HDDTemp2}" ]; then
@@ -69,7 +69,7 @@ if [ ! -f /tmp/BatteryHDDTempWarning ]; then
             DEBUG echo "Over Heat: Battery $1, SMART $2, Shutdown System...."
             /usr/local/sbin/sendAlert.sh 0006
             /usr/local/sbin/sendHWCollect.sh 103 Over $1 $2 ${powerprofile}
-            halt
+            halt TempOver
             exit 0
         fi
         DEBUG echo "BatteryLife:Status: Normal"
@@ -112,7 +112,7 @@ else
                 DEBUG echo "Performance:Status: BT2 and HT2 -> BT3 and HT3"
                 /usr/local/sbin/sendAlert.sh 0006
                 /usr/local/sbin/sendHWCollect.sh 103 Over $1 $2 ${powerprofile}
-                halt
+                halt TempOver
                 exit 0
             fi
             DEBUG echo "Performance:Status: BT2 and HT2"
@@ -124,7 +124,7 @@ else
             DEBUG echo "Over Heat: Battery $1, SMART $2, Shutdown System...."
             /usr/local/sbin/sendAlert.sh 0006
             /usr/local/sbin/sendHWCollect.sh 103 Over $1 $2 ${powerprofile}
-            halt
+            halt TempOver
             exit 0
         fi
         DEBUG echo "BatteryLife:Status: Normal (Previous with Performance:Status:HDDTempWarning)"

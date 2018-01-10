@@ -4,7 +4,7 @@
 #
 ###########################################################
 
-LIBMTP_VERSION = 1.1.12
+LIBMTP_VERSION = 1.1.14
 LIBMTP_SITE = http://sourceforge.net/projects/libmtp/files/latest/download
 LIBMTP_SOURCE = libmtp-$(LIBMTP_VERSION).tar.gz 
 LIBMTP_DIR = $(BUILD_DIR)/libmtp-$(LIBMTP_VERSION)

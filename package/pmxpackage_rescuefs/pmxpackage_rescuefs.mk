@@ -2,6 +2,7 @@ PMXPACKAGE_RESCUEFS_VERSION = 1.00.12
 PMXPACKAGE_RESCUEFS_RELEASE_DATE = 2016-01-06
 PMXPACKAGE_RESCUEFS_SITE_METHOD = local
 PMXPACKAGE_RESCUEFS_SITE = $(TOPDIR)/project/prjPackages/rescuefs
+PMXPACKAGE_RESCUEFS_DEPENDENCIES = linux
 
 define PMXPACKAGE_RESCUEFS_EXTRACT_CMDS
 	cp -Ra $(DL_DIR)/$(PMXPACKAGE_RESCUEFS_SOURCE)/* $(@D)
@@ -39,8 +40,25 @@ define PMXPACKAGE_RESCUEFS_INSTALL_TARGET_CMDS
 		$(TARGET_DIR)/usr/local/sbin/sendHWCollect.sh
 		@rm -f $(TARGET_DIR)/etc/init.d/S10mdev
 		@rm -f $(TARGET_DIR)/etc/init.d/S40network
+		mkdir -p $(TARGET_DIR)/lib/modules/$(LINUX_VERSION_PROBED)/kernel/external/ufsd
+		cp -a package/pmxpackage_rescuefs/ufsd/jnl.ko $(TARGET_DIR)/lib/modules/$(LINUX_VERSION_PROBED)/kernel/external/ufsd/
+		cp -a package/pmxpackage_rescuefs/ufsd/ufsd.ko $(TARGET_DIR)/lib/modules/$(LINUX_VERSION_PROBED)/kernel/external/ufsd/
+		$(MAKE) -C $(LINUX_DIR) $(LINUX_MAKE_FLAGS) M=$(TOPDIR)/package/pmxpackage_rescuefs/ufsd \
+			INSTALL_MOD_STRIP=1 INSTALL_MOD_DIR=/kernel/external/ufsd \
+			modules_install
+		$(INSTALL) -m 0755 -D $(WDPACKAGE_BASIC_SITE)/etc/init.d/S09paragonfs \
+			$(TARGET_DIR)/etc/init.d/S09paragonfs
 
 endef
+ifeq ($(BR2_PACKAGE_PMXPACKAGE_RESCUEFS_MASTERDRIVE),y)
+define PMXPACKAGE_RESCUEFS_MASTERDRIVE
+	$(INSTALL) -D -m 755 $(@D)/sbin/loadFWVer \
+	$(TARGET_DIR)/sbin/loadFWVer
+	$(INSTALL) -D -m 755 $(@D)/sbin/MasterHDDSetting \
+	$(TARGET_DIR)/sbin/MasterHDDSetting
+endef
+PMXPACKAGE_RESCUEFS_POST_INSTALL_TARGET_HOOKS += PMXPACKAGE_RESCUEFS_MASTERDRIVE
+endif
 
 define PMXPACKAGE_RESCUEFS_UNINSTALL_TARGET_CMDS
 	rm -f $(TARGET_DIR)/sbin/automount.sh

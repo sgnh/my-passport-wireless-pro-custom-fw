@@ -4,7 +4,7 @@
 #
 #############################################################
 
-PARAGON_TOOLS_VERSION = k3.2.0_2013-10-15_lke_9.2.0_r249539_b3
+PARAGON_TOOLS_VERSION = k3.10.24_2014-10-29_lke_9.4.4_b2
 PARAGON_TOOLS_SOURCE = ufsd_utilites_Build_for__WD_Passport_wireless_$(PARAGON_TOOLS_VERSION).tar.gz
 
 define PARAGON_TOOLS_EXTRACT_CMDS

@@ -33,7 +33,7 @@ mv /tmp/contentdir ${contentdir}
 encoded_contentdir=`cat ${contentdir} | urlEncode.sh`
 
 # get contentdir set option from Twonky
-curl "http://${TWONKY_IP}/rpc/set_option?contentdir=${encoded_contentdir}" > /tmp/contentdir 2>/dev/null
+timeout -t 5 curl "http://${TWONKY_IP}/rpc/set_option?contentdir=${encoded_contentdir}" > /tmp/contentdir 2>/dev/null
 if [ $? == 1 ]; then
 	echo "Failed twonky get"
 	exit 1

@@ -25,7 +25,8 @@ case "$1" in
     
     [ ! -f /etc/nas/config/wifinetwork-param.conf ] && cp -a /etc/nas/config/wifinetwork-param.conf.korra /etc/nas/config/wifinetwork-param.conf
       ln -s /etc/nas/config/wifinetwork-param.default.conf.korra /etc/nas/config/wifinetwork-param.default.conf
-    /bin/mcu_daemon & > /dev/null 2>&1
+    #/bin/mcu_daemon & > /dev/null 2>&1
+    start-stop-daemon -S -q -b -N -5 --exec /bin/mcu_daemon
     setserial /dev/ttyS1 low_latency
     ln -sf /tmp /var/tmp
     rm -f /var/lock
@@ -61,10 +62,24 @@ case "$1" in
     fi
     touch /tmp/HybridEnabled
     if [ ! -f /etc/HDSerial ]; then
-        HDSerial=`hdparm -I /dev/sda | sed -n -e 's/.*Serial Number:\(.*\)/\1/p' | sed -e 's/^[ \t]*//' | awk '{gsub("WD-","",$0); print $0}'`
-        echo "$HDSerial" > /etc/HDSerial
+        HDSerial_temp=`hdparm -I /dev/sda | sed -n -e 's/.*Serial Number:\(.*\)/\1/p' | sed -e 's/^[ \t]*//' | awk '{gsub("WD-","",$0); print $0}'`
+        HDSerial=${HDSerial_temp// /}
+        echo "${HDSerial}" > /etc/HDSerial
+    fi
+    if [ ! -f /etc/TRIM_Enable ]; then
+        isTRIM=`hdparm -I /dev/sda | grep TRIM | wc -l`
+        if [ $isTRIM -eq 0 ]; then
+            echo "0" > /etc/TRIM_Enable
+        else
+            echo "1" > /etc/TRIM_Enable
+        fi
     fi
     cp /etc/HDSerial /tmp/HDSerial
+    sysdate=`date +%s`
+    builddate=`cat /etc/version.buildtime`
+    if [ $sysdate -lt $builddate ]; then
+        date +%s @$builddate
+    fi
     echo "OK"
 	;;
   stop)

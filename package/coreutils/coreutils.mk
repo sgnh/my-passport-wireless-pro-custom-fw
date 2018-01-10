@@ -14,7 +14,7 @@ COREUTILS_LICENSE_FILES = COPYING
 COREUTILS_AUTORECONF = YES
 COREUTILS_GETTEXTIZE = YES
 
-COREUTILS_CONF_OPTS = --disable-rpath --enable-single-binary=shebangs --enable-no-install-program=[,base32,base64,basename,cat,chcon,chgrp,chmod,chown,chroot,cksum,comm,csplit,cut,date,dd,df,dir,dircolors,dirname,du,echo,env,expand,expr,factor,false,fmt,fold,groups,head,hostid,id,install,join,link,ln,logname,ls,md5sum,mkdir,mkfifo,mknod,mktemp,nice,nl,nohup,nproc,numfmt,od,paste,pathchk,pinky,pr,printenv,printf,ptx,pwd,readlink,realpath,rm,rmdir,runcon,seq,sha1sum,sha224sum,sha256sum,sha384sum,sha512sum,shred,shuf,sleep,sort,split,stat,stdbuf,stty,sum,sync,tac,tail,tee,test,timeout,touch,tr,true,truncate,tsort,tty,uname,unexpand,uniq,unlink,users,vdir,wc,who,whoami,yes \
+COREUTILS_CONF_OPTS = --disable-rpath --enable-single-binary=shebangs --enable-no-install-program=[,base32,base64,basename,cat,chcon,chgrp,chmod,chown,chroot,cksum,comm,csplit,cut,date,dd,df,dir,dircolors,dirname,echo,env,expand,expr,factor,false,fmt,fold,groups,head,hostid,id,install,join,link,ln,logname,ls,md5sum,mkdir,mkfifo,mknod,mktemp,nice,nl,nohup,nproc,numfmt,od,paste,pathchk,pinky,pr,printenv,printf,ptx,pwd,readlink,realpath,rm,rmdir,runcon,seq,sha1sum,sha224sum,sha256sum,sha384sum,sha512sum,shred,shuf,sleep,sort,split,stat,stdbuf,stty,sum,sync,tac,tail,tee,test,timeout,touch,tr,true,truncate,tsort,tty,uname,unexpand,uniq,unlink,users,vdir,wc,who,whoami,yes \
 	$(if $(BR2_TOOLCHAIN_USES_MUSL),--with-included-regex)
 COREUTILS_CONF_ENV = ac_cv_c_restrict=no \
 	ac_cv_func_chown_works=yes \
@@ -54,7 +54,7 @@ COREUTILS_CONF_ENV = ac_cv_c_restrict=no \
 	PERL=missing \
 	MAKEINFO=true
 
-COREUTILS_BIN_PROGS = cp mv
+COREUTILS_BIN_PROGS = cp mv du
 
 # If both coreutils and busybox are selected, make certain coreutils
 # wins the fight over who gets to have their utils actually installed.

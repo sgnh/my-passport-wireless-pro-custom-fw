@@ -1,0 +1,48 @@
+diff -Nur simple-mtpfs-0.2/src/simple-mtpfs-fuse.cpp simple-mtpfs-0.2-new/src/simple-mtpfs-fuse.cpp
+--- simple-mtpfs-0.2/src/simple-mtpfs-fuse.cpp	2017-12-12 16:09:25.684459669 +0800
++++ simple-mtpfs-0.2-new/src/simple-mtpfs-fuse.cpp	2016-04-13 06:54:54.000000000 +0800
+@@ -161,6 +161,7 @@
+     , m_enable_move(false)
+     , m_list_devices(false)
+     , m_device_no(1)
++    , m_time_offset(0)
+     , m_device_file(nullptr)
+     , m_mount_point(nullptr)
+ {
+@@ -259,6 +260,7 @@
+     static struct fuse_opt smtpfs_opts[] = {
+         SMTPFS_OPT_KEY("enable-move", m_enable_move, 1),
+         SMTPFS_OPT_KEY("--device %i", m_device_no, 0),
++		SMTPFS_OPT_KEY("--time_offset %i", m_time_offset, 0),
+         SMTPFS_OPT_KEY("-l", m_list_devices, 1),
+         SMTPFS_OPT_KEY("--list-devices", m_list_devices, 1),
+         SMTPFS_OPT_KEY("-v", m_verbose, 1),
+@@ -427,7 +429,7 @@
+             buf->st_ino = dir->id();
+             buf->st_mode = S_IFDIR | 0775;
+             buf->st_nlink = 2;
+-            buf->st_mtime = dir->modificationDate();
++            buf->st_mtime = dir->modificationDate() - (m_options.m_time_offset * 60);
+         } else if (content->file(tmp_file)) {
+             const TypeFile *file = content->file(tmp_file);
+             buf->st_ino = file->id();
+@@ -435,7 +437,7 @@
+             buf->st_blocks = (file->size() / 512) + (file->size() % 512 > 0 ? 1 : 0);
+             buf->st_nlink = 1;
+             buf->st_mode = S_IFREG | 0644;
+-            buf->st_mtime = file->modificationDate();
++            buf->st_mtime = file->modificationDate() - (m_options.m_time_offset * 60);
+             buf->st_ctime = buf->st_mtime;
+             buf->st_atime = buf->st_mtime;
+         } else {
+diff -Nur simple-mtpfs-0.2/src/simple-mtpfs-fuse.h simple-mtpfs-0.2-new/src/simple-mtpfs-fuse.h
+--- simple-mtpfs-0.2/src/simple-mtpfs-fuse.h	2017-12-12 18:46:26.327412067 +0800
++++ simple-mtpfs-0.2-new/src/simple-mtpfs-fuse.h	2016-04-13 06:54:54.000000000 +0800
+@@ -41,6 +41,7 @@
+         int m_enable_move;
+         int m_list_devices;
+         int m_device_no;
++        int m_time_offset;
+         char *m_device_file;
+         char *m_mount_point;
+ 

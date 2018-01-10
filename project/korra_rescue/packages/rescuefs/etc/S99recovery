@@ -121,6 +121,7 @@ probe_hdd()
         model=`cat $diskV/device/model`
         #Temp for Korra
         [ "$model" == "My Passport 25AF" ] && HDD_MODEL="My Passport 25AF"
+	[ "$model" == "My Passport 2601" ] && HDD_MODEL="My Passport 2601"
             if [ "$vendor" == "WD" ] && [ "$model" == "$HDD_MODEL" ]; then
                 size=`cat $diskV/size`
                 if [ $size -gt 4194304 ]; then

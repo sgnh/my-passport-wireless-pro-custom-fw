@@ -75,11 +75,11 @@ cleanup_twonky_settings()
 probe_hdd()
 {
     vol=0
-    HDD_MODEL="My Passport 25AF"
     for diskV in /sys/block/sd*; do
         vendor=`cat ${diskV}/device/vendor | awk '{print $1}'`
         model=`cat ${diskV}/device/model`
         [ "${model}" == "My Passport 25AF" ] && HDD_MODEL="My Passport 25AF" && echo "This is Korra HDD"
+        [ "${model}" == "My Passport 2601" ] && HDD_MODEL="My Passport 2601" && echo "This is Korra SSD"
         if [ "${vendor}" == "WD" ] && [ "${model}" == "${HDD_MODEL}" ]; then
             size=`cat ${diskV}/size`
             if [ ${size} -gt 4194304 ]; then

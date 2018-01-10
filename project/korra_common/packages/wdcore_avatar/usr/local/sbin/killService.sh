@@ -17,6 +17,7 @@ case $1 in
 		killall mv
 		killall cp
 		killall convert
+		killall ufraw-batch
 		sync
 		umount /var/ftp/Storage
 		sleep 1
@@ -25,12 +26,19 @@ case $1 in
 		umount /DataVolume
 		sleep 1
 		umount /media/sdb1
+		MountDevNode=`cat /tmp/MountedDevNode`
+		StorageMounted=`mount | grep ${MountDevNode} | wc -l`
+		if [ ${StorageMounted} -ne 0 ]; then
+			umount -l ${MountDevNode}
+			sleep 1
+		fi
 		rm -f /tmp/HDDDevNode
 		timeout -t 120 /usr/local/sbin/ejectExternalDevices.sh
 		result=$?
 		if [ ${result} == "143" ]; then
 			fuser -mk /media/sdb1
 		fi
+
 		;;
 	"network")
 		kill `pidof smbd`;
@@ -49,6 +57,7 @@ case $1 in
 		killall mv
 		killall cp
 		killall convert
+		killall ufraw-batch
 		;;
 	"hddup")
 		/sbin/intlmount.sh

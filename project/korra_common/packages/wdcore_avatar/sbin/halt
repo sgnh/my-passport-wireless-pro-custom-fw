@@ -1,5 +1,6 @@
 #!/bin/sh
-/usr/local/sbin/sendHWCollect.sh 101 Halt
+/usr/local/sbin/sendHWCollect.sh 101 Halt $1
+timeout -t 60 /usr/local/sbin/ejectExternalDevices.sh
 nohup /sbin/queueHalt.sh&
 exit 0
 

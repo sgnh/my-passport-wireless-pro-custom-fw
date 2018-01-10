@@ -12,12 +12,14 @@ PATH=/sbin:/bin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin
 . /etc/nas/config/sdcard-transfer-status.conf
 . /etc/nas/config/usb-transfer-status.conf
 . /etc/system.conf
-source /etc/power.conf
-ACMode=`cat /tmp/battery | cut -d " " -f 1`
+##########QA test performance#########
+backupTest=0
+######################################
 RuningStatus=0
-deepfolder=0
-USB_BACKUP_FOLDER_NAME="USB Imports"
+total_size=0
+USB_BACKUP_ROOT="USB Imports"
 USB_MOUNT=/media/USB
+MTPfolder="/media/USB/DCIM"
 #SYSTEM_SCRIPTS_LOG=${SYSTEM_SCRIPTS_LOG:-"/dev/null"}
 ## Output script log start info
 #{ 
@@ -29,99 +31,6 @@ USB_MOUNT=/media/USB
 #---------------------
 # Begin Script
 #---------------------
-timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-echo $timestampDBG ": USB_StorageTransfer.sh" $@ >> /tmp/backup.log
-
-echo 0 > /tmp/USBStatusError
-echo status=waiting > /tmp/transfer_state
-echo "total_size_in_bytes=1024" > /tmp/transfer_size_total
-echo "transferred_size_in_bytes=0" > /tmp/transfer_size
-echo 0 > /tmp/transferExistSize
-echo 0 > /tmp/transferDoneSize
-
-sharename="${1}"
-backmethod="${2}"
-
-if [ -f "/tmp/detectInterface" ]; then
-	devicefound=`cat /tmp/detectInterface`
-	if [ "${devicefound}" == "MTP" -o "${devicefound}" == "PTP" ]; then
-		if [ ! -d "/media/USB/DCIM" ]; then
-			deepfolderNum=`realpath /media/USB/*/DCIM | wc -l`
-		fi
-	fi
-fi
-
-function finishSdBackup()
-{
-	#/sbin/AdaptCPUfreq.sh endbackup
-	removeTempfile
-	/usr/local/sbin/sendAlert.sh "1610" "${StorageProduct}" "${SerialNum}" &
-	echo "42;100" > /tmp/MCU_Cmd
-	total=`cat /tmp/transfer_size_total | sed -n '1p' | sed -n 's/.*=//p'` 
-	echo "transferred_size_in_bytes=${total}" > /tmp/transfer_size
-	echo "USB_TransferStatus=completed" > /etc/nas/config/usb-transfer-status.conf 
-	sed -i "s/status=.*/status=completed/" /tmp/transfer_state
-	#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-	echo $timestampDBG ": USB_StorageTransfer.sh Completed !" >> /tmp/backup.log
-	/usr/local/sbin/storage_transfer_status.sh > /dev/null 2>&1 &
-	chmod -R 777 "/shares/Storage/USB Imports"
-}
-
-function SD_BackupQueueCheck()
-{
-	SD_backup=`cat /etc/nas/config/sdcard-transfer-status.conf | awk -F= '{print $NF}'`
-	sdstandby=`echo "${SD_backup}" | awk -F: '{print $1}'`
-	#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-	echo $timestampDBG ": USB_StorageTransfer.sh SD_BackupQueueCheck" $usbstandby >> /tmp/backup.log
-	sleep 20
-	if [ "$sdstandby" == "standby" ]; then
-		triggerMode=`echo "${SD_backup}" | awk -F: '{print $2}'`
-		if [ "${triggerMode}" == "Button" ]; then	
-			/sbin/ButtonStorageTransfer.sh SD
-		elif [ "${triggerMode}" == "Auto" ]; then
-			/sbin/SDCard_AutoStorageTransfer.sh
-		else
-			/sbin/ButtonStorageTransfer.sh SD
-		fi
-		echo "TransferStatus=completed" > /etc/nas/config/sdcard-transfer-status.conf
-	elif [ "$sdstandby" == "checkin" ]; then
-		echo "TransferStatus=completed" > /etc/nas/config/sdcard-transfer-status.conf
-		/sbin/ButtonStorageTransfer.sh SD 2>&1 &
-	fi
-}
-
-function ReproduceFileBackup()
-{
-	find "${1}" -name "*_tmparchive" > /tmp/usbArchivePath
-	ArchiveCount=`cat /tmp/usbArchivePath | grep -c _tmparchive`
-	if [ ${ArchiveCount} != 0 ]; then
-   		for  ((i=1; i<=$ArchiveCount; i=i+1))    
-    	do
-    		ArchivePath=`cat /tmp/usbArchivePath | sed -n "${i}p"`
-    		filetimestamp=`stat -c %y "${ArchivePath}" | cut -d "." -f 1`
-    		USBpath="${ArchivePath%/*}"
-    		tmpname=${ArchivePath##*/}
-			oldname=${tmpname%%_tmparchive} 
-			name=${oldname%.*}     
-			havepoint=`echo ${oldname} | grep "\." | wc -l`
-			if [ `echo ${oldname} | grep "\." | wc -l` -eq 0 ]; then
-    			newname="${name}-backup-`date +%Y.%m.%d.%H%M`"
-			else
-				subname=${oldname##*.}                                                                            
-				newname="${name}-backup-`date +%Y.%m.%d.%H%M`.${subname}"
-			fi
-			#Rpathname=`echo $ArchivePath | cut -c ${#CmpDirs}-${#ArchivePath}`
-			#nobackup=${Rpathname%%$tmpname} 
-			#echo "nobackup" "$nobackup"
-			mv "${USBpath}/${tmpname}" "${USBpath}/${newname}"
-			touch --date="${filetimestamp}" "${USBpath}/${newname}"
-			#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-			#echo $timestampDBG ": USB_StorageTransfer.sh ReproduceFileBackup" "${USBpath}/${newname}" >> /tmp/backup.log
-   		done
-   		rm /tmp/usbArchivePath
-	fi
-}
-
 function removeTempfile()
 {
 	if [ -f "/tmp/AllCmpDir" ]; then
@@ -143,18 +52,123 @@ function removeTempfile()
 	if [ -f "/tmp/USB_ButtonProcessing" ]; then
 		rm /tmp/USB_ButtonProcessing
 	fi
+
+	if [ -f "/tmp/RsyncConfliclist" ]; then
+		rm /tmp/RsyncConfliclist
+	fi
 	
+	if [ -f "/tmp/rsyncExcludefile" ]; then
+		rm /tmp/rsyncExcludefile
+	fi
 }
-#timestamp=$(date "+%m-%d-%Y-%H%M")
+
+function finishBackup()
+{
+	removeTempfile
+	/usr/local/sbin/sendAlert.sh "1610" "${StorageProduct}" "${SerialNum}" &
+	echo "42;100" > /tmp/MCU_Cmd
+	echo "USB_TransferStatus=completed" > /etc/nas/config/usb-transfer-status.conf
+	echo $timestampDBG ": USB_StorageTransfer.sh Completed !" >> /tmp/backup.log
+	echo "transferred_size_in_bytes=${total_size}" > /tmp/transfer_size
+	sed -i "s/status=.*/status=completed/" /tmp/transfer_state
+	/usr/local/sbin/storage_transfer_status.sh > /dev/null 2>&1 &
+}
+
+function SD_BackupQueueCheck()
+{
+	SD_status=`cat /etc/nas/config/sdcard-transfer-status.conf | awk -F= '{print $NF}'`
+	echo $timestampDBG ": USB_StorageTransfer.sh SD_BackupQueueCheck SD_status:" $SD_status >> /tmp/backup.log
+	if [ "${SD_status}" != "completed" ]; then
+		sdstandby=`echo "${SD_status}" | awk -F: '{print $1}'`
+		echo $timestampDBG ": USB_StorageTransfer.sh SD_BackupQueueCheck sdstandby:" $sdstandby >> /tmp/backup.log
+		sleep 20
+		echo "TransferStatus=completed" > /etc/nas/config/sdcard-transfer-status.conf
+		if [ "$sdstandby" == "standby" ]; then
+			triggerMode=`echo "${SD_status}" | awk -F: '{print $2}'`
+			if [ "${triggerMode}" == "Button" ]; then	
+				/sbin/ButtonStorageTransfer.sh SD
+			elif [ "${triggerMode}" == "Auto" ]; then
+				/sbin/SDCard_AutoStorageTransfer.sh
+			else
+				/sbin/ButtonStorageTransfer.sh SD
+			fi
+		elif [ "$sdstandby" == "checkin" ]; then
+			/sbin/ButtonStorageTransfer.sh SD 2>&1 &
+		fi
+	fi
+}
+
+function ReproduceFileBackup()
+{
+	find "${1}" -name "*_tmparchive" > /tmp/usbArchivePath
+	ArchiveCount=`cat /tmp/usbArchivePath | grep -c _tmparchive`
+	if [ ${ArchiveCount} != 0 ]; then
+		for  ((i=1; i<=$ArchiveCount; i=i+1))    
+		do
+			ArchivePath=`cat /tmp/usbArchivePath | sed -n "${i}p"`
+			filetimestamp=`stat -c %y "${ArchivePath}" | cut -d "." -f 1`
+			USBpath="${ArchivePath%/*}"
+			tmpname=${ArchivePath##*/}
+			oldname=${tmpname%%_tmparchive} 
+			name=${oldname%.*}     
+			havepoint=`echo ${oldname} | grep "\." | wc -l`
+			if [ `echo ${oldname} | grep "\." | wc -l` -eq 0 ]; then
+    			newname="${name}-backup-`date +%Y.%m.%d.%H%M`"
+			else
+				subname=${oldname##*.}                                                                            
+				newname="${name}-backup-`date +%Y.%m.%d.%H%M`.${subname}"
+			fi
+			#Rpathname=`echo $ArchivePath | cut -c ${#CmpDirs}-${#ArchivePath}`
+			#nobackup=${Rpathname%%$tmpname} 
+			#echo "nobackup" "$nobackup"
+			mv "${USBpath}/${tmpname}" "${USBpath}/${newname}"
+			touch --date="${filetimestamp}" "${USBpath}/${newname}"
+			#echo $timestampDBG ": USB_StorageTransfer.sh ReproduceFileBackup" "${USBpath}/${newname}" >> /tmp/backup.log
+		done
+		rm /tmp/usbArchivePath
+	fi
+}
+
 timeoffset=`cat /etc/timezone_offset`
 if [ "$timeoffset" == "" ]; then
-	timeoffset=0
+	timeoffset=-8
 fi
-timecommand="date "+%Y-%m-%d" -uD '%s' -d "$(( `date -u +%s`+${timeoffset}*60*60 ))""
+
+timeoffset_hour=`echo ${timeoffset} | cut -d '.' -f1`
+timeoffset_min_string=`echo ${timeoffset} | cut -s -d '.' -f2`
+
+if [ "${timeoffset_min_string}" != "" ];then
+	timeoffset_min=`dc .${timeoffset_min_string} 60 mul p`
+else
+	timeoffset_min=0
+fi
+
+if [ ${timeoffset_hour} -lt 0 ]; then
+	timeoffset_string=`printf %03d%02d ${timeoffset_hour} ${timeoffset_min}`
+else
+	timeoffset_string="+"`printf %02d%02d ${timeoffset_hour} ${timeoffset_min}`
+fi
+
+if [ ${timeoffset_string} == "" ]; then
+	timeoffset_string="+0000"
+fi
+
+timeoffset_seconds=`dc ${timeoffset} 60 mul 60 mul p`
+
+timecommand="date "+%Y-%m-%d/T%H.%M.%S${timeoffset_string}" -uD '%s' -d "$(( `date -u +%s`+${timeoffset_seconds} ))""
 timestamp=`eval $timecommand`
-#timestamp=$(date "+%Y-%m-%d")
-timestampYear=$(date "+%Y")
-timestampDate=$(date "+%m.%d")
+timestampDBG="${timestamp}"
+
+echo $timestampDBG ": USB_StorageTransfer.sh" $@ >> /tmp/backup.log
+
+echo status=waiting > /tmp/transfer_state
+echo "total_size_in_bytes=1024" > /tmp/transfer_size_total
+echo "transferred_size_in_bytes=0" > /tmp/transfer_size
+echo 0 > /tmp/transferExistSize
+echo 0 > /tmp/transferDoneSize
+
+sharename="${1}"
+backmethod="${2}"
 
 if [ "$backmethod" == "" ]; then
 	method="${USB_ModeTransfer}"
@@ -163,11 +177,22 @@ else
 fi
 
 
+if [ -f "/tmp/detectInterface" ]; then
+	devicefound=`cat /tmp/detectInterface`
+	if [ "${devicefound}" == "MTP" -o "${devicefound}" == "PTP" ]; then
+		devType="MTP"
+		if [ ! -d "/media/USB/DCIM" ]; then
+			deepfolderNum=`realpath /media/USB/*/DCIM | wc -l`
+		fi
+	fi
+fi
+
 StorageVendor=`cat /tmp/sd*-info | grep "${sharename}" | awk -F: '{print $7}'`
 echo "${StorageVendor}" | grep -q -v '[A-Za-z0-9]'
 if [ $? == 0 ]; then
 	StorageVendor=USB
 fi
+
 StorageProduct=`cat /tmp/sd*-info | grep "${sharename}" | awk -F: '{print $1}' | sed -e 's/\ //g'`
 SerialNum=`cat /tmp/sd*-info | grep "${sharename}" | awk -F: '{print $6}' | cut -d ' ' -f 2 | awk -F_ '{print $1}'`
 len=${#SerialNum}
@@ -179,78 +204,63 @@ fi
 StorageSerial=`echo "${SerialNum}" | cut -c $startword-$len`
 CID="${StorageVendor}"" ${StorageProduct}"" ${StorageSerial}"	
 
-fullCID=$SerialNum
-ImportDIR="/shares/Storage/USB Imports/${timestamp}"
-UsbStorage="/shares/Storage/USB Imports/${timestamp}/${CID}"
+ImportDIR="/shares/Storage/${USB_BACKUP_ROOT}/${timestamp}"
+UsbStorage="/shares/Storage/${USB_BACKUP_ROOT}/${timestamp}/${CID}"
 
 if [ -f "/tmp/runningBackupDst" ]; then
 	rm -rf /tmp/runningBackupDst
 fi
 
-if [ ! -d "/shares/Storage/USB Imports" ]; then
-    mkdir -p "/shares/Storage/USB Imports"
-    chmod -R 777 "/shares/Storage/USB Imports"
+if [ ! -d "/shares/Storage/${USB_BACKUP_ROOT}" ]; then
+	mkdir -p "/shares/Storage/${USB_BACKUP_ROOT}"
+	chmod -R 777 "/shares/Storage/${USB_BACKUP_ROOT}"
 fi
 
-
-if [ "$devicefound" == "MTP" -o "$devicefound" == "PTP" ]; then
+if [ "${devType}" == "MTP" ]; then
 	USB_MOUNT="/media/USB"
+	deepfolderNum=`realpath /media/USB/*/DCIM | wc -l`
 else
 	USB_MOUNT=`cat /tmp/sd*-info | grep "${sharename}" | awk -F: '{print $3}'`
 fi
 dev_node=`cat /tmp/sd*-info | grep "${sharename}" | awk -F: '{print $4}'`
-chknode=`blkid "${dev_node}"`	
 isFAT32=`blkid "${dev_node}" | grep vfat | wc -l`
-
-#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
 #echo $timestampDBG ": USB_StorageTransfer.sh isFAT32" $isFAT32 >> /tmp/backup.log
 
 ModeAuth=`cat /proc/mounts | grep "${USB_MOUNT}" | awk '{print $4}' | awk -F, '{print $1}'`
 if [ "$ModeAuth" == "ro" ]; then
 	ReadOnly=1
 fi
+echo $timestampDBG ": USB_StorageTransfer.sh ReadOnly:" ${ModeAuth} ${ReadOnly} "isFAT32" ${isFAT32} >> /tmp/backup.log
 
-#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-echo $timestampDBG ": USB_StorageTransfer.sh ReadOnly" $ModeAuth $ReadOnly >> /tmp/backup.log
-
-if [ "$devicefound" == "PTP" ]; then
-	if [ "$method" == "move" ]; then
-		method=copy
-		MTP_WrongMethod=1
-		echo "1" > /tmp/USBStatusError
-		ReadOnly=1
-	fi
+if [ "$method" == "move" ]; then
+	method=copy
 fi
 
-if [ "$method" == "move" ] || [ "$method" == "copy" ]; then
+if [ "$method" == "move" ] || [ "$method" == "copy" ] || [ "$method" == "copy_all" ]; then
+	if [ "$method" == "copy_all" ]; then
+		needCompare=0
+	else
+		needCompare=1
+	fi
 	if [ ! -d "${UsbStorage}" ]; then
 		mkdir -p "${UsbStorage}"
-		chmod -R 777 "${ImportDIR}"
-		chmod -R 777 "${UsbStorage}"
 		newCreate=1
 	fi
-	if [ `ps aux | grep rsync | grep "${USB_MOUNT}" | wc -l` -ne 0 ] && [ `cat /etc/nas/config/usb-transfer-status.conf | grep process | wc -l` -ne 0 ]; then
-		rm -rf "${UsbStorage}"
-		killall rsync > /dev/null 2>&1
-		echo "18;0;" > /tmp/MCU_Cmd 
-		removeTempfile
-		#sleep 10
-		SD_BackupQueueCheck
-		echo $timestampDBG ": USB_StorageTransfer.sh wrong process" >> /tmp/backup.log
-		exit 1
-	fi
+fi
 	
-	/usr/local/sbin/storage_transfer_LED_status.sh starting
-	echo "USB_TransferStatus=process" > /etc/nas/config/usb-transfer-status.conf
+/usr/local/sbin/storage_transfer_LED_status.sh starting
+echo "USB_TransferStatus=process" > /etc/nas/config/usb-transfer-status.conf
+/usr/local/sbin/incUpdateCount.pm storage_transfer &
 	
-	/usr/local/sbin/incUpdateCount.pm storage_transfer &
-	
-	if [ "${devicefound}" == "MTP" -o "${devicefound}" == "PTP" ]; then
+retry_size=3
+while [ "${total_size}" == 0 ]
+do
+	if [ "${devType}" == "MTP" ]; then
 		if [ ! -d "/media/USB/DCIM" ]; then
-			deepfolderNum=`realpath /media/USB/*/DCIM | wc -l`
-			total_size=0
-			if [ ${deepfolderNum} -eq 0 ]; then
-				total_size=`rsync -rv "/media/USB" | grep "total size is" | awk '{print $4}' | sed -n 's/,//gp'`
+			if [ "${deepfolderNum}" -eq 0 ]; then
+				#total_size=`rsync -rvn "/media/USB" | grep "total size is" | awk '{print $4}' | sed -n 's/,//gp'`
+				total_size=`/bin/du -s -b "/media/USB" | awk '{print $1}'`
+				#total_size=`expr "${CapacityCal}" \* 1024`
 			else
 				for ((dx=1; dx<=deepfolderNum; dx++ )); do
 					if [ "${dx}" == 1 ]; then
@@ -260,58 +270,58 @@ if [ "$method" == "move" ] || [ "$method" == "copy" ]; then
 					elif [ "${dx}" == 3 ]; then
 						MTPfolder="`realpath /media/USB/*/DCIM | sed -n '3p'`"
 					fi
-					temp_total_size=`rsync -rv "${MTPfolder}" | grep "total size is" | awk '{print $4}' | sed -n 's/,//gp'`
-					if [ $? != 0 ]; then
-						sleep 10
-						temp_total_size=`rsync -rv "${MTPfolder}" | grep "total size is" | awk '{print $4}' | sed -n 's/,//gp'`
-					fi
+					#temp_total_size=`rsync -rv "${MTPfolder}" | grep "total size is" | awk '{print $4}' | sed -n 's/,//gp'`
+					temp_total_size=`/bin/du -s -b "${MTPfolder}" | awk '{print $1}'`
+					#temp_total_size=`expr "${CapacityCal}" \* 1024`
 					total_size=`expr ${total_size} + ${temp_total_size}`
 				done
 			fi
 		else
-			total_size=`rsync -rv "/media/USB/DCIM" | grep "total size is" | awk '{print $4}' | sed -n 's/,//gp'`
-			if [ $? != 0 ]; then
-				sleep 10
-				total_size=`rsync -rv "/media/USB/DCIM" | grep "total size is" | awk '{print $4}' | sed -n 's/,//gp'`
-			fi
+			#total_size=`rsync -rvn "/media/USB/DCIM" | grep "total size is" | awk '{print $4}' | sed -n 's/,//gp'`
+			total_size=`/bin/du -s -b "${MTPfolder}" | awk '{print $1}'`
+			#total_size=`expr "/media/USB/DCIM" \* 1024`
 		fi
 	else
-		total_size=`rsync -rv "${USB_MOUNT}" | grep "total size is" | awk '{print $4}' | sed -n 's/,//gp'`
-		#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
+		#total_size=`rsync -rvn "${USB_MOUNT}" | grep "total size is" | awk '{print $4}' | sed -n 's/,//gp'`
+		total_size=`/bin/du -s -b "${USB_MOUNT}" | awk '{print $1}'`
+		#total_size=`expr "${CapacityCal}" \* 1024`
 	fi
-	
-	#totalDF=`df | grep "${USB_MOUNT}" | awk '{print $3}'`
-	#total_size=`expr "${totalDF}" \* 1024`
-    if [ $? -eq 0 ]; then
-    	if [ "$total_size" != "" ] && [ "$total_size" != "0" ]; then
-			sed -i 's/total_size_in_bytes=.*/total_size_in_bytes='${total_size}'/' /tmp/transfer_size_total
-        elif [ "$total_size" == "" ]; then
-        	sleep 5
-        	total_size=`rsync -rv "${USB_MOUNT}" | grep "total size is" | awk '{print $4}' | sed -n 's/,//gp'`
-        	sed -i 's/total_size_in_bytes=.*/total_size_in_bytes='${total_size}'/' /tmp/transfer_size_total
-        fi 
-    else
-    	/usr/local/sbin/sendAlert.sh 1608 "${StorageProduct}" "${SerialNum}" &
-    	#echo "18;0;" > /tmp/MCU_Cmd
-    	echo "USB_TransferStatus=completed" > /etc/nas/config/usb-transfer-status.conf
-        #/sbin/AdaptCPUfreq.sh endbackup
-        killall rsync > /dev/null 2>&1
-        removeTempfile
-        #sleep 10
-        
-        echo "status=failed" > /tmp/transfer_state
-        SD_BackupQueueCheck
-        echo "42;125;" > /tmp/MCU_Cmd
-        echo $timestampDBG ": USB_StorageTransfer.sh wrong total size" ${total_size} >> /tmp/backup.log
-        exit 1
-    fi
-	rsync -rv "${UsbStorage}" | grep "total size is" | awk '{print $4}' | sed -n 's/,//gp' > /tmp/backedupsize
-	echo "${UsbStorage}" > /tmp/runningBackupDst
+
+	if [ "$total_size" == "" ] || [ "$total_size" == "0" ]; then
+		echo $timestampDBG ": USB_StorageTransfer.sh get wrong capacity:" ${total_size} >> /tmp/backup.log
+		if [ "$retry_size" == 0 ]; then
+			break
+		fi
+		retry_size=`expr $retry_size - 1`
+		sleep 10
+	fi
+done
+
+if [ "$total_size" != "" ] && [ "$total_size" != "0" ]; then
+	sed -i 's/total_size_in_bytes=.*/total_size_in_bytes='${total_size}'/' /tmp/transfer_size_total
+else
+	/usr/local/sbin/sendAlert.sh 1608 "${StorageProduct}" "${SerialNum}" &
+	echo "USB_TransferStatus=completed" > /etc/nas/config/usb-transfer-status.conf
+	killall rsync > /dev/null 2>&1
 	removeTempfile
-	echo "status=running" > /tmp/transfer_state	
-	#/sbin/AdaptCPUfreq.sh startbackup
-	CalTransfer.sh > /dev/null 2>&1 &
-	find "/shares/Storage/USB Imports" -name "${CID}" > /tmp/DoneFolder 
+	echo "status=failed" > /tmp/transfer_state
+	echo "42;125;" > /tmp/MCU_Cmd
+	echo $timestampDBG ": USB_StorageTransfer.sh get wrong capacity:" ${total_size} >> /tmp/backup.log
+	SD_BackupQueueCheck
+	exit 1
+fi
+
+    
+/bin/du -s -b "${UsbStorage}" | awk '{print $1}' > /tmp/backedupsize
+#rsync -rv "${UsbStorage}" | grep "total size is" | awk '{print $4}' | sed -n 's/,//gp' > /tmp/backedupsize
+echo "${UsbStorage}" > /tmp/runningBackupDst
+removeTempfile
+echo "status=running" > /tmp/transfer_state	
+CalTransfer.sh > /dev/null 2>&1 &
+
+		
+if [ "${needCompare}" == "1" ]; then
+	find "/shares/Storage/${USB_BACKUP_ROOT}" -type d -maxdepth 3 -name "${CID}" > /tmp/DoneFolder ##Search for already existing backup folder
 	cat /tmp/DoneFolder | while read DoneFolders
 	do
 		if [ "${UsbStorage}" == "${DoneFolders}" ] && [ "$newCreate" == "1" ]; then
@@ -324,936 +334,542 @@ if [ "$method" == "move" ] || [ "$method" == "copy" ]; then
 		echo "$AllDir" > /tmp/AllCmpDir
 	done
 	
-	if [ "$method" == "move" ]; then
-		cat /tmp/DoneFolder | while read DoneFolders
-		do
-			CmpDirs="${DoneFolders}"
-			if [ "${devicefound}" == "MTP" ]; then
-				if [ -d "/media/USB/DCIM" ]; then
-					execmd="nice -n -19 rsync -ahP --existing --info=progress2 --backup --suffix=_tmparchive "/media/USB/DCIM/" \"${CmpDirs}\" > /dev/null 2>&1"
-				else
-					deepfolderNum=`realpath /media/USB/*/DCIM | wc -l`
-					if [ ${deepfolderNum} -eq 0 ]; then
-						execmd="nice -n -19 rsync -ahP --existing --info=progress2 --backup --suffix=_tmparchive "/media/USB/" \"${CmpDirs}\" > /dev/null 2>&1"
-					else
-						for ((dx=1; dx<=deepfolderNum; dx++ )); do
-							if [ "${dx}" == 1 ]; then
-								MTPfolder="`realpath /media/USB/*/DCIM | sed -n '1p'`"
-							elif [ "${dx}" == 2 ]; then
-								MTPfolder="`realpath /media/USB/*/DCIM | sed -n '2p'`"
-							elif [ "${dx}" == 3 ]; then
-								MTPfolder="`realpath /media/USB/*/DCIM | sed -n '3p'`"
-							fi
-							execmd="nice -n -19 rsync -ahP --existing --info=progress2 --backup --suffix=_tmparchive \"${MTPfolder}\" \"${CmpDirs}\" > /dev/null 2>&1"
-						done
-					fi
-				fi
+	cat /tmp/DoneFolder | while read DoneFolders
+	do
+		CmpDirs="${DoneFolders}"
+		if [ "${UsbStorage}" == "${CmpDirs}" ] && [ "$newCreate" == "1" ]; then
+			continue
+		fi
+		if [ "${devType}" == "MTP" ]; then
+			if [ -d "/media/USB/DCIM" ]; then
+				execmd="nice -n -19 rsync -ahnrvvP --size-only --iconv=UTF-8 --existing "/media/USB/DCIM/" \"${CmpDirs}\" >> /tmp/RsyncConfliclist"
 			else
-				if [ $isFAT32 -eq 1 ]; then
-					execmd="nice -n -19 rsync -ah --size-only --existing --backup --modify-window=1 --suffix=_tmparchive \""${USB_MOUNT}"/\" \"${CmpDirs}\" > /dev/null 2>&1"
+				if [ "${deepfolderNum}" -eq 0 ]; then
+					execmd="nice -n -19 rsync -ahnrvvP --size-only --existing "/media/USB/" \"${CmpDirs}\" >> /tmp/RsyncConfliclist"
 				else
-					execmd="nice -n -19 rsync -ah --existing --backup --suffix=_tmparchive \""${USB_MOUNT}"/\" \"${CmpDirs}\" > /dev/null 2>&1"
-				fi
-			fi
-			#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-			#echo $timestampDBG ": USB_StorageTransfer.sh rsync existing:" $execmd >> /tmp/backup.log
-			eval "$execmd"
-			if [ $? != 0 ]; then
-				#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-				echo $timestampDBG ": USB_StorageTransfer.sh rsync existing:" $execmd >> /tmp/backup.log
-				echo $timestampDBG ": USB_StorageTransfer.sh rsync: Error 1" >> /tmp/backup.log
-				echo "1" > /tmp/USBStatusError
-				break
-			fi
-			exist=`cat /tmp/transferExistSize`
-			transferDoneSize=`cat /tmp/transferDoneSize`
-			#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-			echo $timestampDBG ": USB_StorageTransfer.sh exist" $exist $divide >> /tmp/backup.log
-			while [ "${exist}" -gt "${transferDoneSize}" ]; do
-				exist=`cat /tmp/transferExistSize`
-				transferDoneSize=`cat /tmp/transferDoneSize`
-				#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-				#echo $timestampDBG ": USB_StorageTransfer.sh exist" $exist $transferDoneSize >> /tmp/backup.log
-			done
-			#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-			echo $timestampDBG ": USB_StorageTransfer.sh out Loop" $exist $transferDoneSize >> /tmp/backup.log
-			echo 0 > /tmp/transferExistSize
-			ReproduceFileBackup "${CmpDirs}"
-		done
-		if [ -f "/tmp/AllCmpDir" ]; then
-			AllCmpDirs=`cat /tmp/AllCmpDir`
-			if [ "${devicefound}" == "MTP" ]; then
-				if [ -d "/media/USB/DCIM" ]; then
-					RsyncExecmd="rsync -avun --modify-window=1 --iconv=UTF-8 --delete"${AllCmpDirs}" /media/USB/DCIM/ | grep -v ".wdmc" > /tmp/BackUpTemplist"
-					if [ "$RsyncExecmd" != "" ]; then
-						#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-						echo $timestampDBG ": USB_StorageTransfer.sh Mv 1 cmd:" $RsyncExecmd >> /tmp/backup.log
-						eval "$RsyncExecmd"
-					fi
-				else
-					if [ -f "/tmp/BackUpTemplist" ]; then
-						rm /tmp/BackUpTemplist
-					fi
-					if [ "$deepfolderNum" == 0 ]; then
-						MTPfolder="/media/USB"
-						RsyncExecmd="rsync -avun --modify-window=1 --iconv=UTF-8 --delete"${AllCmpDirs}" ${MTPfolder} | grep -v ".wdmc" >> /tmp/BackUpTemplist"
-						if [ "$RsyncExecmd" != "" ]; then
-							#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-							echo $timestampDBG ": USB_StorageTransfer.sh Cp 2 cmd:" $RsyncExecmd >> /tmp/backup.log
-							eval "$RsyncExecmd"
+					for ((dx=1; dx<=deepfolderNum; dx++ )); do
+						if [ "${dx}" == 1 ]; then
+							MTPfolder="`realpath /media/USB/*/DCIM | sed -n '1p'`"
+						elif [ "${dx}" == 2 ]; then
+							MTPfolder="`realpath /media/USB/*/DCIM | sed -n '2p'`"
+						elif [ "${dx}" == 3 ]; then
+							MTPfolder="`realpath /media/USB/*/DCIM | sed -n '3p'`"
 						fi
-					else
-						for ((dx=1; dx<=deepfolderNum; dx++ )); do
-							if [ "${dx}" == 1 ]; then
-								MTPfolder="`realpath /media/USB/*/DCIM | sed -n '1p'`"
-							elif [ "${dx}" == 2 ]; then
-								MTPfolder="`realpath /media/USB/*/DCIM | sed -n '2p'`"
-							elif [ "${dx}" == 3 ]; then
-								MTPfolder="`realpath /media/USB/*/DCIM | sed -n '3p'`"
-							fi
-							RsyncExecmd="rsync -avun --modify-window=1 --iconv=UTF-8 --delete"${AllCmpDirs}" \"${MTPfolder}\" | grep -v ".wdmc" >> /tmp/BackUpTemplist"
-							if [ "$RsyncExecmd" != "" ]; then
-								#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-								echo $timestampDBG ": USB_StorageTransfer.sh Mv 2 cmd:" $RsyncExecmd >> /tmp/backup.log
-								eval "$RsyncExecmd"
-							fi
-						done
-					fi
-				fi
-			else
-				if [ $isFAT32 -eq 1 ]; then
-					RsyncExecmd="rsync -avn --size-only --modify-window=1 --iconv=UTF-8 --delete"${AllCmpDirs}" "${USB_MOUNT}"/ | grep -v ".wdmc" > /tmp/BackUpTemplist" 
-				else
-					RsyncExecmd="rsync -avun --modify-window=1 --iconv=UTF-8 --delete"${AllCmpDirs}" "${USB_MOUNT}"/ | grep -v ".wdmc" > /tmp/BackUpTemplist" 
-				fi
-				if [ "$RsyncExecmd" != "" ]; then
-					#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-					echo $timestampDBG ": USB_StorageTransfer.sh rsync delete:" $RsyncExecmd >> /tmp/backup.log
-					eval "$RsyncExecmd"
-				fi
-			fi
-		
-			cat /tmp/BackUpTemplist | grep "RSYNC_delete_DIR" | while read backupfile
-			do
-				backupfile=`echo "$backupfile" | awk 'BEGIN{FS="RSYNC_delete_DIR " } {print $NF}'`
-				ori_backupfile=$backupfile
-				echo "$backupfile" > /tmp/kkk
-				sed -i 's/`/\\`/g' /tmp/kkk
-				sed -i 's/\$/\\$/g' /tmp/kkk
-				backupfile=`cat /tmp/kkk`
-				#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-				#echo $timestampDBG ": USB_StorageTransfer.sh DIR backupfile:" $backupfile >> /tmp/backup.log
-				if [ "$devicefound" == "MTP" -o "$devicefound" == "PTP" ]; then
-					if [ ! -d "${UsbStorage}/${backupfile}" ]; then
-						fname=`dirname "${UsbStorage}"\/"${backupfile}"`
-						if [ ! -d "${fname}" ]; then
-							mkdir -p "${fname}"
-							chmod -R 777 "${fname}"
-						fi
-
-						if [ -d /media/USB/DCIM/"${backupfile}" ]; then
-							execmd="cp -a /media/USB/DCIM/\"${backupfile}\" \"${UsbStorage}/${backupfile}\" > /dev/null 2>&1"
-							#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-							#echo $timestampDBG ": USB_StorageTransfer.sh MTP Cp" $execmd >> /tmp/backup.log
-							eval "$execmd"
-							if [ $? != 0 ]; then
-								#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-								echo $timestampDBG ": USB_StorageTransfer.sh MTP Cp" $execmd >> /tmp/backup.log
-								echo $timestampDBG ": USB_StorageTransfer.sh Error 7" >> /tmp/backup.log
-								echo "1" > /tmp/USBStatusError
-								break
-							fi
-						else
-							if [ "${deepfolderNum}" == 0 ]; then
-								MTPfolder="/media/USB"
-								execmd="cp -a \"${MTPfolder}/${backupfile}\" \"${UsbStorage}/${backupfile}\" > /dev/null 2>&1"
-								#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-								#echo $timestampDBG ": USB_StorageTransfer.sh MTP delete_DIR Cp" $execmd >> /tmp/backup.log
-								eval "$execmd"
-								if [ $? != 0 ]; then
-									#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-									echo $timestampDBG ": USB_StorageTransfer.sh MTP delete_DIR Cp" $execmd >> /tmp/backup.log
-									echo $timestampDBG ": USB_StorageTransfer.sh Error 5" >> /tmp/backup.log
-									echo "1" > /tmp/USBStatusError
-									break
-								fi
-							else
-								for ((dx=1; dx<=deepfolderNum; dx++ )); do
-									if [ "${dx}" == 1 ]; then
-										MTPfolder="`realpath /media/USB/*/DCIM | sed -n '1p'`"
-									elif [ "${dx}" == 2 ]; then
-										MTPfolder="`realpath /media/USB/*/DCIM | sed -n '2p'`"
-									elif [ "${dx}" == 3 ]; then
-										MTPfolder="`realpath /media/USB/*/DCIM | sed -n '3p'`"
-									fi
-								
-									if [ -d "${MTPfolder}"/"${backupfile}" ]; then
-										execmd="cp -a \"${MTPfolder}/${backupfile}\" \"${UsbStorage}/${backupfile}\" > /dev/null 2>&1"
-										#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-										#echo $timestampDBG ": USB_StorageTransfer.sh MTP delete_DIR Cp" $execmd >> /tmp/backup.log
-										eval "$execmd"
-										if [ $? != 0 ]; then
-											#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-											echo $timestampDBG ": USB_StorageTransfer.sh MTP delete_DIR Cp" $execmd >> /tmp/backup.log
-											echo $timestampDBG ": USB_StorageTransfer.sh Error 5" >> /tmp/backup.log
-											echo "1" > /tmp/USBStatusError
-											break
-										fi
-									fi
-								done
-							fi
-						fi
-					fi			
-                else
-					if [ -d ""${USB_MOUNT}"/${ori_backupfile}" ] && [ ! -d "${UsbStorage}/${backupfile}" ]; then
-						fname=`dirname "${UsbStorage}"\/"${backupfile}"`
-						if [ ! -d "${fname}" ]; then
-							mkdir -p "${fname}"
-							chmod -R 777 "${fname}"
-							#echo "create" "$fname"
-						fi
-						execmd="mv -f \"${USB_MOUNT}/${backupfile}\" \"${fname}\" > /dev/null 2>&1"
-						#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-						#echo $timestampDBG ": USB_StorageTransfer.sh Mv :" $execmd >> /tmp/backup.log
-						eval "$execmd"
-						#echo "Move directory execmd:" "$execmd"
-					fi
-				fi
-			done
-	
-			cat /tmp/DoneFolder | while read DoneFolders
-			do
-				AllDir="$AllDir"" "\""${DoneFolders}"/\"
-				echo "$AllDir" > /tmp/AllCmpDir
-			done
-			AllCmpDirs=`cat /tmp/AllCmpDir`
-			
-			if [ "${devicefound}" == "MTP" ]; then
-				if [ -d "/media/USB/DCIM" ]; then
-					RsyncExecmd="rsync -avun --modify-window=1 --iconv=UTF-8 --delete"${AllCmpDirs}" /media/USB/DCIM/ | grep -v ".wdmc" > /tmp/BackUpTemplist"
-					eval "$RsyncExecmd"	
-				else
-					if [ -f "/tmp/BackUpTemplist" ]; then
-						rm /tmp/BackUpTemplist
-					fi
-					if [ "${deepfolderNum}" == 0 ]; then
-						MTPfolder="/media/USB"
-						RsyncExecmd="rsync -avun --modify-window=1 --iconv=UTF-8 --delete"${AllCmpDirs}" "${MTPfolder}" | grep -v ".wdmc" >> /tmp/BackUpTemplist"
-						if [ "$RsyncExecmd" != "" ]; then
-							#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-							echo $timestampDBG ": USB_StorageTransfer.sh Cp 2 cmd:" $RsyncExecmd >> /tmp/backup.log
-							eval "$RsyncExecmd"
-						fi
-					else
-						for ((dx=1; dx<=deepfolderNum; dx++ )); do
-							if [ "${dx}" == 1 ]; then
-								MTPfolder="`realpath /media/USB/*/DCIM | sed -n '1p'`"
-							elif [ "${dx}" == 2 ]; then
-								MTPfolder="`realpath /media/USB/*/DCIM | sed -n '2p'`"
-							elif [ "${dx}" == 3 ]; then
-								MTPfolder="`realpath /media/USB/*/DCIM | sed -n '3p'`"
-							fi
-							RsyncExecmd="rsync -avun --modify-window=1 --iconv=UTF-8 --delete"${AllCmpDirs}" \"${MTPfolder}\" | grep -v ".wdmc" >> /tmp/BackUpTemplist"
-							eval "$RsyncExecmd"	
-						done
-					fi
-				fi		
-            else
-            	if [ $isFAT32 -eq 1 ]; then
-					RsyncExecmd="rsync -avn --size-only --modify-window=1 --iconv=UTF-8 --delete"${AllCmpDirs}" "${USB_MOUNT}"/ | grep -v ".wdmc" > /tmp/BackUpTemplist" 
-				else
-					RsyncExecmd="rsync -avun --modify-window=1 --iconv=UTF-8 --delete"${AllCmpDirs}" "${USB_MOUNT}"/ | grep -v ".wdmc" > /tmp/BackUpTemplist" 
-				fi
-				eval "$RsyncExecmd"	
-			fi
-			cat /tmp/BackUpTemplist | grep "RSYNC_delete_ITEM" | while read backupfile
-			do
-				backupfile=`echo "$backupfile" | awk 'BEGIN{FS="RSYNC_delete_ITEM " } {print $NF}'`
-				echo "$backupfile" > /tmp/kkk
-				sed -i 's/`/\\`/g' /tmp/kkk
-				sed -i 's/\$/\\$/g' /tmp/kkk
-				backupfile=`cat /tmp/kkk`
-				#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-				#echo $timestampDBG ": USB_StorageTransfer.sh ITEM backupfile:" $backupfile >> /tmp/backup.log
-				if [ "$devicefound" == "MTP" -o "$devicefound" == "PTP" ]; then
-					fname=`dirname "${UsbStorage}"\/"${backupfile}"`
-					if [ ! -d "${fname}" ]; then
-						mkdir -p "${fname}"
-						chmod -R 777 "${fname}"
-					fi
-					if [ ! -d "${UsbStorage}/${backupfile}" ] && [ ! -f "${UsbStorage}/${backupfile}" ]; then							
-						if [ -f /media/USB/DCIM/"${backupfile}" ]; then
-							execmd="cp -a /media/USB/DCIM/\"${backupfile}\" \"${UsbStorage}/${backupfile}\" > /dev/null 2>&1"
-							#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-							#echo $timestampDBG ": USB_StorageTransfer.sh MTP Cp" $execmd >> /tmp/backup.log
-							eval "$execmd"
-							if [ $? != 0 ]; then
-								#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-								echo $timestampDBG ": USB_StorageTransfer.sh MTP Cp" $execmd >> /tmp/backup.log
-								echo $timestampDBG ": USB_StorageTransfer.sh Error 7" >> /tmp/backup.log
-								echo "1" > /tmp/USBStatusError
-								break
-							fi
-						else
-							if [ "${deepfolderNum}" == 0 ]; then
-								MTPfolder="/media/USB"
-								execmd="cp -a \"${MTPfolder}/${backupfile}\" \"${UsbStorage}/${backupfile}\" > /dev/null 2>&1"
-								#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-								#echo $timestampDBG ": USB_StorageTransfer.sh MTP delete_DIR Cp" $execmd >> /tmp/backup.log
-								eval "$execmd"
-								if [ $? != 0 ]; then
-									#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-									echo $timestampDBG ": USB_StorageTransfer.sh MTP delete_DIR Cp" $execmd >> /tmp/backup.log
-									echo $timestampDBG ": USB_StorageTransfer.sh Error 5" >> /tmp/backup.log
-									echo "1" > /tmp/USBStatusError
-									break
-								fi
-							else
-								for ((dx=1; dx<=deepfolderNum; dx++ )); do
-									if [ "${dx}" == 1 ]; then
-										MTPfolder="`realpath /media/USB/*/DCIM | sed -n '1p'`"
-									elif [ "${dx}" == 2 ]; then
-										MTPfolder="`realpath /media/USB/*/DCIM | sed -n '2p'`"
-									elif [ "${dx}" == 3 ]; then
-										MTPfolder="`realpath /media/USB/*/DCIM | sed -n '3p'`"
-									fi
-								
-									if [ -f ${MTPfolder}/"${backupfile}" ]; then
-										execmd="cp -a \"${MTPfolder}/${backupfile}\" \"${UsbStorage}/${backupfile}\" > /dev/null 2>&1"
-										#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-										#echo $timestampDBG ": USB_StorageTransfer.sh MTP delete_DIR Cp" $execmd >> /tmp/backup.log
-										eval "$execmd"
-										if [ $? != 0 ]; then
-											#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-											echo $timestampDBG ": USB_StorageTransfer.sh MTP delete_DIR Cp" $execmd >> /tmp/backup.log
-											echo $timestampDBG ": USB_StorageTransfer.sh Error 5" >> /tmp/backup.log
-											echo "1" > /tmp/USBStatusError
-											break
-										fi
-									fi
-								done
-							fi
-						fi				
-					fi		
-              	else
-              		echo "$backupfile" > /tmp/kkk
-					sed -i 's/`/\\`/g' /tmp/kkk
-					backupfile=`cat /tmp/kkk`
-					fname=`dirname "${UsbStorage}"\/"${backupfile}"`
-					if [ ! -d "${fname}" ]; then
-						mkdir -p "${fname}"
-						chmod -R 777 "${fname}"
-						#echo "create" "$fname"
-					fi
-					if [ ! -d "${UsbStorage}/${backupfile}" ] && [ ! -f "${UsbStorage}/${backupfile}" ]; then
-						execmd="mv -f \"${USB_MOUNT}/${backupfile}\" \"${UsbStorage}/${backupfile}\" > /dev/null 2>&1"
-						#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-						#echo $timestampDBG ": USB_StorageTransfer.sh Mv cmd:" $execmd >> /tmp/backup.log
-						eval "$execmd"
-						if [ $? != 0 ]; then
-							#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-							echo $timestampDBG ": USB_StorageTransfer.sh Mv cmd:" $execmd >> /tmp/backup.log
-							echo $timestampDBG ": USB_StorageTransfer.sh Mv cmd: Error 2" >> /tmp/backup.log
-							echo "1" > /tmp/USBStatusError
-							break
-						fi	
-					fi
-				fi
-			done
-			
-			if [ "$(cat /tmp/BackUpTemplist | grep "RSYNC_delete_DIR")" == "" ] && [ "$(cat /tmp/BackUpTemplist | grep "RSYNC_delete_ITEM")" == "" ]; then
-				filenum=`ls -al "${UsbStorage}" | wc -l`
-				if [ "$filenum" -eq 1 ]; then
-					rm -rf "${UsbStorage}"		
-					#finishUSBBackup
-				fi
-				filenum=`ls -al "${ImportDIR}" | wc -l`
-				if [ "$filenum" -eq 1 ]; then
-					rm -rf "${ImportDIR}"		
-					#finishUSBBackup
+						execmd="nice -n -19 rsync -ahnrvvP --size-only --iconv=UTF-8 --existing \"${MTPfolder}\" \"${CmpDirs}\" >> /tmp/RsyncConfliclist"
+					done
 				fi
 			fi
 		else
-			if [ "$devicefound" == "MTP" ]; then
-				if [ -d "/media/USB/DCIM" ]; then
-					execmd="cp -a /media/USB/DCIM/* \"${UsbStorage}/\" > /dev/null 2>&1"
-					#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-					#echo $timestampDBG ": USB_StorageTransfer.sh MTP Cp cmd:" $execmd >> /tmp/backup.log
-					eval "$execmd"	
-					if [ $? != 0 ]; then
-						#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-						echo $timestampDBG ": USB_StorageTransfer.sh MTP Cp cmd:" $execmd >> /tmp/backup.log
-						echo $timestampDBG ": USB_StorageTransfer.sh Error 14" >> /tmp/backup.log
-						echo "1" > /tmp/USBStatusError
-             		fi
+			if [ "${isFAT32}" -eq 1 ]; then
+				execmd="nice -n -19 rsync -ahnrvvP --size-only --iconv=UTF-8 --existing --modify-window=1 \""${USB_MOUNT}"/\" \"${CmpDirs}\" >> /tmp/RsyncConfliclist"
+			else
+				execmd="nice -n -19 rsync -ahnrvvP --existing --iconv=UTF-8 --modify-window=1 \""${USB_MOUNT}"/\" \"${CmpDirs}\" >> /tmp/RsyncConfliclist"
+			fi
+		fi
+		#echo $timestampDBG ": USB_StorageTransfer.sh rsync find conflict list:" $execmd >> /tmp/backup.log
+		eval "$execmd"
+		ERROR_CODE=$?
+		if [ "${ERROR_CODE}" != 0 ]; then
+			echo $timestampDBG ": USB_StorageTransfer.sh rsync Error find conflict list:" $execmd "ERROR_CODE" $ERROR_CODE >> /tmp/backup.log
+			RuningStatus=1
+			break
+		fi
+		#ReproduceFileBackup "${CmpDirs}"
+	done
+
+	if [ -f "/tmp/RsyncConfliclist" ]; then
+		cat /tmp/RsyncConfliclist | grep "NON_CONFLICT" | uniq | while read existfname
+		do
+			existfile=`echo "$existfname" | awk 'BEGIN{FS="NON_CONFLICT: " } {print $NF}' | awk 'BEGIN{FS='\"${USB_MOUNT}/\"' } {print $NF}'`
+			#fname=`echo ${existfile} | awk 'BEGIN{FS='\"${USB_MOUNT}/\"' } {print $NF}'`
+			echo $existfile >> /tmp/rsyncExcludefile
+		done
+	fi
+
+	if [ ! -f "/tmp/rsyncExcludefile" ]; then
+		touch /tmp/rsyncExcludefile
+	fi
+
+	cat /tmp/DoneFolder | while read DoneFolders
+	do
+		CmpDirs="${DoneFolders}"
+		if [ "${UsbStorage}" == "${CmpDirs}" ] && [ "$newCreate" == "1" ]; then
+			continue
+		fi
+		if [ "${devType}" == "MTP" ]; then
+			if [ -d "/media/USB/DCIM" ]; then
+				execmd="nice -n -19 rsync -ahrP --size-only --iconv=UTF-8 --existing --chmod=a+rwx --info=progress2 --backup --exclude-from=/tmp/rsyncExcludefile --backup-dir=\""${UsbStorage}"\" "/media/USB/DCIM/" \"${CmpDirs}\" > /dev/null 2>&1"
+			else
+				if [ "${deepfolderNum}" -eq 0 ]; then
+					execmd="nice -n -19 rsync -ahrP --size-only --iconv=UTF-8 --existing --chmod=a+rwx --info=progress2 --backup --exclude-from=/tmp/rsyncExcludefile --backup-dir=\""${UsbStorage}"\" "/media/USB/" \"${CmpDirs}\" > /dev/null 2>&1"
 				else
-					if [ "${deepfolderNum}" == 0 ]; then
-						MTPfolder="/media/USB"
-						execmd="cp -a \"${MTPfolder}\"/* \"${UsbStorage}/\" > /dev/null 2>&1"
-						#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-						#echo $timestampDBG ": USB_StorageTransfer.sh MTP Cp cmd:" $execmd >> /tmp/backup.log
-						eval "$execmd"	
-						if [ $? != 0 ]; then
-							#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-							echo $timestampDBG ": USB_StorageTransfer.sh MTP Cp cmd:" $execmd >> /tmp/backup.log
-							echo $timestampDBG ": USB_StorageTransfer.sh Error 12" >> /tmp/backup.log
-							echo "1" > /tmp/USBStatusError
-						fi	
-					else
-						for ((dx=1; dx<=deepfolderNum; dx++ )); do
-							if [ "${dx}" == 1 ]; then
-								MTPfolder=`realpath /media/USB/*/DCIM | sed -n '1p'`
-							elif [ "${dx}" == 2 ]; then
-								MTPfolder=`realpath /media/USB/*/DCIM | sed -n '2p'`
-							elif [ "${dx}" == 3 ]; then
-								MTPfolder=`realpath /media/USB/*/DCIM | sed -n '3p'`
+					for ((dx=1; dx<=deepfolderNum; dx++ )); do
+						if [ "${dx}" == 1 ]; then
+							MTPfolder="`realpath /media/USB/*/DCIM | sed -n '1p'`"
+						elif [ "${dx}" == 2 ]; then
+							MTPfolder="`realpath /media/USB/*/DCIM | sed -n '2p'`"
+						elif [ "${dx}" == 3 ]; then
+							MTPfolder="`realpath /media/USB/*/DCIM | sed -n '3p'`"
+						fi
+						execmd="nice -n -19 rsync -ahrP --size-only --iconv=UTF-8 --existing --chmod=a+rwx --info=progress2 --exclude-from=/tmp/rsyncExcludefile --backup --backup-dir=\""${UsbStorage}"\" \"${MTPfolder}\" \"${CmpDirs}\" > /dev/null 2>&1"
+					done
+				fi
+			fi
+		else
+			if [ "${isFAT32}" -eq 1 ]; then
+				execmd="nice -n -19 rsync -ahrP --size-only --iconv=UTF-8 --existing --chmod=a+rwx --info=progress2 --modify-window=1 --exclude-from=/tmp/rsyncExcludefile --backup --backup-dir=\""${UsbStorage}"\" \""${USB_MOUNT}"/\" \"${CmpDirs}\" > /dev/null 2>&1"
+			else
+				execmd="nice -n -19 rsync -ahrP --existing --iconv=UTF-8 --chmod=a+rwx --info=progress2 --modify-window=1 --exclude-from=/tmp/rsyncExcludefile --backup --backup-dir=\""${UsbStorage}"\" \""${USB_MOUNT}"/\" \"${CmpDirs}\" > /dev/null 2>&1"
+			fi
+		fi
+		#echo $timestampDBG ": USB_StorageTransfer.sh rsync existing:" $execmd >> /tmp/backup.log
+		eval "$execmd"
+		ERROR_CODE=$?
+		if [ "${ERROR_CODE}" != 0 ]; then
+			echo $timestampDBG ": USB_StorageTransfer.sh MTP rsync Error compared with existing:" $execmd "ERROR_CODE" $ERROR_CODE >> /tmp/backup.log
+			RuningStatus=1
+			break
+		fi
+		if [ "${backupTest}" == "0" ]; then
+			exist=`cat /tmp/transferExistSize`
+			transferDoneSize=`cat /tmp/transferDoneSize`
+			echo $timestampDBG ": USB_StorageTransfer.sh exist" $exist >> /tmp/backup.log
+			while [ "${exist}" -gt "${transferDoneSize}" ]; do
+				exist=`cat /tmp/transferExistSize`
+				transferDoneSize=`cat /tmp/transferDoneSize`
+				#echo $timestampDBG ": USB_StorageTransfer.sh exist" $exist $transferDoneSize >> /tmp/backup.log
+			done
+			echo $timestampDBG ": USB_StorageTransfer.sh finish compared existing" $exist $transferDoneSize >> /tmp/backup.log
+			cat /tmp/transferExistSize > /tmp/transferDoneSize
+			echo 0 > /tmp/transferExistSize
+		fi
+		#ReproduceFileBackup "${CmpDirs}"
+	done
+
+#YC add for performance test
+SYNC_START=$(date +%s)
+	if [ -f "/tmp/AllCmpDir" ]; then
+		AllCmpDirs=`cat /tmp/AllCmpDir`
+		#echo $timestampDBG ": USB_StorageTransfer.sh AllCmpDirs:" $AllCmpDirs >> /tmp/backup.log
+		if [ "${devType}" == "MTP" ]; then
+			if [ -d "/media/USB/DCIM" ]; then
+				RsyncExecmd="rsync -avun --size-only --iconv=UTF-8 --ignore-existing --delete"${AllCmpDirs}" /media/USB/DCIM/ | grep -v ".wdmc" > /tmp/BackUpTemplist"
+				if [ "$RsyncExecmd" != "" ]; then
+					#echo $timestampDBG ": USB_StorageTransfer.sh MTP rsync new file detect cmd 1:" $RsyncExecmd >> /tmp/backup.log
+					eval "$RsyncExecmd"
+					ERROR_CODE=$?
+					if [ "${ERROR_CODE}" != 0 ]; then
+						RuningStatus=2
+						echo $timestampDBG ": USB_StorageTransfer.sh MTP rsync Error:" $execmd "RuningStatus" $RuningStatus "ERROR_CODE" $ERROR_CODE >> /tmp/backup.log
+					fi
+				fi	
+			else
+				if [ "$deepfolderNum" == 0 ]; then
+					MTPfolder="/media/USB"
+					RsyncExecmd="rsync -avun --size-only --iconv=UTF-8 --ignore-existing --delete"${AllCmpDirs}" "/media/USB/" | grep -v ".wdmc" >> /tmp/BackUpTemplist"
+					if [ "$RsyncExecmd" != "" ]; then
+						#echo $timestampDBG ": USB_StorageTransfer.sh rsync new file detect cmd 2:" $RsyncExecmd >> /tmp/backup.log
+						eval "$RsyncExecmd"
+						ERROR_CODE=$?
+						if [ "${ERROR_CODE}" != 0 ]; then
+							RuningStatus=3
+							echo $timestampDBG ": USB_StorageTransfer.sh MTP rsync Error:" $execmd "RuningStatus" $RuningStatus "ERROR_CODE" $ERROR_CODE >> /tmp/backup.log
+						fi
+					fi
+				else
+					for ((dx=1; dx<=deepfolderNum; dx++ )); do
+						if [ "${dx}" == 1 ]; then
+							MTPfolder="`realpath /media/USB/*/DCIM | sed -n '1p'`"
+						elif [ "${dx}" == 2 ]; then
+							MTPfolder="`realpath /media/USB/*/DCIM | sed -n '2p'`"
+						elif [ "${dx}" == 3 ]; then
+							MTPfolder="`realpath /media/USB/*/DCIM | sed -n '3p'`"
+						fi
+						RsyncExecmd="rsync -avun --size-only --iconv=UTF-8 --ignore-existing --delete"${AllCmpDirs}" \"${MTPfolder}\" | grep -v ".wdmc" >> /tmp/BackUpTemplist"
+						if [ "$RsyncExecmd" != "" ]; then
+							#echo $timestampDBG ": USB_StorageTransfer.sh rsync new file detect cmd 3:" $RsyncExecmd >> /tmp/backup.log
+							eval "$RsyncExecmd"
+							ERROR_CODE=$?
+							if [ "${ERROR_CODE}" != 0 ]; then
+								RuningStatus=4
+								echo $timestampDBG ": USB_StorageTransfer.sh MTP rsync Error:" $execmd "RuningStatus" $RuningStatus "ERROR_CODE" $ERROR_CODE >> /tmp/backup.log	
 							fi
+						fi
+					done
+				fi
+			fi	
+		else
+			if [ "${isFAT32}" -eq 1 ]; then
+				RsyncExecmd="rsync -avun --size-only --modify-window=1 --iconv=UTF-8 --ignore-existing --delete"${AllCmpDirs}" "${USB_MOUNT}"/ | grep -v ".wdmc" > /tmp/BackUpTemplist" 
+			else
+				RsyncExecmd="rsync -avun --modify-window=1 --iconv=UTF-8 --ignore-existing --delete"${AllCmpDirs}" "${USB_MOUNT}"/ | grep -v ".wdmc" > /tmp/BackUpTemplist" 
+			fi
+			if [ "$RsyncExecmd" != "" ]; then
+				#echo $timestampDBG ": USB_StorageTransfer.sh rsync delete:" $RsyncExecmd >> /tmp/backup.log
+				eval "$RsyncExecmd"
+				ERROR_CODE=$?
+				if [ "${ERROR_CODE}" != 0 ]; then
+					RuningStatus=5
+					echo $timestampDBG ": USB_StorageTransfer.sh MTP rsync Error:" $RsyncExecmd "RuningStatus" $RuningStatus "ERROR_CODE" $ERROR_CODE >> /tmp/backup.log			
+				fi
+			fi
+		fi
+		
+		cat /tmp/BackUpTemplist | grep "RSYNC_delete_DIR" | while read backupfile ####check by folder
+		do
+			backupfile=`echo "$backupfile" | awk 'BEGIN{FS="RSYNC_delete_DIR " } {print $NF}'` #| sed -e 's/\\$/\\\\$/g' | sed -e 's/\`/\\\`/g'			
+			ori_backupfile=$backupfile
+			echo "$backupfile" > /tmp/kkk
+			sed -i 's/`/\\`/g' /tmp/kkk
+			sed -i 's/\$/\\$/g' /tmp/kkk
+			backupfile=`cat /tmp/kkk`
+			#checkexist=`cat /tmp/rsyncExcludefile | grep -w "$backupfile" | wc -l`
+			#echo "checkexist" $checkexist "backupfile" $backupfile
+			#if [ "${checkexist}" != "0" ]; then
+			#	continue
+			#fi
+			#echo $timestampDBG ": USB_StorageTransfer.sh DIR backupfile:" $backupfile >> /tmp/backup.log
+			if [ "${devType}" == "MTP" ]; then
+				if [ ! -d "${UsbStorage}/${backupfile}" ]; then
+					fname=`dirname "${UsbStorage}"\/"${backupfile}"`
+					if [ ! -d "${fname}" ]; then
+						execmd="mkdir -p \"${fname}\""
+						eval "$execmd"
+					fi
+
+					if [ -d /media/USB/DCIM/"${backupfile}" ]; then
+						execmd="cp -a /media/USB/DCIM/\"${backupfile}\" \"${UsbStorage}/${backupfile}\" > /dev/null 2>&1"
+						eval "$execmd"
+						ERROR_CODE=$?
+						if [ "${ERROR_CODE}" != 0 ]; then
+							RuningStatus=6
+							echo $timestampDBG ": USB_StorageTransfer.sh MTP cmd" $execmd "RuningStatus" $RuningStatus "ERROR_CODE" $ERROR_CODE >> /tmp/backup.log
+							break
+						fi
+					else
+						if [ "${deepfolderNum}" == 0 ]; then
+							execmd="cp -a \"/media/USB/${backupfile}\" \"${UsbStorage}/${backupfile}\" > /dev/null 2>&1"
+							eval "$execmd"
+							ERROR_CODE=$?
+							if [ "${ERROR_CODE}" != 0 ]; then
+								RuningStatus=7
+								echo $timestampDBG ": USB_StorageTransfer.sh MTP cmd" $execmd "RuningStatus" $RuningStatus "ERROR_CODE" $ERROR_CODE >> /tmp/backup.log
+								break
+							fi
+						else
+							for ((dx=1; dx<=deepfolderNum; dx++ )); do
+								if [ "${dx}" == 1 ]; then
+									MTPfolder=`realpath /media/USB/*/DCIM | sed -n '1p'`
+								elif [ "${dx}" == 2 ]; then
+									MTPfolder=`realpath /media/USB/*/DCIM | sed -n '2p'`
+								elif [ "${dx}" == 3 ]; then
+									MTPfolder=`realpath /media/USB/*/DCIM | sed -n '3p'`
+								fi
 								
-							execmd="cp -a \"${MTPfolder}\"/* \"${UsbStorage}/\" > /dev/null 2>&1"
-							#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-							#echo $timestampDBG ": USB_StorageTransfer.sh MTP Cp cmd:" $execmd >> /tmp/backup.log
-							eval "$execmd"	
-							if [ $? != 0 ]; then
-								#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-								echo $timestampDBG ": USB_StorageTransfer.sh MTP Cp cmd:" $execmd >> /tmp/backup.log
-								echo $timestampDBG ": USB_StorageTransfer.sh Error 12" >> /tmp/backup.log
-								echo "1" > /tmp/USBStatusError
-               				fi		
-						done
-					fi				
+								if [ -d ${MTPfolder}/"${backupfile}" ]; then
+									execmd="cp -a ${MTPfolder}/\"${backupfile}\" \"${UsbStorage}/${backupfile}\" > /dev/null 2>&1"
+									eval "$execmd"
+									ERROR_CODE=$?
+									if [ "${ERROR_CODE}" != 0 ]; then
+										RuningStatus=8
+										eecho $timestampDBG ": USB_StorageTransfer.sh MTP cmd" $execmd "RuningStatus" $RuningStatus "ERROR_CODE" $ERROR_CODE >> /tmp/backup.log
+										break
+									fi
+								fi
+							done
+						fi
+					fi
 				fi			
 			else
-				execmd="mv -f "${USB_MOUNT}"/.[^.]* \"${UsbStorage}/\" > /dev/null 2>&1"
-				#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-				#echo $timestampDBG ": USB_StorageTransfer.sh Mv cmd:" $execmd >> /tmp/backup.log
+				if [ -d ""${USB_MOUNT}"/${ori_backupfile}" ] && [ ! -d "${UsbStorage}/${backupfile}" ]; then
+					fname=`dirname "${UsbStorage}"\/"${backupfile}"`
+					if [ ! -d "${fname}" ]; then
+					execmd="mkdir -p \"${fname}\""
+						eval "$execmd"
+					fi
+					if [ "$method" == "move" ]; then
+						execmd="mv -f \"${USB_MOUNT}/${backupfile}\" \"${fname}\" > /dev/null 2>&1"
+					else
+						execmd="cp -a \"${USB_MOUNT}/${backupfile}\" \"${fname}\" > /dev/null 2>&1"
+					fi
+					eval "$execmd"
+					ERROR_CODE=$?
+					if [ "${ERROR_CODE}" != 0 ]; then
+						RuningStatus=9
+						echo $timestampDBG ": USB_StorageTransfer.sh USB cmd" $execmd "RuningStatus" $RuningStatus "ERROR_CODE" $ERROR_CODE >> /tmp/backup.log
+						break
+					fi
+				fi
+			fi		
+		done
+				
+		cat /tmp/BackUpTemplist | grep "RSYNC_delete_ITEM" | while read backupfile ####check by each file
+		do
+			backupfile=`echo "$backupfile" | awk 'BEGIN{FS="RSYNC_delete_ITEM " } {print $NF}'`
+			echo "$backupfile" > /tmp/kkk
+			sed -i 's/`/\\`/g' /tmp/kkk
+			sed -i 's/\$/\\$/g' /tmp/kkk
+			backupfile=`cat /tmp/kkk`
+			#checkexist=`cat /tmp/rsyncExcludefile | grep -w "$backupfile" | wc -l`
+			#echo "checkexist" $checkexist "backupfile" $backupfile
+			#if [ "${checkexist}" != "0" ]; then
+			#	continue
+			#fi
+			if [ "${devType}" == "MTP" ]; then
+				fname=`dirname "${UsbStorage}"\/"${backupfile}"`
+				if [ ! -d "${fname}" ]; then
+					execmd="mkdir -p \"${fname}\""
+					eval "$execmd"
+				fi
+				if [ ! -d "${UsbStorage}/${backupfile}" ] && [ ! -f "${UsbStorage}/${backupfile}" ]; then							
+					if [ -f /media/USB/DCIM/"${backupfile}" ]; then
+						execmd="cp -a /media/USB/DCIM/\"${backupfile}\" \"${UsbStorage}/${backupfile}\" > /dev/null 2>&1"
+						eval "$execmd"
+						ERROR_CODE=$?
+						if [ "${ERROR_CODE}" != 0 ]; then
+							RuningStatus=10
+							echo $timestampDBG ": USB_StorageTransfer.sh MTP cmd" $execmd "RuningStatus" $RuningStatus "ERROR_CODE" $ERROR_CODE >> /tmp/backup.log
+							break
+						fi
+					else
+						if [ "${deepfolderNum}" == 0 ]; then
+							execmd="cp -a \"/media/USB/${backupfile}\" \"${UsbStorage}/${backupfile}\" > /dev/null 2>&1"
+							eval "$execmd"
+							ERROR_CODE=$?
+							if [ "${ERROR_CODE}" != 0 ]; then
+								RuningStatus=11
+								echo $timestampDBG ": USB_StorageTransfer.sh MTP cmd" $execmd "RuningStatus" $RuningStatus "ERROR_CODE" $ERROR_CODE >> /tmp/backup.log
+								break
+							fi
+						else
+							for ((dx=1; dx<=deepfolderNum; dx++ )); do
+								if [ "${dx}" == 1 ]; then
+									MTPfolder="`realpath /media/USB/*/DCIM | sed -n '1p'`"
+								elif [ "${dx}" == 2 ]; then
+									MTPfolder="`realpath /media/USB/*/DCIM | sed -n '2p'`"
+								elif [ "${dx}" == 3 ]; then
+									MTPfolder="`realpath /media/USB/*/DCIM | sed -n '3p'`"
+								fi
+								
+								if [ -f "${MTPfolder}"/"${backupfile}" ]; then
+									execmd="cp -a \"${MTPfolder}/${backupfile}\" \"${UsbStorage}/${backupfile}\" > /dev/null 2>&1"
+									#echo $timestampDBG ": USB_StorageTransfer.sh MTP delete_DIR Cp" $execmd >> /tmp/backup.log
+									eval "$execmd"
+									ERROR_CODE=$?
+									if [ "${ERROR_CODE}" != 0 ]; then
+										RuningStatus=12
+										echo $timestampDBG ": USB_StorageTransfer.sh MTP cmd" $execmd "RuningStatus" $RuningStatus "ERROR_CODE" $ERROR_CODE >> /tmp/backup.log
+										break
+									fi
+								fi
+							done
+						fi
+					fi				
+				fi		
+			else
+				if [ -d "/media/USB/${backupfile}" ] && [ ! -d "${UsbStorage}/${backupfile}" ]; then
+					mkdir -p "${UsbStorage}"\/"${backupfile}"
+				else
+					fname=`dirname "${UsbStorage}"\/"${backupfile}"`
+					if [ ! -d "${fname}" ]; then
+						execmd="mkdir -p \"${fname}\""
+						eval "$execmd"
+					fi
+					if [ ! -d "${UsbStorage}/${backupfile}" ] && [ ! -f "${UsbStorage}/${backupfile}" ]; then
+						if [ "$method" == "move" ]; then
+							execmd="mv -f \"${USB_MOUNT}/${backupfile}\" \"${UsbStorage}/${backupfile}\" > /dev/null 2>&1"
+						else
+							execmd="cp -a \"${USB_MOUNT}/${backupfile}\" \"${UsbStorage}/${backupfile}\" > /dev/null 2>&1"
+						fi
+						eval "$execmd"
+						ERROR_CODE=$?
+						if [ "${ERROR_CODE}" != 0 ]; then
+							RuningStatus=13
+							echo $timestampDBG ": USB_StorageTransfer.sh USB cmd" $execmd "RuningStatus" $RuningStatus "ERROR_CODE" $ERROR_CODE >> /tmp/backup.log
+							break
+						fi
+						#echo "execmd" "$execmd"
+					fi
+				fi
+			fi
+		done
+
+		if [ "$(cat /tmp/BackUpTemplist | grep "RSYNC_delete_DIR")" == "" ] && [ "$(cat /tmp/BackUpTemplist | grep "RSYNC_delete_ITEM")" == "" ]; then
+			echo $timestampDBG ": USB_StorageTransfer.sh No backup ITEM" >> /tmp/backup.log
+			filenum=`ls -al "${UsbStorage}" | wc -l`
+			if [ "$filenum" -eq 1 ]; then
+				rm -rf "${UsbStorage}"
+				#finishUSBBackup
+			fi
+			filenum=`ls -al "${ImportDIR}" | wc -l`
+			if [ "$filenum" -eq 1 ]; then
+				rm -rf "${ImportDIR}"		
+				#finishUSBBackup
+			fi
+		fi
+	else	
+		if [ "${devType}" == "MTP" ]; then
+			if [ -d "/media/USB/DCIM" ]; then
+				execmd="cp -a /media/USB/DCIM/* \"${UsbStorage}/\" > /dev/null 2>&1"
+				#echo $timestampDBG ": USB_StorageTransfer.sh MTP Cp cmd:" $execmd >> /tmp/backup.log
 				eval "$execmd"
-			
+				ERROR_CODE=$?
+				if [ "${ERROR_CODE}" != 0 ]; then
+					RuningStatus=14
+					echo $timestampDBG ": USB_StorageTransfer.sh MTP cmd" $execmd "RuningStatus" $RuningStatus "ERROR_CODE" $ERROR_CODE >> /tmp/backup.log
+				fi
+			else
+				if [ "${deepfolderNum}" == 0 ]; then
+					execmd="cp -a /media/USB/* \"${UsbStorage}/\" > /dev/null 2>&1"
+					eval "$execmd"
+					ERROR_CODE=$?
+					if [ "${ERROR_CODE}" != 0 ]; then
+						RuningStatus=15
+						echo $timestampDBG ": USB_StorageTransfer.sh MTP cmd" $execmd "RuningStatus" $RuningStatus "ERROR_CODE" $ERROR_CODE >> /tmp/backup.log
+					fi
+				else
+					for ((dx=1; dx<=deepfolderNum; dx++ )); do
+						if [ "${dx}" == 1 ]; then
+							MTPfolder="`realpath /media/USB/*/DCIM | sed -n '1p'`"
+						elif [ "${dx}" == 2 ]; then
+							MTPfolder="`realpath /media/USB/*/DCIM | sed -n '2p'`"
+						elif [ "${dx}" == 3 ]; then
+							MTPfolder="`realpath /media/USB/*/DCIM | sed -n '3p'`"
+						fi
+								
+						execmd="cp -a \"${MTPfolder}/\"* \"${UsbStorage}/\" > /dev/null 2>&1"
+						eval "$execmd"
+						ERROR_CODE=$?
+						if [ "${ERROR_CODE}" != 0 ]; then
+							RuningStatus=16
+							echo $timestampDBG ": USB_StorageTransfer.sh MTP cmd" $execmd "RuningStatus" $RuningStatus "ERROR_CODE" $ERROR_CODE >> /tmp/backup.log
+						fi		
+					done
+				fi				
+			fi			
+		else
+			if [ "$method" == "move" ]; then
+				execmd="mv -f "${USB_MOUNT}"/.[^.]* \"${UsbStorage}/\" > /dev/null 2>&1"
+				eval "$execmd"
 				filenum=`ls "${USB_MOUNT}"/ | wc -l`
 				if [ "${filenum}" != 0 ]; then
 					execmd="mv -f "${USB_MOUNT}"/* \"${UsbStorage}/\" > /dev/null 2>&1"
-					#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-					#echo $timestampDBG ": USB_StorageTransfer.sh Mv cmd:" $execmd >> /tmp/backup.log
 					eval "$execmd"
-					if [ $? != 0 ]; then
-						#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-						echo $timestampDBG ": USB_StorageTransfer.sh Mv cmd:" $execmd >> /tmp/backup.log
-						echo $timestampDBG ": USB_StorageTransfer.sh Mv cmd: Error 3" >> /tmp/backup.log
-						echo "1" > /tmp/USBStatusError
-					fi
-				fi
-			fi
-		fi		
-		
-		removeTempfile
-		RuningStatus=`cat /tmp/USBStatusError`
-		if [ "${RuningStatus}" -eq 0 ]; then
-			`rm -rf "${USB_MOUNT}"/*`
-			#`chmod -R 777 "${UsbStorage}"`
-		else
-			chmod -R 777 "/shares/Storage/USB Imports"
-			if [ "$ReadOnly" == "1" ]; then
-				/usr/local/sbin/sendAlert.sh 1612 "${StorageProduct}" "${SerialNum}" &
-			else	
-				/usr/local/sbin/sendAlert.sh 1606 "${StorageProduct}" "${SerialNum}" & 
-			fi
-			#echo "18;0;" > /tmp/MCU_Cmd
-			echo "USB_TransferStatus=completed" > /etc/nas/config/usb-transfer-status.conf
-            sync
-           	sync
-           	sync
-            if [ -f /tmp/USB_Process_Canceled ]; then
-            	echo "status=canceled" > /tmp/transfer_state
-                rm -f /tmp/USB_Process_Canceled
-            else
-			   if [ "$ReadOnly" == "1" ]; then
-			    	echo "status=UsbReadOnlyfailed" > /tmp/transfer_state
-			    else
-			    	echo "status=failed" > /tmp/transfer_state
-			    fi
-            fi
-            echo "42;125;" > /tmp/MCU_Cmd
-			#/sbin/AdaptCPUfreq.sh endbackup
-			#sleep 10	
-			SD_BackupQueueCheck
-			
-			exit 1
-		fi
-	fi
-		
-	if [ "$method" == "copy" ]; then
-		cat /tmp/DoneFolder | while read DoneFolders
-		do
-			CmpDirs="${DoneFolders}"
-			if [ "${devicefound}" == "MTP" -o "${devicefound}" == "PTP" ]; then
-				if [ -d "/media/USB/DCIM" ]; then
-					execmd="nice -n -19 rsync -ahP --existing --info=progress2 --backup --suffix=_tmparchive "/media/USB/DCIM/" \"${CmpDirs}\" > /dev/null 2>&1"
-				else
-					deepfolderNum=`realpath /media/USB/*/DCIM | wc -l`
-					if [ ${deepfolderNum} -eq 0 ]; then
-						execmd="nice -n -19 rsync -ahP --existing --info=progress2 --backup --suffix=_tmparchive "/media/USB/" \"${CmpDirs}\" > /dev/null 2>&1"
-					else
-						for ((dx=1; dx<=deepfolderNum; dx++ )); do
-							if [ "${dx}" == 1 ]; then
-								MTPfolder="`realpath /media/USB/*/DCIM | sed -n '1p'`"
-							elif [ "${dx}" == 2 ]; then
-								MTPfolder="`realpath /media/USB/*/DCIM | sed -n '2p'`"
-							elif [ "${dx}" == 3 ]; then
-								MTPfolder="`realpath /media/USB/*/DCIM | sed -n '3p'`"
-							fi
-							execmd="nice -n -19 rsync -ahP --existing --info=progress2 --backup --suffix=_tmparchive \"${MTPfolder}\" \"${CmpDirs}\" > /dev/null 2>&1"
-						done
+					ERROR_CODE=$?
+					if [ "${ERROR_CODE}" != 0 ]; then
+						RuningStatus=16
+						echo $timestampDBG ": USB_StorageTransfer.sh USB cmd" $execmd "RuningStatus" $RuningStatus "ERROR_CODE" $ERROR_CODE >> /tmp/backup.log
 					fi
 				fi
 			else
-				if [ $isFAT32 -eq 1 ]; then
-					execmd="nice -n -19 rsync -ahP --size-only --info=progress2 --existing --backup --modify-window=1 --suffix=_tmparchive \""${USB_MOUNT}"/\" \"${CmpDirs}\" > /dev/null 2>&1"
-				else
-					execmd="nice -n -19 rsync -ahP --existing --info=progress2 --backup --suffix=_tmparchive \""${USB_MOUNT}"/\" \"${CmpDirs}\" > /dev/null 2>&1"
-				fi
-			fi
-			#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-			#echo $timestampDBG ": USB_StorageTransfer.sh rsync existing:" $execmd >> /tmp/backup.log
-			eval "$execmd"
-			if [ $? != 0 ]; then
-				#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-				echo $timestampDBG ": USB_StorageTransfer.sh rsync existing:" $execmd >> /tmp/backup.log
-				echo $timestampDBG ": USB_StorageTransfer.sh rsync: Error 4" >> /tmp/backup.log
-				echo "1" > /tmp/USBStatusError
-				break
-			fi
-			exist=`cat /tmp/transferExistSize`
-			transferDoneSize=`cat /tmp/transferDoneSize`
-			#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-			echo $timestampDBG ": USB_StorageTransfer.sh exist" $exist $divide >> /tmp/backup.log
-			while [ "${exist}" -gt "${transferDoneSize}" ]; do
-				exist=`cat /tmp/transferExistSize`
-				transferDoneSize=`cat /tmp/transferDoneSize`
-				#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-				#echo $timestampDBG ": USB_StorageTransfer.sh exist" $exist $transferDoneSize >> /tmp/backup.log
-			done
-			#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-			echo $timestampDBG ": USB_StorageTransfer.sh out Loop" $exist $transferDoneSize >> /tmp/backup.log
-			cat /tmp/transferExistSize > /tmp/transferDoneSize
-			echo 0 > /tmp/transferExistSize
-			ReproduceFileBackup "${CmpDirs}"
-		done
-#YC add for performance test
-SYNC_START=$(date +%s)
-        if [ -f "/tmp/AllCmpDir" ]; then
-			AllCmpDirs=`cat /tmp/AllCmpDir`
-			if [ "${devicefound}" == "MTP" -o "${devicefound}" == "PTP" ]; then
-				if [ -d "/media/USB/DCIM" ]; then
-					RsyncExecmd="rsync -avun --modify-window=1 --iconv=UTF-8 --delete"${AllCmpDirs}" /media/USB/DCIM/ | grep -v ".wdmc" > /tmp/BackUpTemplist"
-					if [ "$RsyncExecmd" != "" ]; then
-						#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-						echo $timestampDBG ": USB_StorageTransfer.sh Cp 1 cmd:" $RsyncExecmd >> /tmp/backup.log
-						eval "$RsyncExecmd"
-					fi	
-				else
-					if [ -f "/tmp/BackUpTemplist" ]; then
-						rm /tmp/BackUpTemplist
-					fi
-					if [ "$deepfolderNum" == 0 ]; then
-						MTPfolder="/media/USB"
-						RsyncExecmd="rsync -avun --modify-window=1 --iconv=UTF-8 --delete"${AllCmpDirs}" "${MTPfolder}" | grep -v ".wdmc" >> /tmp/BackUpTemplist"
-						if [ "$RsyncExecmd" != "" ]; then
-							#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-							echo $timestampDBG ": USB_StorageTransfer.sh Cp 2 cmd:" $RsyncExecmd >> /tmp/backup.log
-							eval "$RsyncExecmd"
-						fi
-					else
-						for ((dx=1; dx<=deepfolderNum; dx++ )); do
-							if [ "${dx}" == 1 ]; then
-								MTPfolder="`realpath /media/USB/*/DCIM | sed -n '1p'`"
-							elif [ "${dx}" == 2 ]; then
-								MTPfolder="`realpath /media/USB/*/DCIM | sed -n '2p'`"
-							elif [ "${dx}" == 3 ]; then
-								MTPfolder="`realpath /media/USB/*/DCIM | sed -n '3p'`"
-							fi
-							RsyncExecmd="rsync -avun --modify-window=1 --iconv=UTF-8 --delete"${AllCmpDirs}" \"${MTPfolder}\" | grep -v ".wdmc" >> /tmp/BackUpTemplist"
-							if [ "$RsyncExecmd" != "" ]; then
-								#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-								echo $timestampDBG ": USB_StorageTransfer.sh Cp 2 cmd:" $RsyncExecmd >> /tmp/backup.log
-								eval "$RsyncExecmd"
-							fi
-						done
-					fi
-				fi	
-            else
-				if [ $isFAT32 -eq 1 ]; then
-					RsyncExecmd="rsync -avn --size-only --modify-window=1 --iconv=UTF-8 --delete"${AllCmpDirs}" "${USB_MOUNT}"/ | grep -v ".wdmc" > /tmp/BackUpTemplist" 
-				else
-					RsyncExecmd="rsync -avun --modify-window=1 --iconv=UTF-8 --delete"${AllCmpDirs}" "${USB_MOUNT}"/ | grep -v ".wdmc" > /tmp/BackUpTemplist" 
-				fi
-			
-				if [ "$RsyncExecmd" != "" ]; then
-					#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-					echo $timestampDBG ": USB_StorageTransfer.sh rsync delete:" $RsyncExecmd >> /tmp/backup.log
-					eval "$RsyncExecmd"
-				fi
-			fi
-		
-			cat /tmp/BackUpTemplist | grep "RSYNC_delete_DIR" | while read backupfile
-			do
-				backupfile=`echo "$backupfile" | awk 'BEGIN{FS="RSYNC_delete_DIR " } {print $NF}'`
-				ori_backupfile=$backupfile
-				echo "$backupfile" > /tmp/kkk
-				sed -i 's/`/\\`/g' /tmp/kkk
-				sed -i 's/\$/\\$/g' /tmp/kkk
-				backupfile=`cat /tmp/kkk`
-				#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-				#echo $timestampDBG ": USB_StorageTransfer.sh DIR backupfile:" $backupfile >> /tmp/backup.log
-				if [ "$devicefound" == "MTP" -o "$devicefound" == "PTP" ]; then
-					if [ ! -d "${UsbStorage}/${backupfile}" ]; then
-						fname=`dirname "${UsbStorage}"\/"${backupfile}"`
-						if [ ! -d "${fname}" ]; then
-							mkdir -p "${fname}"
-							chmod -R 777 "${fname}"
-						fi
-
-						if [ -d /media/USB/DCIM/"${backupfile}" ]; then
-							execmd="cp -a /media/USB/DCIM/\"${backupfile}\" \"${UsbStorage}/${backupfile}\" > /dev/null 2>&1"
-							#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-							#echo $timestampDBG ": USB_StorageTransfer.sh MTP Cp" $execmd >> /tmp/backup.log
-							eval "$execmd"
-							if [ $? != 0 ]; then
-								#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-								echo $timestampDBG ": USB_StorageTransfer.sh MTP Cp" $execmd >> /tmp/backup.log
-								echo $timestampDBG ": USB_StorageTransfer.sh Error 7" >> /tmp/backup.log
-								echo "1" > /tmp/USBStatusError
-								break
-							fi
-						else
-							if [ "${deepfolderNum}" == 0 ]; then
-								MTPfolder="/media/USB"
-								execmd="cp -a \"${MTPfolder}/${backupfile}\" \"${UsbStorage}/${backupfile}\" > /dev/null 2>&1"
-								#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-								#echo $timestampDBG ": USB_StorageTransfer.sh MTP delete_DIR Cp" $execmd >> /tmp/backup.log
-								eval "$execmd"
-								if [ $? != 0 ]; then
-									#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-									echo $timestampDBG ": USB_StorageTransfer.sh MTP delete_DIR Cp" $execmd >> /tmp/backup.log
-									echo $timestampDBG ": USB_StorageTransfer.sh Error 5" >> /tmp/backup.log
-									echo "1" > /tmp/USBStatusError
-									break
-								fi
-							else
-								for ((dx=1; dx<=deepfolderNum; dx++ )); do
-									if [ "${dx}" == 1 ]; then
-										MTPfolder=`realpath /media/USB/*/DCIM | sed -n '1p'`
-									elif [ "${dx}" == 2 ]; then
-										MTPfolder=`realpath /media/USB/*/DCIM | sed -n '2p'`
-									elif [ "${dx}" == 3 ]; then
-										MTPfolder=`realpath /media/USB/*/DCIM | sed -n '3p'`
-									fi
-								
-									if [ -d ${MTPfolder}/"${backupfile}" ]; then
-										execmd="cp -a ${MTPfolder}/\"${backupfile}\" \"${UsbStorage}/${backupfile}\" > /dev/null 2>&1"
-										#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-										#echo $timestampDBG ": USB_StorageTransfer.sh MTP delete_DIR Cp" $execmd >> /tmp/backup.log
-										eval "$execmd"
-										if [ $? != 0 ]; then
-											#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-											echo $timestampDBG ": USB_StorageTransfer.sh MTP delete_DIR Cp" $execmd >> /tmp/backup.log
-											echo $timestampDBG ": USB_StorageTransfer.sh Error 5" >> /tmp/backup.log
-											echo "1" > /tmp/USBStatusError
-											break
-										fi
-									fi
-								done
-							fi
-						fi
-					fi			
-                else
-					if [ -d ""${USB_MOUNT}"/${ori_backupfile}" ] && [ ! -d "${UsbStorage}/${backupfile}" ]; then
-						fname=`dirname "${UsbStorage}"\/"${backupfile}"`
-						if [ ! -d "${fname}" ]; then
-							mkdir -p "${fname}"
-							chmod -R 777 "${fname}"
-							#echo "create" "$fname"
-						fi
-						execmd="cp -a \"${USB_MOUNT}/${backupfile}\" \"${fname}\" > /dev/null 2>&1"
-						#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-						#echo $timestampDBG ": USB_StorageTransfer.sh MTP Cp" $execmd >> /tmp/backup.log
-						eval "$execmd"
-					fi
-				fi		
-			done
-				
-			cat /tmp/DoneFolder | while read DoneFolders
-			do
-				AllDir="$AllDir"" "\""$DoneFolders"/\"
-				echo "$AllDir" > /tmp/AllCmpDir
-			done
-			AllCmpDirs=`cat /tmp/AllCmpDir`	
-			
-			if [ "${devicefound}" == "MTP" -o "${devicefound}" == "PTP" ]; then
-				if [ -d "/media/USB/DCIM" ]; then
-					RsyncExecmd="rsync -avun --modify-window=1 --iconv=UTF-8 --delete"${AllCmpDirs}" /media/USB/DCIM/ | grep -v ".wdmc" > /tmp/BackUpTemplist"
-					eval "$RsyncExecmd"	
-				else
-					if [ -f "/tmp/BackUpTemplist" ]; then
-						rm /tmp/BackUpTemplist
-					fi
-					if [ "${deepfolderNum}" == 0 ]; then
-						MTPfolder="/media/USB"
-						RsyncExecmd="rsync -avun --modify-window=1 --iconv=UTF-8 --delete"${AllCmpDirs}" \"${MTPfolder}\" | grep -v ".wdmc" >> /tmp/BackUpTemplist"
-						if [ "$RsyncExecmd" != "" ]; then
-							#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-							echo $timestampDBG ": USB_StorageTransfer.sh Cp 2 cmd:" $RsyncExecmd >> /tmp/backup.log
-							eval "$RsyncExecmd"
-						fi
-					else
-						for ((dx=1; dx<=deepfolderNum; dx++ )); do
-							if [ "${dx}" == 1 ]; then
-								MTPfolder="`realpath /media/USB/*/DCIM | sed -n '1p'`"
-							elif [ "${dx}" == 2 ]; then
-								MTPfolder="`realpath /media/USB/*/DCIM | sed -n '2p'`"
-							elif [ "${dx}" == 3 ]; then
-								MTPfolder="`realpath /media/USB/*/DCIM | sed -n '3p'`"
-							fi
-							RsyncExecmd="rsync -avun --modify-window=1 --iconv=UTF-8 --delete"${AllCmpDirs}" \"${MTPfolder}\" | grep -v ".wdmc" >> /tmp/BackUpTemplist"
-							eval "$RsyncExecmd"	
-						done
-					fi
-				fi		
-            else
-				if [ $isFAT32 -eq 1 ]; then
-					RsyncExecmd="rsync -avn --size-only --modify-window=1 --iconv=UTF-8 --delete"${AllCmpDirs}" "${USB_MOUNT}"/ | grep -v ".wdmc" > /tmp/BackUpTemplist" 
-				else
-					RsyncExecmd="rsync -avun --modify-window=1 --iconv=UTF-8 --delete"${AllCmpDirs}" "${USB_MOUNT}"/ | grep -v ".wdmc" > /tmp/BackUpTemplist" 
-				fi
-				eval "$RsyncExecmd"	
-			fi
-			
-			cat /tmp/BackUpTemplist | grep "RSYNC_delete_ITEM" | while read backupfile
-			do
-				backupfile=`echo "$backupfile" | awk 'BEGIN{FS="RSYNC_delete_ITEM " } {print $NF}'`
-				echo "$backupfile" > /tmp/kkk
-				sed -i 's/`/\\`/g' /tmp/kkk
-				sed -i 's/\$/\\$/g' /tmp/kkk
-				backupfile=`cat /tmp/kkk`
-				#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-				#echo $timestampDBG ": USB_StorageTransfer.sh ITEM backupfile:" $backupfile >> /tmp/backup.log
-				if [ "$devicefound" == "MTP" -o "$devicefound" == "PTP" ]; then
-					fname=`dirname "${UsbStorage}"\/"${backupfile}"`
-					if [ ! -d "${fname}" ]; then
-						mkdir -p "${fname}"
-						chmod -R 777 "${fname}"
-					fi
-					if [ ! -d "${UsbStorage}/${backupfile}" ] && [ ! -f "${UsbStorage}/${backupfile}" ]; then							
-						if [ -f /media/USB/DCIM/"${backupfile}" ]; then
-							execmd="cp -a /media/USB/DCIM/\"${backupfile}\" \"${UsbStorage}/${backupfile}\" > /dev/null 2>&1"
-							#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-							#echo $timestampDBG ": USB_StorageTransfer.sh MTP Cp" $execmd >> /tmp/backup.log
-							eval "$execmd"
-							if [ $? != 0 ]; then
-								#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-								echo $timestampDBG ": USB_StorageTransfer.sh MTP Cp" $execmd >> /tmp/backup.log
-								echo $timestampDBG ": USB_StorageTransfer.sh Error 7" >> /tmp/backup.log
-								echo "1" > /tmp/USBStatusError
-								break
-							fi
-						else
-							if [ "${deepfolderNum}" == 0 ]; then
-								MTPfolder="/media/USB"
-								execmd="cp -a \"${MTPfolder}/${backupfile}\" \"${UsbStorage}/${backupfile}\" > /dev/null 2>&1"
-								#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-								#echo $timestampDBG ": USB_StorageTransfer.sh MTP delete_DIR Cp" $execmd >> /tmp/backup.log
-								eval "$execmd"
-								if [ $? != 0 ]; then
-									#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-									echo $timestampDBG ": USB_StorageTransfer.sh MTP delete_DIR Cp" $execmd >> /tmp/backup.log
-									echo $timestampDBG ": USB_StorageTransfer.sh Error 5" >> /tmp/backup.log
-									echo "1" > /tmp/USBStatusError
-									break
-								fi
-							else
-								for ((dx=1; dx<=deepfolderNum; dx++ )); do
-									if [ "${dx}" == 1 ]; then
-										MTPfolder="`realpath /media/USB/*/DCIM | sed -n '1p'`"
-									elif [ "${dx}" == 2 ]; then
-										MTPfolder="`realpath /media/USB/*/DCIM | sed -n '2p'`"
-									elif [ "${dx}" == 3 ]; then
-										MTPfolder="`realpath /media/USB/*/DCIM | sed -n '3p'`"
-									fi
-								
-									if [ -f "${MTPfolder}"/"${backupfile}" ]; then
-										execmd="cp -a \"${MTPfolder}/${backupfile}\" \"${UsbStorage}/${backupfile}\" > /dev/null 2>&1"
-										#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-										#echo $timestampDBG ": USB_StorageTransfer.sh MTP delete_DIR Cp" $execmd >> /tmp/backup.log
-										eval "$execmd"
-										if [ $? != 0 ]; then
-											#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-											echo $timestampDBG ": USB_StorageTransfer.sh MTP delete_DIR Cp" $execmd >> /tmp/backup.log
-											echo $timestampDBG ": USB_StorageTransfer.sh Error 5" >> /tmp/backup.log
-											echo "1" > /tmp/USBStatusError
-											break
-										fi
-									fi
-								done
-							fi
-						fi				
-					fi		
-              	else
-					echo "$backupfile" > /tmp/kkk
-					sed -i 's/`/\\`/g' /tmp/kkk
-					backupfile=`cat /tmp/kkk`
-					if [ -d "/media/USB/${backupfile}" ] && [ ! -d "${UsbStorage}/${backupfile}" ]; then
-						mkdir -p "${UsbStorage}"\/"${backupfile}"
-						chmod -R 777 "${UsbStorage}"\/"${backupfile}"
-						#echo "create" "${UsbStorage}"\/"${backupfile}"
-					else
-						fname=`dirname "${UsbStorage}"\/"${backupfile}"`
-						if [ ! -d "${fname}" ]; then
-							mkdir -p "${fname}"
-							chmod -R 777 "${fname}"
-							#echo "create" "$fname"
-						fi
-						if [ ! -d "${UsbStorage}/${backupfile}" ] && [ ! -f "${UsbStorage}/${backupfile}" ]; then
-							execmd="cp -a \"${USB_MOUNT}/${backupfile}\" \"${UsbStorage}/${backupfile}\" > /dev/null 2>&1"
-							#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-							#echo $timestampDBG ": USB_StorageTransfer.sh cp cmd:" $execmd >> /tmp/backup.log
-							eval "$execmd"
-							if [ $? != 0 ]; then
-								#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-								echo $timestampDBG ": USB_StorageTransfer.sh cp cmd:" $execmd >> /tmp/backup.log
-								echo $timestampDBG ": USB_StorageTransfer.sh Error 11" >> /tmp/backup.log
-								echo "1" > /tmp/USBStatusError
-								break
-							fi
-							#echo "execmd" "$execmd"
-						fi
-					fi
-				fi
-			done
-			if [ "$(cat /tmp/BackUpTemplist | grep "RSYNC_delete_DIR")" == "" ] && [ "$(cat /tmp/BackUpTemplist | grep "RSYNC_delete_ITEM")" == "" ]; then
-				filenum=`ls -al "${UsbStorage}" | wc -l`
-				if [ "$filenum" -eq 1 ]; then
-					rm -rf "${UsbStorage}"		
-					#finishUSBBackup
-				fi
-				filenum=`ls -al "${ImportDIR}" | wc -l`
-				if [ "$filenum" -eq 1 ]; then
-					rm -rf "${ImportDIR}"		
-					#finishUSBBackup
-				fi
-			fi
-        else	
-        	if [ "$devicefound" == "MTP" -o "$devicefound" == "PTP" ]; then
-				if [ -d "/media/USB/DCIM" ]; then
-					execmd="cp -a /media/USB/DCIM/* \"${UsbStorage}/\" > /dev/null 2>&1"
-					#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-					#echo $timestampDBG ": USB_StorageTransfer.sh MTP Cp cmd:" $execmd >> /tmp/backup.log
-					eval "$execmd"	
-					if [ $? != 0 ]; then
-						#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-						echo $timestampDBG ": USB_StorageTransfer.sh MTP Cp cmd:" $execmd >> /tmp/backup.log
-						echo $timestampDBG ": USB_StorageTransfer.sh Error 14" >> /tmp/backup.log
-						echo "1" > /tmp/USBStatusError
-					fi
-				else
-					if [ "${deepfolderNum}" == 0 ]; then
-						MTPfolder="/media/USB"
-						execmd="cp -a \"${MTPfolder}\"/* \"${UsbStorage}/\" > /dev/null 2>&1"
-						#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-						#echo $timestampDBG ": USB_StorageTransfer.sh MTP Cp cmd:" $execmd >> /tmp/backup.log
-						eval "$execmd"	
-						if [ $? != 0 ]; then
-							#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-							echo $timestampDBG ": USB_StorageTransfer.sh MTP Cp cmd:" $execmd >> /tmp/backup.log
-							echo $timestampDBG ": USB_StorageTransfer.sh Error 12" >> /tmp/backup.log
-							echo "1" > /tmp/USBStatusError
-						fi
-					else
-						for ((dx=1; dx<=deepfolderNum; dx++ )); do
-							if [ "${dx}" == 1 ]; then
-								MTPfolder="`realpath /media/USB/*/DCIM | sed -n '1p'`"
-							elif [ "${dx}" == 2 ]; then
-								MTPfolder="`realpath /media/USB/*/DCIM | sed -n '2p'`"
-							elif [ "${dx}" == 3 ]; then
-								MTPfolder="`realpath /media/USB/*/DCIM | sed -n '3p'`"
-							fi
-								
-							execmd="cp -a \"${MTPfolder}/\"* \"${UsbStorage}/\" > /dev/null 2>&1"
-							#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-							#echo $timestampDBG ": USB_StorageTransfer.sh MTP Cp cmd:" $execmd >> /tmp/backup.log
-							eval "$execmd"	
-							if [ $? != 0 ]; then
-								#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-								echo $timestampDBG ": USB_StorageTransfer.sh MTP Cp cmd:" $execmd >> /tmp/backup.log
-								echo $timestampDBG ": USB_StorageTransfer.sh Error 12" >> /tmp/backup.log
-								echo "1" > /tmp/USBStatusError
-               				fi		
-						done
-					fi				
-				fi			
-			else            
 				execmd="cp -a "${USB_MOUNT}"/.[^.]* \"${UsbStorage}/\" > /dev/null 2>&1"
 				eval "$execmd"
-					
 				filenum=`ls "${USB_MOUNT}"/ | wc -l`
 				if [ "${filenum}" != 0 ]; then
 					execmd="cp -a "${USB_MOUNT}"/* \"${UsbStorage}/\" > /dev/null 2>&1"
-					#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-					#echo $timestampDBG ": USB_StorageTransfer.sh MTP Cp cmd:" $execmd >> /tmp/backup.log
 					eval "$execmd"
-					if [ $? != 0 ]; then
-						#timestampDBG=$(date "+%Y.%m.%d-%H.%M.%S")
-						echo $timestampDBG ": USB_StorageTransfer.sh MTP Cp cmd:" $execmd >> /tmp/backup.log
-						echo $timestampDBG ": USB_StorageTransfer.sh Error 15" >> /tmp/backup.log
-						echo "1" > /tmp/USBStatusError
-           			fi
-           		fi
-           	fi
+					ERROR_CODE=$?
+					if [ "${ERROR_CODE}" != 0 ]; then
+						RuningStatus=16
+						echo $timestampDBG ": USB_StorageTransfer.sh USB cmd" $execmd "RuningStatus" $RuningStatus "ERROR_CODE" $ERROR_CODE >> /tmp/backup.log
+					fi
+				fi
+			fi
 		fi
-		
-		
-			
+	fi
+elif [ "$method" == "copy_all" ]; then
+#YC add for performance test
+SYNC_START=$(date +%s)
+	if [ "${devType}" == "MTP" ]; then
+		if [ -d "/media/USB/DCIM" ]; then
+			execmd="cp -a /media/USB/DCIM/* \"${UsbStorage}/\" > /dev/null 2>&1"
+			#echo $timestampDBG ": USB_StorageTransfer.sh MTP Cp cmd:" $execmd >> /tmp/backup.log
+			eval "$execmd"
+			ERROR_CODE=$?
+			if [ "${ERROR_CODE}" != 0 ]; then
+				RuningStatus=14
+				echo $timestampDBG ": USB_StorageTransfer.sh MTP cmd" $execmd "RuningStatus" $RuningStatus "ERROR_CODE" $ERROR_CODE >> /tmp/backup.log
+			fi
+		else
+			if [ "${deepfolderNum}" == 0 ]; then
+				execmd="cp -a /media/USB/* \"${UsbStorage}/\" > /dev/null 2>&1"
+				eval "$execmd"
+				ERROR_CODE=$?
+				if [ "${ERROR_CODE}" != 0 ]; then
+					RuningStatus=15
+					echo $timestampDBG ": USB_StorageTransfer.sh MTP cmd" $execmd "RuningStatus" $RuningStatus "ERROR_CODE" $ERROR_CODE >> /tmp/backup.log
+				fi
+			else
+				for ((dx=1; dx<=deepfolderNum; dx++ )); do
+					if [ "${dx}" == 1 ]; then
+						MTPfolder="`realpath /media/USB/*/DCIM | sed -n '1p'`"
+					elif [ "${dx}" == 2 ]; then
+						MTPfolder="`realpath /media/USB/*/DCIM | sed -n '2p'`"
+					elif [ "${dx}" == 3 ]; then
+						MTPfolder="`realpath /media/USB/*/DCIM | sed -n '3p'`"
+					fi
+								
+					execmd="cp -a \"${MTPfolder}/\"* \"${UsbStorage}/\" > /dev/null 2>&1"
+					eval "$execmd"
+					ERROR_CODE=$?
+					if [ "${ERROR_CODE}" != 0 ]; then
+						RuningStatus=16
+						echo $timestampDBG ": USB_StorageTransfer.sh MTP cmd" $execmd "RuningStatus" $RuningStatus "ERROR_CODE" $ERROR_CODE >> /tmp/backup.log
+					fi		
+				done
+			fi				
+		fi
+	else
+		execmd="cp -a "${USB_MOUNT}"/.[^.]* \"${UsbStorage}/\" > /dev/null 2>&1"
+		eval "$execmd"
+		filenum=`ls "${USB_MOUNT}"/ | wc -l`
+		if [ "${filenum}" != 0 ]; then
+			execmd="cp -a "${USB_MOUNT}"/* \"${UsbStorage}/\" > /dev/null 2>&1"
+			eval "$execmd"
+			ERROR_CODE=$?
+			if [ "${ERROR_CODE}" != 0 ]; then
+				RuningStatus=16
+				echo $timestampDBG ": USB_StorageTransfer.sh USB cmd" $execmd "RuningStatus" $RuningStatus "ERROR_CODE" $ERROR_CODE >> /tmp/backup.log
+			fi
+		fi
+	fi
+fi
+
 #YC add for performance test
 SYNC_END=$(date +%s)
 DIFF=$(( $SYNC_END - $SYNC_START ))
 echo "SYNC took $DIFF seconds"          
-
-        removeTempfile
-		RuningStatus=`cat /tmp/USBStatusError`
-		if [ "${RuningStatus}" -eq 0 ]; then
-			`chmod -R 777 "/shares/Storage/USB Imports"`
-		else
-			chmod -R 777 "/shares/Storage/USB Imports"
-			if [ "${MTP_WrongMethod}" == "1" ]; then
-				/usr/local/sbin/sendAlert.sh 1612 "${StorageProduct}" "${SerialNum}" &
-			else
-				/usr/local/sbin/sendAlert.sh 1606 "${StorageProduct}" "${SerialNum}" &
-			fi 
-			#echo "18;0;" > /tmp/MCU_Cmd
-			echo "USB_TransferStatus=completed" > /etc/nas/config/usb-transfer-status.conf
-           	sync
-			sync
-			sync
-            if [ -f /tmp/USB_Process_Canceled ]; then
-            	echo "status=canceled" > /tmp/transfer_state
-                rm -f /tmp/USB_Process_Canceled
-            else
-            	if [ "$MTP_WrongMethod" == "1" ]; then
-			    			echo "status=UsbReadOnlyfailed" > /tmp/transfer_state
-			    		else
-			    			echo "status=failed" > /tmp/transfer_state
-			    		fi
-            fi
-            echo "42;125;" > /tmp/MCU_Cmd
-			#/sbin/AdaptCPUfreq.sh endbackup
-			#killall rsync > /dev/null 2>&1
-			#sleep 5
-			SD_BackupQueueCheck
-			exit 1
-		fi    			
-	fi
+	
+removeTempfile
+if [ -d "${ImportDIR}" ]; then
+	execmd="chmod -R 777 \"${ImportDIR}/\""
 fi
+eval "$execmd"
+echo $timestampDBG ": USB_StorageTransfer.sh change attribute" $execmd >> /tmp/backup.log
+if [ "${RuningStatus}" != "0" ]; then
+	#chmod -R 777 "/shares/Storage/${USB_BACKUP_ROOT}"
+	if [ "${MTP_WrongMethod}" == "1" ]; then
+		/usr/local/sbin/sendAlert.sh 1612 "${StorageProduct}" "${SerialNum}" &
+	else
+		/usr/local/sbin/sendAlert.sh 1606 "${StorageProduct}" "${SerialNum}" &
+	fi
+	echo "USB_TransferStatus=completed" > /etc/nas/config/usb-transfer-status.conf
+	sync
+	sync
+	sync
+	if [ -f /tmp/USB_Process_Canceled ]; then
+		echo "status=canceled" > /tmp/transfer_state
+		rm -f /tmp/USB_Process_Canceled
+	else
+		echo "status=failed" > /tmp/transfer_state	
+	fi
+	echo "42;125;" > /tmp/MCU_Cmd
+	SD_BackupQueueCheck
+	exit 1
+fi    			
 
-echo ${CID} > /media/sdb1/.wdcache/.${fullCID}
-#echo ${CID} > /media/sdb1/USB\ Imports/${CID}/${timestamp}/.${fullCID}
-finishSdBackup
+echo ${CID} > /media/sdb1/.wdcache/.${SerialNum}
+finishBackup
 
 sync
 sync

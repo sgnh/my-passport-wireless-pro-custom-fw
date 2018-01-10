@@ -3,3 +3,11 @@ config BR2_PACKAGE_PMXPACKAGE_ASMUPDATE
 	help
 	  The primax package(asmupdate) ASMedia FW udpate tool for Korra device
 
+if BR2_PACKAGE_PMXPACKAGE_ASMUPDATE
+config BR2_PACKAGE_PMXPACKAGE_ASMUPDATE_STATIC
+    bool "compile as static"
+    help
+      Enable static mode
+
+endif
+

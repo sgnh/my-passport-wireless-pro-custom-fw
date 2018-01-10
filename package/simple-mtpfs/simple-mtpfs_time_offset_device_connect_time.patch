@@ -1,0 +1,63 @@
+--- simple-mtpfs-0.2/src/simple-mtpfs-fuse.cpp	2017-12-12 16:09:25.684459669 +0800
++++ simple-mtpfs-0.2-new/src/simple-mtpfs-fuse.cpp	2016-04-13 06:54:54.000000000 +0800
+@@ -17,6 +17,7 @@
+ 
+ #include <config.h>
+ #include <iostream>
++#include <ctime>
+ extern "C" {
+ #  include <errno.h>
+ #  include <fuse/fuse_opt.h>
+@@ -162,6 +163,7 @@
+     , m_list_devices(false)
+     , m_device_no(1)
+     , m_time_offset(0)
++    , m_device_connect_time(0)
+     , m_device_file(nullptr)
+     , m_mount_point(nullptr)
+ {
+@@ -301,6 +303,10 @@
+         return false;
+     }
+ 
++    if (m_options.m_time_offset) {
++        m_options.m_device_connect_time = time(NULL);
++    }
++	
+     fuse_opt_add_arg(&m_args, m_options.m_mount_point);
+     fuse_opt_add_arg(&m_args, "-s");
+ 
+@@ -429,7 +435,10 @@
+             buf->st_ino = dir->id();
+             buf->st_mode = S_IFDIR | 0775;
+             buf->st_nlink = 2;
+-            buf->st_mtime = dir->modificationDate() - (m_options.m_time_offset * 60);
++            if (!dir->modificationDate())
++                buf->st_mtime = m_options.m_device_connect_time;
++			else
++                buf->st_mtime = dir->modificationDate() - (m_options.m_time_offset * 60);
+         } else if (content->file(tmp_file)) {
+             const TypeFile *file = content->file(tmp_file);
+             buf->st_ino = file->id();
+@@ -437,7 +446,10 @@
+             buf->st_blocks = (file->size() / 512) + (file->size() % 512 > 0 ? 1 : 0);
+             buf->st_nlink = 1;
+             buf->st_mode = S_IFREG | 0644;
+-            buf->st_mtime = file->modificationDate() - (m_options.m_time_offset * 60);
++            if (!file->modificationDate())
++                buf->st_mtime = m_options.m_device_connect_time;
++            else
++                buf->st_mtime = file->modificationDate() - (m_options.m_time_offset * 60);
+             buf->st_ctime = buf->st_mtime;
+             buf->st_atime = buf->st_mtime;
+         } else {
+--- simple-mtpfs-0.2/src/simple-mtpfs-fuse.h	2017-12-12 18:46:26.327412067 +0800
++++ simple-mtpfs-0.2-new/src/simple-mtpfs-fuse.h	2016-04-13 06:54:54.000000000 +0800
+@@ -42,6 +42,7 @@
+         int m_list_devices;
+         int m_device_no;
+         int m_time_offset;
++        int m_device_connect_time;
+         char *m_device_file;
+         char *m_mount_point;
+ 

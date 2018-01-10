@@ -18,14 +18,14 @@ if [ "${enabled}" == "true" ] || [ "${enabled}" == "false" ]; then
         /usr/local/sbin/setMediaCrawlerPowerMode.sh ${enabled} & > /dev/null 2> /dev/null
     fi
     /etc/init.d/S90powerprofile restart
-    echo -n "Stop SWAP sevice: "
-    /sbin/EnableDisableSwap.sh disable
-    echo "done"
-    echo -n "Starting SWAP sevice: "
-    if [ "${ACMode}" == "charging" ] ; then
-        /sbin/EnableDisableSwap.sh enable
-    fi
-    /usr/local/sbin/sendHWCollect.sh 104 ${ACMode}
+    #echo -n "Stop SWAP sevice: "
+    #/sbin/EnableDisableSwap.sh disable
+    #echo "done"
+    #echo -n "Starting SWAP sevice: "
+    #if [ "${ACMode}" == "charging" ] ; then
+    #    /sbin/EnableDisableSwap.sh enable
+    #fi
+    #/usr/local/sbin/sendHWCollect.sh 104 ${ACMode}
     exit 0
 else
     echo "SetPowerProfile.sh true | false"

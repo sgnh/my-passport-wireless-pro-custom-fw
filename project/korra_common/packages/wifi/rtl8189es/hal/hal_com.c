@@ -1431,6 +1431,7 @@ static void rtw_hal_update_gtk_offload_info(_adapter* adapter)
 	u8 get_key[16];
 	u8 null_key[16];
 	u8 index = 0;
+	u8 i = 0, sz = 0;
 	u16 ctrl = 0;
 	u32 algorithm = 0;
 
@@ -1486,6 +1487,13 @@ static void rtw_hal_update_gtk_offload_info(_adapter* adapter)
 			}
 			index++;
 		}while(index < 4);
+
+		/* Update broadcast RX IV */
+		if (psecuritypriv->dot118021XGrpPrivacy == _AES_) {
+			sz = sizeof(psecuritypriv->iv_seq[0]);
+			for (i = 0 ; i < 4 ; i++)
+				_rtw_memset(psecuritypriv->iv_seq[i], 0, sz);
+		}
 
 		rtw_write8(adapter, REG_SECCFG, 0x0c);
 #ifdef CONFIG_GTK_OL_DBG

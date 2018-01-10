@@ -13,6 +13,68 @@ PATH=/sbin:/bin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin
 
 cmd=$1
 
+
+create_Library() {
+    isMounted=`mount | grep "/media/sdb1" | wc -l`
+    if [ $isMounted -eq 0 ]; then
+        echo "No User HDD founded"
+	exit 1
+    fi
+
+    if [ ! -f /media/sdb1/.wdcache/plexmediaserver.img ]; then
+        UserHDDSpace=`df | grep "/media/sdb1" | awk '{print $4}'`
+        if [ $UserHDDSpace -gt 10485760 ]; then
+            dd if=/dev/zero of=/media/sdb1/.wdcache/plexmediaserver.img bs=1M count=10240
+            mkfs.ext4 /media/sdb1/.wdcache/plexmediaserver.img
+        fi
+    fi
+    if [ -f /media/sdb1/.wdcache/plexmediaserver.img ]; then
+        mkdir -p /data/plexmediaserver
+        mount -t ext4 -o loop /media/sdb1/.wdcache/plexmediaserver.img /data/plexmediaserver
+        sleep 1
+        isDataPlexmediaserverMounted=`mount | grep "/data/plexmediaserver" | wc -l`
+        while [ $isDataPlexmediaserverMounted -eq 0 ] && [ ${retry} -gt 0 ]
+        do
+            sleep 3        
+            mount -t ext4 -o loop /media/sdb1/.wdcache/plexmediaserver.img /data/plexmediaserver
+            isDataPlexmediaserverMounted=`mount | grep "/data/plexmediaserver" | wc -l`
+            ((retry --))
+        done    
+    fi
+
+    if [ $isDataPlexmediaserverMounted -eq 1 ]; then
+        if [ ! -L /usr/local/plexmediaserver/Library ]; then
+            ln -sf /data/plexmediaserver /usr/local/plexmediaserver/Library
+        else
+            isLinkToData=`ls -l /usr/local/plexmediaserver/Library | grep "/data/plexmediaserver/" | wc -l`
+            if [ $isLinkToData -eq 0 ]; then
+                rm -f /usr/local/plexmediaserver/Library
+                ln -sf /data/plexmediaserver /usr/local/plexmediaserver/Library
+            fi
+        fi
+    else
+        if [ ! -d /media/sdb1/.wdcache/.plexmediaserver ]; then
+            mkdir -p /media/sdb1/.wdcache/.plexmediaserver
+        fi
+        if [ ! -L /usr/local/plexmediaserver/Library ]; then
+            if [ ! -d /media/sdb1/.wdcache/.plexmediaserver ]; then
+                mkdir -p /media/sdb1/.wdcache/.plexmediaserver
+            fi
+            mv /usr/local/plexmediaserver/Library/* /media/sdb1/.wdcache/.plexmediaserver/
+            rm -Rf /usr/local/plexmediaserver/Library
+            ln -sf /media/sdb1/.wdcache/.plexmediaserver /usr/local/plexmediaserver/Library
+        else
+            isLinkToWdcache=`ls -l /usr/local/plexmediaserver/Library | grep "/media/sdb1/.wdcache/.plexmediaserver" | wc -l`
+            if [ $isLinkToWdcache -eq 0 ]; then
+                rm -f /usr/local/plexmediaserver/Library
+                ln -sf /media/sdb1/.wdcache/.plexmediaserver /usr/local/plexmediaserver/Library
+            fi
+        fi
+    fi
+
+}
+
+
 if [ "`getServiceStartup.sh plexmediaserver`" == "disabled" ]; then
 	exit 0;
 fi
@@ -41,6 +103,7 @@ rebuild)
             killall mv
             killall cp
             killall convert
+            killall ufraw-batch
             sync
             umount /var/ftp/Storage
             sleep 1
@@ -58,20 +121,11 @@ rebuild)
             umount -l ${MountDevNode}	
             sleep 1
     
-            #if [ "$fstype" == "exfat" ]; then
-            #    chkexfat -f "${MountDevNode}"
-            #fi
-            #if [ "$fstype" == "ntfs" ]; then
-            #    chkntfs -f "${MountDevNode}"
-            #fi
-            #if [ "$fstype" == "hfsplus" ]; then
-            #    chkhfs -f "${MountDevNode}"
-            #fi
             if [ "$fstype" == "exfat" ] || [ "$fstype" == "ntfs" ] || [ "$fstype" == "hfsplus" ]; then
-                chkufsd -f "${MountDevNode}"
+                chkufsd -f ${MountDevNode} > /tmp/chkdisk.log
             fi
             if [ "$fstype" == "vfat" ]; then
-                fsck.fat -aw ${MountDevNode}
+                fsck.fat -aw ${MountDevNode} > /tmp/chkdisk.log
             fi
             sync
             #/usr/local/sbin/killService.sh hddup > /dev/null
@@ -94,11 +148,22 @@ rebuild)
             fi
             mdev -s
             sleep 1
-	
-            rm -Rf /usr/local/plexmediaserver/Library
-            rm -Rf /media/sdb1/.wdcache/.plexmediaserver/
-            /etc/init.d/S80plexmediaserver start
-		
+
+            if [ -d /usr/local/plexmediaserver/Library ]; then
+                rm -Rf /usr/local/plexmediaserver/Library
+            fi
+            if [ -d /media/sdb1/.wdcache/.plexmediaserver ]; then
+                rm -Rf /media/sdb1/.wdcache/.plexmediaserver
+            fi
+            if [ -f /media/sdb1/.wdcache/plexmediaserver.img ]; then
+                rm -f /media/sdb1/.wdcache/plexmediaserver.img
+            fi
+            if [ -L /usr/local/plexmediaserver/Library ]; then
+                rm -f /usr/local/plexmediaserver/Library
+            fi
+            create_Library
+            #/etc/init.d/S80plexmediaserver start
+
             rm /tmp/PlexRebuild
             reboot
         fi

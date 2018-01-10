@@ -101,11 +101,11 @@ cleanup_twonky_settings()
 probe_hdd()
 {
     vol=0
-    HDD_MODEL="My Passport 25AF"
     for diskV in /sys/block/sd*; do
         vendor=`cat ${diskV}/device/vendor | awk '{print $1}'`
         model=`cat ${diskV}/device/model`
         [ "${model}" == "My Passport 25AF" ] && HDD_MODEL="My Passport 25AF" && echo "This is Korra HDD"
+        [ "${model}" == "My Passport 2601" ] && HDD_MODEL="My Passport 2601" && echo "This is Korra SSD"
         if [ "${vendor}" == "WD" ] && [ "${model}" == "${HDD_MODEL}" ]; then
             size=`cat ${diskV}/size`
             if [ ${size} -gt 4194304 ]; then
@@ -280,10 +280,12 @@ restore_curpackages()
             isInstalled=`/usr/local/sbin/getPackagesStatus.sh ${package}`
             if [ "${isInstalled}" == "installed" ]; then
                 tar xvf /CacheVolume/${package}-installed.tar -C /mnt/
-                if [ -f /usr/local/sbin/packages/${package}-postinstall.sh ]; then
+                if [ -f /mnt/usr/local/sbin/packages/${package}-postinstall.sh ]; then
+                    /mnt/usr/local/sbin/packages/${package}-postinstall.sh		
+                else
                     /usr/local/sbin/packages/${package}-postinstall.sh
                 fi
-	        fi
+            fi
         done
     fi
 }
@@ -447,11 +449,11 @@ erase_Rescue_Kernel_DTB_flash64MbitSPIROM()
     is64MbitSPIROM=`cat /proc/mtd | grep "00800000" | wc -l`
     if [ $is64MbitSPIROM -eq 1 ]; then
         uplog "Erase Rescue Kernel and DTB in SPIROM"
-	flash_erase /dev/mtd0 5242880 256
-	update_progress 60
-	flash_erase /dev/mtd0 6291456 256
-	update_progress 65
-	flash_erase /dev/mtd0 7340032 256
+        flash_erase /dev/mtd0 5242880 256
+        update_progress 60
+        flash_erase /dev/mtd0 6291456 256
+        update_progress 65
+        flash_erase /dev/mtd0 7340032 256
     fi
 }
 
@@ -480,8 +482,8 @@ erase_BlueCore_Audio_flash64MbitSPIROM()
     is64MbitSPIROM=`cat /proc/mtd | grep "00800000" | wc -l`
     if [ $is64MbitSPIROM -eq 1 ]; then
         uplog "Erase BlueCore Audio in SPIROM"
-	flash_erase /dev/mtd0 4194304 256
-	update_progress 85
+        flash_erase /dev/mtd0 4194304 256
+        update_progress 85
     fi
 }
 
@@ -510,21 +512,52 @@ mount_to_mnt()
 
 check_recoveryFW_version()
 {
-	mount_to_mnt ext4 "${HiddenV1}"1
-	if [ ! -f "/etc/FactoryFwVer" ]; then
-		RecoveryFWversion=`ls /mnt/MyPassport* | awk -F\/ '{print $NF}'`
-		uplog "RecoveryFWversion: "$RecoveryFWversion" "
-	else
-		tmpRFWV=`cat /etc/FactoryFwVer`
-		if [ "$tmpRFWV" == "none" ]; then
-			RecoveryFWversion=`ls /mnt/MyPassport* | awk -F\/ '{print $NF}'`
-			uplog "get RecoveryFWversion again: "$RecoveryFWversion" "
-		else
-			uplog "Recovery fw version exist "$tmpRFWV" "
-			RecoveryFWversion="$tmpRFWV"
-		fi
-	fi
-	umount /mnt
+    mount_to_mnt ext4 "${HiddenV1}"1
+    if [ ! -f "/etc/FactoryFwVer" ]; then
+        RecoveryFWversion=`ls /mnt/MyPassport* | awk -F\/ '{print $NF}'`
+        uplog "RecoveryFWversion: "${RecoveryFWversion}" "
+    else
+        tmpRFWV=`cat /etc/FactoryFwVer`
+        if [ "${tmpRFWV}" == "none" ]; then
+            RecoveryFWversion=`ls /mnt/MyPassport* | awk -F\/ '{print $NF}'`
+            echo "${RecoveryFWversion}" > /etc/FactoryFwVer
+            uplog "get RecoveryFWversion again: "${RecoveryFWversion}" "
+        else
+            uplog "Recovery fw version exist "${tmpRFWV}" "
+            RecoveryFWversion="${tmpRFWV}"
+        fi
+    fi
+    umount /mnt
+}
+
+check_ASMedia_PID()
+{
+    ASMediaPIDHDDupdate=`lsusb  | grep "1058:25af" | wc -l`
+    ASMediaPIDSSDupdate=`lsusb  | grep "1058:2601" | wc -l`
+    isSSD=`hdparm -I /dev/${UserV} | grep "Solid State Device" | wc -l`
+    if [ ${ASMediaPIDHDDupdate} -eq 0 ] && [ ${isSSD} -eq 0 ] ; then
+        $FWPATH/bin/asmupdate -p /dev/${UserV} -k
+    fi
+    if [ ${ASMediaPIDSSDupdate} -eq 0 ] && [ ${isSSD} -eq 1 ] ; then
+        $FWPATH/bin/asmupdate -p /dev/${UserV} -p
+    fi
+}
+
+switch_to_SSD_system()
+{
+    isSSD=`hdparm -I /dev/${UserV} | grep "Solid State Device" | wc -l`
+    if [ ${isSSD} -eq 1 ] ; then
+        find /mnt/var/www -type f -not -path "/mnt/var/www/UI/help*" -exec sed -i 's/My Passport Wireless Pro/My Passport Wireless SSD/g' {} +
+        find /mnt/var/www -type f -not -path "/mnt/var/www/UI/help*" -exec sed -i 's/Wireless Pro/Wireless SSD/g' {} +
+        find /mnt/etc -type f -exec sed -i 's/My Passport Wireless Pro/My Passport Wireless SSD/g' {} +
+        find /mnt/etc -type f -exec sed -i 's/mypassportwirelesspro/mypassportwirelessssd/g' {} +
+        cp /mnt/usr/local/twonkymedia-7/resources/devicedescription-custom-settings-ssd.txt /mnt/usr/local/twonkymedia-7/resources/devicedescription-custom-settings.txt
+        cp /mnt/usr/local/upnp/web_wlan1/nasdevicedesc-ssd.xml /mnt/usr/local/upnp/web_wlan1/nasdevicedesc.xml
+        cp /mnt/etc/icon_SSD.ico /mnt/etc/icon.ico
+        cp /mnt/var/www/UI/css/img/img_logo_MPW_Pro_v2_SSD.png /mnt/var/www/UI/css/img/img_logo_MPW_Pro_v2.png
+        cp /mnt/var/www/UI/css/img/img_logo_s_SSD.png /mnt/var/www/UI/css/img/img_logo_s.png
+        cp /mnt/var/www/UI/css/img/product_images_sprite_SSD.png /mnt/var/www/UI/css/img/product_images_sprite.png
+    fi
 }
 
 restore_knl_part()
@@ -768,6 +801,7 @@ if [ -f $FWPATH/rootfs.tar.gz ]; then
     tar zxvf $FWPATH/rootfs.tar.gz -C /mnt/ 2>/dev/null 1> $FWPATH/install.log
     #date +%s > /mnt/etc/version.update
     restore_curpackages
+    switch_to_SSD_system
     if [ -f "/tmp/RecoverMode" ]; then
      	touch /mnt/etc/.device_Unconfigured
      	update_progress 28
@@ -930,10 +964,11 @@ if [ $isSuccess -eq 1 ]; then
         cp $1 /CacheVolume/MyPassportWirelessGen2.bin
         sync
         umount /mnt
-        ASMediaPIDupdate=`lsusb  | grep "1058:25af" | wc -l`
-        if [ ${ASMediaPIDupdate} -eq 0 ]; then
-            asmupdate -p /dev/sda -k
-        fi
+        check_ASMedia_PID
+        #ASMediaPIDupdate=`lsusb  | grep "1058:25af" | wc -l`
+        #if [ ${ASMediaPIDupdate} -eq 0 ]; then
+        #    asmupdate -p /dev/sda -k
+        #fi
         /usr/local/sbin/sendHWCollect.sh 102 UpdateFW Completed $NFWVER
     fi
     
@@ -982,6 +1017,7 @@ if [ $isSuccess -eq 1 ]; then
             echo "update ASMedia fw"
             asmupdate -u /dev/$HiddenV2 /tmp/asmfw.bin
         fi
+        check_ASMedia_PID
         #Start MCU Firmware update
         if [ -f "/tmp/mcufw.bin" ]; then
             if [ -f "/sbin/fwupgled.sh" ]; then

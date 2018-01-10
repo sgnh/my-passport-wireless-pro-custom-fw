@@ -126,7 +126,7 @@ if [ "${AC}" == "discharging" ]; then
 		if [ ${BatLevel} -lt 15 ]; then
 			/usr/local/sbin/sendAlert.sh 1601
 			sleep 5
-			halt
+			halt SuspendLow
 			exit 0
 		fi
 	fi

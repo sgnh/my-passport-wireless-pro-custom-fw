@@ -1,5 +1,5 @@
-WDPACKAGE_WEBUI_VERSION = 1.4.0-229
-WDPACKAGE_WEBUI_RELEASE_DATE = 2016-12-13
+WDPACKAGE_WEBUI_VERSION = 1.4.0-240
+WDPACKAGE_WEBUI_RELEASE_DATE = 2017-11-29
 WDPACKAGE_WEBUI_SOURCE = ui-$(WDPACKAGE_WEBUI_VERSION).deb
 
 define WDPACKAGE_WEBUI_EXTRACT_CMDS
@@ -23,6 +23,11 @@ define WDPACKAGE_WEBUI_EXTRACT_CMDS
 	#cp -a package/wdpackage_WebUI/ssh_confirmation.php $(TARGET_DIR)/var/www/UI/views/settings/partial/popups/ssh_confirmation.php
 	#cp -a package/wdpackage_WebUI/wifi_settings_5.php $(TARGET_DIR)/var/www/UI/views/wifi/partial/popups/wifi_settings_5.php
 	#cp -a package/wdpackage_WebUI/wifi_settings_advanced.php $(TARGET_DIR)/var/www/UI/views/wifi/partial/popups/wifi_settings_advanced.php
+    
+    ### for KORRA-2704
+	rm -r $(TARGET_DIR)/var/www/UI/help/
+	tar zxvf package/wdpackage_WebUI/help.tar.gz -C $(TARGET_DIR)/var/www/UI/
+	
 endef
 
 define WDPACKAGE_RESTAPI_UNINSTALL_TARGET_CMDS

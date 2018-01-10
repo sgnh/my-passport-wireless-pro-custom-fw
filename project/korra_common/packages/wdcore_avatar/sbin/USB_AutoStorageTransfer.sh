@@ -30,52 +30,47 @@ echo $timestamp ": USB_AutoStorageTransfer.sh" $@ >> /tmp/backup.log
 if [ "${USB_TransferAuto}" == "false" ]; then
 	exit 0
 else
-	if [ -f "/tmp/USB_AutoProcessing" ]; then
+	if [ -f "/tmp/USB_AutoProcessing" ] || [ "${USB_TransferStatus}" != "completed" ]; then
+		echo $timestamp ": USB_AutoStorageTransfer.sh exit: USB_TransferStatus" ${USB_TransferStatus} >> /tmp/backup.log
 		exit 1
 	fi
 	
-   	if [ "${USB_TransferStatus}" == "process" ]; then
+	USBpartitionNum=`ls /tmp/sd*-info | wc -l`
+	if [ "${USBpartitionNum}" == "0" ]; then
+		echo $timestamp ":  USB_AutoStorageTransfer None USBpartitionNum:" ${USBpartitionNum} >> /tmp/backup.log
 		exit 1
 	fi
-	
-	
+
 	if [ "$TransferStatus" != "completed" ]; then
 		echo "USB_TransferStatus=standby:Auto:""$method" > /etc/nas/config/usb-transfer-status.conf
+		echo $timestamp ": USB_AutoStorageTransfer.sh set usb standby" >> /tmp/backup.log
 	else
-		partitionNum=`ls /tmp/sd*-info | wc -l`
-		totalNum="${partitionNum}"
-		if [ "${partitionNum}" != "0" ]; then
-			echo "USB_TransferStatus=checkin" > /etc/nas/config/usb-transfer-status.conf
-			touch /tmp/USB_AutoProcessing
-		fi
+		touch /tmp/USB_AutoProcessing
+		Disknum="${USBpartitionNum}"
 		
-		while [ "$partitionNum" != "0" ]; do
-			USB_backup=`cat /etc/nas/config/usb-transfer-status.conf | awk -F= '{print $NF}'`
-			if [ "$USB_backup" == "completed" ] || [ "$USB_backup" == "checkin" ]; then
+		while [ "$Disknum" != "0" ]; do
+			if [ "$USBpartitionNum" == "1" ]; then 
+				USBshare=`cat /tmp/sd*-info | awk -F: '{print $1}'`
+			else
+				USBshare=`cat /tmp/sd*-info | awk -F: '{print $1}' | sed -n ${Disknum}p`
+			fi
+			Disknum=`expr $Disknum - 1`
 				
-				if [ "$totalNum" == "1" ]; then 
-					USBshare=`cat /tmp/sd*-info | awk -F: '{print $1}'`
-				else
-					USBshare=`cat /tmp/sd*-info | awk -F: '{print $1}' | sed -n ${partitionNum}p`
-				fi
-				partitionNum=`expr $partitionNum - 1`
+			#Running=`sqlite3 /usr/local/nas/orion/jobs.db  'select jobstate_id from Jobs where jobstate_id=2' | wc -l`
+   			#Waiting=`sqlite3 /usr/local/nas/orion/jobs.db  'select jobstate_id from Jobs where jobstate_id=1' | wc -l`
+			#if [ "${Running}" -eq "0" ] && [ "${Waiting}" -eq "0" ]; then	
+			#devicefound=`cat /tmp/detectInterface`
+			#if [ "$devicefound" == "MTP" ]; then
+			#	USBshare="USB_MTP"
+			#elif [ "$devicefound" == "PTP" ]; then # Louis
+			#	USBshare="USB_PTP"				
+			#fi
+			#echo status=waiting > /tmp/transfer_state
 				
-				#Running=`sqlite3 /usr/local/nas/orion/jobs.db  'select jobstate_id from Jobs where jobstate_id=2' | wc -l`
-   				#Waiting=`sqlite3 /usr/local/nas/orion/jobs.db  'select jobstate_id from Jobs where jobstate_id=1' | wc -l`
-				#if [ "${Running}" -eq "0" ] && [ "${Waiting}" -eq "0" ]; then	
-				#devicefound=`cat /tmp/detectInterface`
-				#if [ "$devicefound" == "MTP" ]; then
-				#	USBshare="USB_MTP"
-				#elif [ "$devicefound" == "PTP" ]; then # Louis
-				#	USBshare="USB_PTP"				
-				#fi
-				#echo status=waiting > /tmp/transfer_state
-				echo $timestamp ": USB_AutoStorageTransfer.sh backup trigger" >> /tmp/backup.log
-				
-   				/usr/local/sbin/storage_transfer_job_start.sh "/${USBshare}" &
-   				sleep 30
-   				#fi
-   			fi
+   			/usr/local/sbin/storage_transfer_job_start.sh "/${USBshare}" &
+   			echo $timestamp ": USB_AutoStorageTransfer.sh USB jobs trigger" $USBshare >> /tmp/backup.log
+   			sleep 30
+   			#fi
    		done
    	fi
    	if [ -f "/tmp/USB_AutoProcessing" ]; then

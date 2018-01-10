@@ -1,0 +1,70 @@
+--- linux-kernel.orig/drivers/mmc/core/sd.c	2015-05-18 15:08:13.000000000 +0800
++++ linux-kernel.mod/drivers/mmc/core/sd.c	2016-06-21 19:31:41.000000000 +0800
+@@ -62,6 +62,16 @@ static const unsigned int tacc_mant[] = {
+ /*
+  * Given the decoded CSD structure, decode the raw CID to our CID structure.
+  */
++
++//#ifdef CONFIG_MMC_RTKEMMC
++int Menfid=0x0;
++int get_manfid(void)
++{
++	return Menfid;
++}
++EXPORT_SYMBOL(get_manfid);
++//#endif
++
+ void mmc_decode_cid(struct mmc_card *card)
+ {
+ 	u32 *resp = card->raw_cid;
+@@ -79,6 +89,9 @@ void mmc_decode_cid(struct mmc_card *card)
+ 	 * have to assume we can parse this.
+ 	 */
+ 	card->cid.manfid		= UNSTUFF_BITS(resp, 120, 8);
++//	#ifdef CONFIG_MMC_RTKEMMC
++		Menfid = card->cid.manfid;
++//	#endif
+ 	card->cid.oemid			= UNSTUFF_BITS(resp, 104, 16);
+ 	card->cid.prod_name[0]		= UNSTUFF_BITS(resp, 96, 8);
+ 	card->cid.prod_name[1]		= UNSTUFF_BITS(resp, 88, 8);
+--- linux-kernel.orig/drivers/mmc/core/sd.h	2015-05-18 15:08:13.000000000 +0800
++++ linux-kernel.mod/drivers/mmc/core/sd.h	2016-06-21 19:31:41.000000000 +0800
+@@ -13,5 +13,5 @@
+ unsigned mmc_sd_get_max_clock(struct mmc_card *card);
+ int mmc_sd_switch_hs(struct mmc_card *card);
+ void mmc_sd_go_highspeed(struct mmc_card *card);
+-
++int get_manfid(void);
+ #endif
+--- linux-kernel.orig/drivers/mmc/host/rtksd.c	2016-05-18 19:41:43.951624138 +0800
++++ linux-kernel.mod/drivers/mmc/host/rtksd.c	2016-07-01 20:00:41.870134675 +0800
+@@ -39,6 +39,7 @@
+ #include "rtksd.h"                  //liao
+ #include "rtk_crsd_ops.h"                  //liao
+ #include "../mmc_debug.h"               //liao
++#include "../core/sd.h"
+
+ #include <linux/of.h>
+ #include <linux/of_irq.h>
+@@ -476,12 +476,18 @@ static void rtk_crsd_speed(struct rtk_crsd_host *sdport,enum crsd_clock_speed sd
+ 
+         	}else{
+ 
+-        		crsd_writeb(0XDD, sdport->base_io+CARD_SD_CLK_PAD_DRIVE);
++			crsd_writeb(0XDD, sdport->base_io+CARD_SD_CLK_PAD_DRIVE);
+         		crsd_writeb(0XDD, sdport->base_io+CARD_SD_CMD_PAD_DRIVE);
+         		crsd_writeb(0XDD, sdport->base_io+CARD_SD_DAT_PAD_DRIVE);
+ 
++			if(get_manfid()==0x3){
+ 				crsd_writel(crsd_readl( sdport->base_io + CR_SD_CKGEN_CTL) | 0x00070000, sdport->base_io + CR_SD_CKGEN_CTL); //Switch SD source clock to 4MHz by Hsin-yin
+-				crsd_writel( 0x00b64388,  sdport->base_pll_io+CR_PLL_SD3);	//bus clock to 208MHz jamestai20150319
++				crsd_writel( 0x00a54388,  sdport->base_pll_io+CR_PLL_SD3);	//bus clock to 208MHz jamestai20150319
++			}
++			else{
++				crsd_writel(crsd_readl( sdport->base_io + CR_SD_CKGEN_CTL) | 0x00070000, sdport->base_io + CR_SD_CKGEN_CTL); //Switch SD source clock to 4MHz by Hsin-yin
++                                crsd_writel( 0x00b64388,  sdport->base_pll_io+CR_PLL_SD3);      //bus clock to 208MHz jamestai20150319
++			}
+         	}
+ 
+ 			udelay(2);
+

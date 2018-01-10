@@ -9,11 +9,11 @@ isCacheEnabled=0
 CacheModName=pmxcache
 
 check_pmxcache(){
-	lsmod | grep -q "pmxcache"
-	if [ $? -eq 0 ]; then
-		lsmod | grep -q "avplg"
-		[ $? -eq 0 ] && isCacheEnabled=1
-	fi
+    lsmod | grep -q "pmxcache"
+    if [ $? -eq 0 ]; then
+        lsmod | grep -q "avplg"
+        [ $? -eq 0 ] && isCacheEnabled=1
+    fi
 }
 
 connect_alert_database()
@@ -65,7 +65,6 @@ check_DeviceNode()
         echo "41;1;" > /tmp/MCU_Cmd
         echo "" >  /tmp/USBdeviceAttached
     fi
-    
 }
 
 my_umount()
@@ -89,7 +88,16 @@ my_umount()
     if grep -qs "^/dev/$1 " /proc/mounts ; then
         umount /dev/$1;
     fi
-
+    if grep -qs "^/dev/$1 " /proc/mounts ; then
+        sleep 1
+        echo "${PPID} my_umount $dev $USBdev retry 1" >> /tmp/automount.log
+        umount -l /dev/$1;
+    fi
+    if grep -qs "^/dev/$1 " /proc/mounts ; then
+        sleep 1
+        echo "${PPID} my_umount $dev $USBdev retry 2" >> /tmp/automount.log
+        umount -l /dev/$1;
+    fi
     [ -d "${destdir}/${mount_point}" ] && umount -f "${destdir}/${mount_point}" && rmdir "${destdir}/${mount_point}"
     sleep 1
     if [ "${mount_type}" == "USB" ]; then
@@ -110,78 +118,90 @@ my_umount()
            #echo "18;0;" > /tmp/MCU_Cmd
        fi
     fi
-
 }
                          
 my_check()
 {
-	if [ $ishddrive -eq 1 ]; then
-	    fstype=`blkid /dev/$1 | sed -n 's/.*TYPE="\([^"]*\)".*/\1/p'`
-	    echo "${PPID} FStype $fstype on $1" >> /tmp/automount.log
-	    if [ "$fstype" == "exfat" ]; then
-	        if [ ! -f /tmp/StartupHDDChecked ]; then
-	            chkexfat -f --safe /dev/$1
-	            result=$?
-	            echo "Quick Testing Result on $1: $result"
-	            touch /tmp/StartupHDDChecked
-	            if [ "$result" != "1" ]; then
-	                echo "${PPID} exFAT Quick check Failed" >> /tmp/automount.log
-	                chkexfat -f /dev/$1
-	            else
-	                echo "${PPID} exFAT Quick check Passed" >> /tmp/automount.log
-	            fi
-	        fi
-	    fi
-	    if [ "$fstype" == "ntfs" ]; then
-	        if [ ! -f /tmp/StartupHDDChecked ]; then
-	            chkntfs -f --safe /dev/$1
-	            result=$?
-	            echo "Quick Testing Result on $1: $result"
-	            touch /tmp/StartupHDDChecked
-	            if [ "$result" != "252" ]; then
-	                if [ "$result" == "1" ];then
-                            echo "${PPID} NTFS Quick check Passed" >> /tmp/automount.log
-	                else
-	                    echo "${PPID} NTFS Quick check Failed" >> /tmp/automount.log
-	                    chkntfs -f /dev/$1
-	                fi
-	            else
-	                    echo "${PPID} NTFS Quick on Read Only" >> /tmp/automount.log
-	            fi
-	        else
-	            echo "{PPID} Quick Checked"
-	        fi
-	    fi
-	    if [ "$fstype" == "hfsplus" ]; then
-	        if [ ! -f /tmp/StartupHDDChecked ]; then
-	            chkhfs -f --safe /dev/$1
-	            result=$?
-	            echo "Quick Testing Result on $1: $result"
-	            touch /tmp/StartupHDDChecked
-	            if [ "$result" != "1" ]; then
-	                echo "${PPID} HFS Quick check Failed" >> /tmp/automount.log
-	                chkhfs -f /dev/$1
-	            else
-	                echo "${PPID} HFS Quick check Passed" >> /tmp/automount.log
-	            fi
-	        fi
-	    fi
-	fi
+    if [ $ishddrive -eq 1 ]; then
+        fstype=`blkid /dev/$1 | sed -n 's/.*TYPE="\([^"]*\)".*/\1/p'`
+        echo "${PPID} FStype $fstype on $1" >> /tmp/automount.log
+        if [ "$fstype" == "exfat" ]; then
+            if [ ! -f /tmp/StartupHDDChecked ]; then
+                chkexfat -f --safe /dev/$1
+                result=$?
+                echo "Quick Testing Result on $1: $result"
+                touch /tmp/StartupHDDChecked
+                if [ "$result" != "1" ]; then
+                    echo "${PPID} exFAT Quick check Failed" >> /tmp/automount.log
+                    chkexfat -f /dev/$1
+                else
+                    echo "${PPID} exFAT Quick check Passed" >> /tmp/automount.log
+                fi
+            fi
+        fi
+        if [ "$fstype" == "ntfs" ]; then
+            if [ ! -f /tmp/StartupHDDChecked ]; then
+                chkntfs -f --safe /dev/$1
+                result=$?
+                echo "Quick Testing Result on $1: $result"
+                touch /tmp/StartupHDDChecked
+                if [ "$result" != "252" ]; then
+                    if [ "$result" == "1" ];then
+                        echo "${PPID} NTFS Quick check Passed" >> /tmp/automount.log
+                    else
+                        echo "${PPID} NTFS Quick check Failed" >> /tmp/automount.log
+                        chkntfs -f /dev/$1
+                    fi
+                else
+                    echo "${PPID} NTFS Quick on Read Only" >> /tmp/automount.log
+                fi
+            else
+                echo "{PPID} Quick Checked"
+            fi
+        fi
+        if [ "$fstype" == "hfsplus" ]; then
+            if [ ! -f /tmp/StartupHDDChecked ]; then
+                chkhfs -f --safe /dev/$1
+                result=$?
+                echo "Quick Testing Result on $1: $result"
+                touch /tmp/StartupHDDChecked
+                if [ "$result" != "1" ]; then
+                    echo "${PPID} HFS Quick check Failed" >> /tmp/automount.log
+                    chkhfs -f /dev/$1
+                else
+                    echo "${PPID} HFS Quick check Passed" >> /tmp/automount.log
+                fi
+            fi
+        fi
+    fi
 }
 
 my_mount()
 {
     echo "${PPID} ${dev} USB:${USBdev} HD:${HDDdev}" >> /tmp/automount.log
+    timeoffset=`cat /etc/timezone_offset`
+    if [ "$timeoffset" == "" ]; then
+        timeoffset=-8
+    fi
+
+
+    if [ "${timeoffset}" != "" ];then
+        timeoffset_min=`dc ${timeoffset} 60 mul p`
+        timeoffset_min_exfat=`dc ${timeoffset} -60 mul p`
+    else
+        timeoffset_min=-480
+        timeoffset_min_exfat=480
+    fi
     if [ "${dev}" == "${USBdev}" ]; then
-    	echo "43;1" > /tmp/MCU_Cmd
-		mount_type=USB
-		mount_point=`blkid /dev/$1 | sed -n 's/.*UUID="\([^"]*\)".*/\1/p'`
-		if [ "${mount_point}" == "" ]; then
-			mount_point=`blkid /dev/$1 | sed -n 's/.*UUID="\([^"]*\)".*/\1/p'`
-			if [ "${mount_point}" == "" ]; then
-				mount_point=USBDevice_$1
-			fi
-		fi
+        echo "43;1" > /tmp/MCU_Cmd
+            mount_type=USB
+            mount_point=`blkid /dev/$1 | sed -n 's/.*UUID="\([^"]*\)".*/\1/p'`
+            if [ "${mount_point}" == "" ]; then
+                mount_point=`blkid /dev/$1 | sed -n 's/.*UUID="\([^"]*\)".*/\1/p'`
+                if [ "${mount_point}" == "" ]; then
+                    mount_point=USBDevice_$1
+                fi
+            fi
         mounted=`mount | grep "${destdir}/${mount_point} " | wc -l`
         if [ ${mounted} -eq 1 ]; then
             umount "${destdir}/${mount_point}";
@@ -204,30 +224,30 @@ my_mount()
         fi
         if [ "${mount_type}" == "USB" ]; then
             mkdir -p "${destdir}/${mount_point}" || exit 1
-            if ! mount -t auto -o async -o utf8=1 "/dev/$1" "${destdir}/${mount_point}"; then
+            if ! mount -t auto -o async,utf8=1,noatime,nodiratime,time_offset=${timeoffset_min} "/dev/$1" "${destdir}/${mount_point}"; then
                 rmdir "${destdir}/${mount_point}"
               	/sbin/StorageAlert.sh ${mount_point} ${devstr} ${dev} & 
               	echo "43;0" > /tmp/MCU_Cmd
               	exit 1
             fi
         else
-	    	check_pmxcache
-	   		if [ $isCacheEnabled -eq 1 ]; then
-				isMounted=`mount | grep -c "/media/sdb1 type ${CacheModName}"`
-				if [ $isMounted -eq 0 ]; then
-		   			if ! mount -t ${CacheModName} -o ${CacheModName}=avplg "/dev/$1" "${destdir}/$mount_point"; then
+            check_pmxcache
+            if [ $isCacheEnabled -eq 1 ]; then
+                isMounted=`mount | grep -c "/media/sdb1 type ${CacheModName}"`
+                if [ $isMounted -eq 0 ]; then
+                    if ! mount -t ${CacheModName} -o ${CacheModName}=avplg "/dev/$1" "${destdir}/$mount_point"; then
                         rmdir "${destdir}/$mount_point"
-              	        /sbin/StorageAlert.sh $mount_point $devstr $dev & 
-              	        exit 1
+                        /sbin/StorageAlert.sh $mount_point $devstr $dev & 
+                        exit 1
                     fi
-				fi
-	    	else
-            	if ! mount -t auto -o async -o utf8=1 "/dev/$1" "${destdir}/${mount_point}"; then
-               		rmdir "${destdir}/${mount_point}"
-                	/sbin/StorageAlert.sh ${mount_point} ${devstr} ${dev} &
-                	exit 1
-            	fi
-	    	fi
+                fi
+            else
+                if ! mount -t auto -o async -o utf8=1 "/dev/$1" "${destdir}/${mount_point}"; then
+                    rmdir "${destdir}/${mount_point}"
+                    /sbin/StorageAlert.sh ${mount_point} ${devstr} ${dev} &
+                    exit 1
+                fi
+            fi
         fi
     else
         fstype=ufsd
@@ -236,44 +256,46 @@ my_mount()
             isDirty=`blkid /dev/$1 | grep DIRTY | wc -l`
         fi
         if [ "$mount_type" == "USB" ]; then
-	    isMounted=`mount | grep -c "${destdir}/${mount_point} type ${fstype}"`
-	    	if [ ${isMounted} -ne 0 ]; then
-	    		echo "43;0" > /tmp/MCU_Cmd
-            	echo "${PPID} Mount on $1 Already" >> /tmp/automount.log
-				exit 1
-	    	fi
+            isMounted=`mount | grep -c "${destdir}/${mount_point} type ${fstype}"`
+            if [ ${isMounted} -ne 0 ]; then
+                echo "43;0" > /tmp/MCU_Cmd
+                echo "${PPID} Mount on $1 Already" >> /tmp/automount.log
+                exit 1
+            fi
+            isExFat=`blkid /dev/$1 | grep exfat | wc -l`
             mkdir -p "${destdir}/${mount_point}" || exit 1
-            if ! mount -t ufsd -o trace=off,async,force,fmask=0000,dmask=0000 "/dev/$1" "${destdir}/${mount_point}"; then
-                rmdir "${destdir}/${mount_point}"
-              	/sbin/StorageAlert.sh ${mount_point} ${devstr} ${dev} & 
-                # my_check $1
-                #if ! mount -t ufsd -o trace=off,async,force,fmask=0000,dmask=0000 "/dev/$1" "${destdir}/$mount_point"; then
-                #    rmdir "${destdir}/$mount_point_fuse"
-                #    /sbin/StorageAlert.sh $mount_point $devstr $dev &
-                #    exit 1
-                #fi
+            if [ $isExFat -eq 1 ]; then
+                if ! mount -t ufsd -o trace=off,async,force,fmask=0000,dmask=0000,bias=${timeoffset_min_exfat} "/dev/$1" "${destdir}/${mount_point}"; then
+                    rmdir "${destdir}/${mount_point}"
+              	    /sbin/StorageAlert.sh ${mount_point} ${devstr} ${dev} & 
+                fi
+            else
+                if ! mount -t ufsd -o trace=off,async,force,fmask=0000,dmask=0000 "/dev/$1" "${destdir}/${mount_point}"; then
+                    rmdir "${destdir}/${mount_point}"
+              	    /sbin/StorageAlert.sh ${mount_point} ${devstr} ${dev} & 
+                fi
             fi
         else
             mkdir -p "${destdir}/${mount_point}" || exit 1
             echo "${PPID} Mount on $1" >> /tmp/automount.log
             check_pmxcache
-	    if [ $isCacheEnabled -eq 1 ]; then
-		isMounted=`mount | grep -c "/media/sdb1 type ${CacheModName}"`
-		if [ $isMounted -eq 0 ]; then
-		    mountOpt="async,force,fmask=0000,dmask=0000"
-		    if ! mount -t ${CacheModName} -o ${CacheModName}=avplg,${mountOpt} "/dev/$1" "${destdir}/${mount_point}"; then
+            if [ $isCacheEnabled -eq 1 ]; then
+                isMounted=`mount | grep -c "/media/sdb1 type ${CacheModName}"`
+                if [ $isMounted -eq 0 ]; then
+                    mountOpt="async,force,fmask=0000,dmask=0000"
+                    if ! mount -t ${CacheModName} -o ${CacheModName}=avplg,${mountOpt} "/dev/$1" "${destdir}/${mount_point}"; then
                         rmdir "${destdir}/${mount_point}"
-              	        /sbin/StorageAlert.sh ${mount_point} ${devstr} ${dev} & 
-              	        echo "43;0" > /tmp/MCU_Cmd
-              	        exit 1
+                        /sbin/StorageAlert.sh ${mount_point} ${devstr} ${dev} & 
+                        echo "43;0" > /tmp/MCU_Cmd
+                        exit 1
                     fi
-		else
+                else
                     echo "${PPID} Already mount on $1" >> /tmp/automount.log
                     exit 1
-		fi
-	    else
-		if ! mount -t ufsd -o trace=off,async,force,fmask=0000,dmask=0000 "/dev/$1" "${destdir}/${mount_point}"; then
-                     # failed to mount, clean up mountpoint
+                fi
+            else
+                if ! mount -t ufsd -o trace=off,async,force,fmask=0000,dmask=0000 "/dev/$1" "${destdir}/${mount_point}"; then
+                    # failed to mount, clean up mountpoint
                     rmdir "${destdir}/${mount_point}" 2>&1 > /dev/null
                     /sbin/StorageAlert.sh ${mount_point} ${devstr} ${dev} & 
                     echo "${PPID} Already mount on $1 or mount fail" >> /tmp/automount.log
@@ -295,20 +317,21 @@ my_mount()
         /usr/local/sbin/sendAlert.sh 0009 &
     fi
     if [ ${ishddrive} -eq 1 ]; then
-    	isDataV=`mount | grep "DataVolume" | wc -l`
-    	if [ ${isDataV} -eq 0 ]; then
-        	mount /media/sdb1 /DataVolume
-        	mount --bind /media/sdb1 /shares/Storage
-        	if [ ! -f /tmp/HDSerial ]; then
-        		HDSerial=`hdparm -I \`cat /tmp/HDDDevNode\` | sed -n -e 's/.*Serial Number:\(.*\)/\1/p' | sed -e 's/^[ \t]*//' | awk '{gsub("WD-","",$0); print $0}'`
-        		echo "$HDSerial" > /tmp/HDSerial
-        	else
-        		HDSerial=`cat /tmp/HDSerial`
-        	fi
-        	result=`sqlite3 /usr/local/nas/orion/orion.db 'select * from Volumes' | grep "${HDSerial}"_1  | wc -l`
-        	if [ ${result} == "0" ]; then
-        		/usr/local/sbin/volume_mount.sh mount "${HDSerial}"_1 "" "/dev/$1" ${fstype}
-        	fi
+        isDataV=`mount | grep "DataVolume" | wc -l`
+        if [ ${isDataV} -eq 0 ]; then
+            mount /media/sdb1 /DataVolume
+            mount --bind /media/sdb1 /shares/Storage
+            if [ ! -f /tmp/HDSerial ]; then
+                HDSerial_temp=`hdparm -I \`cat /tmp/HDDDevNode\` | sed -n -e 's/.*Serial Number:\(.*\)/\1/p' | sed -e 's/^[ \t]*//' | awk '{gsub("WD-","",$0); print $0}'`
+                HDSerial=${HDSerial_temp// /}
+                echo "${HDSerial}" > /tmp/HDSerial
+            else
+                HDSerial=`cat /tmp/HDSerial`
+            fi
+            result=`sqlite3 /usr/local/nas/orion/orion.db 'select * from Volumes' | grep "${HDSerial}"_1  | wc -l`
+            if [ ${result} == "0" ]; then
+                /usr/local/sbin/volume_mount.sh mount "${HDSerial}"_1 "" "/dev/$1" ${fstype}
+            fi
         fi
         #echo "/dev/${HDDdev}" > /tmp/HDDDevNode
         echo "/dev/$1" > /tmp/MountedDevNode
@@ -327,45 +350,45 @@ my_mount()
     	killall -16 ghelper
     fi
     if [ "$mount_type" == "USB" ]; then
-		mounted=`mount | grep "/dev/$1 " | wc -l`
-		if [ ${mounted} -gt 0 ]; then
-    		echo "/dev/${USBdev}" > /tmp/USBDevNode
-			echo 4096 > /sys/block/${USBdev}/bdi/read_ahead_kb
-    		sleep 3
-			mounted=`mount | grep "/dev/$1 " | wc -l`
-			if [ ${mounted} -eq 0 ]; then
-				if [ ! -f /tmp/autoMountRetry ]; then
-					echo 0 > /tmp/autoMountRetry
-				fi
-				RetryVal=`cat /tmp/autoMountRetry`
-				RetryVal=`expr $RetryVal + 1`
-				if [ ${RetryVal} -lt 3 ]; then
-					echo "${RetryVal}" > /tmp/autoMountRetry
-					echo "${PPID} RRetry with ${USBdev} $1 ${RetryVal}" >> /tmp/automount.log
-					sleep 5
-					echo "add" > /sys/block/${USBdev}/$1/uevent
-				else
-					rm -f /tmp/autoMountRetry
-				fi
-			else
-				/sbin/addDevice.sh USB $1 ${destdir}/${mount_point} $fstype
-				rm -f /tmp/autoMountRetry
-			fi
-		else
-			if [ ! -f /tmp/autoMountRetry ]; then
-				echo 0 > /tmp/autoMountRetry
-			fi
-			RetryVal=`cat /tmp/autoMountRetry`
-			RetryVal=`expr $RetryVal + 1`
-			if [ ${RetryVal} -lt 3 ]; then
-				echo "${RetryVal}" > /tmp/autoMountRetry
-				echo "${PPID} Retry with ${USBdev} $1 ${RetryVal}" >> /tmp/automount.log
-				sleep 5
-				echo "add" > /sys/block/${USBdev}/$1/uevent
-			else
-				rm -f /tmp/autoMountRetry
-			fi
-		fi
+        mounted=`mount | grep "/dev/$1 " | wc -l`
+        if [ ${mounted} -gt 0 ]; then
+            echo "/dev/${USBdev}" > /tmp/USBDevNode
+            echo 4096 > /sys/block/${USBdev}/bdi/read_ahead_kb
+            sleep 3
+            mounted=`mount | grep "/dev/$1 " | wc -l`
+            if [ ${mounted} -eq 0 ]; then
+                if [ ! -f /tmp/autoMountRetry ]; then
+                    echo 0 > /tmp/autoMountRetry
+                fi
+                RetryVal=`cat /tmp/autoMountRetry`
+                RetryVal=`expr $RetryVal + 1`
+                if [ ${RetryVal} -lt 3 ]; then
+                    echo "${RetryVal}" > /tmp/autoMountRetry
+                    echo "${PPID} RRetry with ${USBdev} $1 ${RetryVal}" >> /tmp/automount.log
+                    sleep 5
+                    echo "add" > /sys/block/${USBdev}/$1/uevent
+                else
+                    rm -f /tmp/autoMountRetry
+                fi
+            else
+                /sbin/addDevice.sh USB $1 ${destdir}/${mount_point} $fstype
+                rm -f /tmp/autoMountRetry
+            fi
+        else
+            if [ ! -f /tmp/autoMountRetry ]; then
+                echo 0 > /tmp/autoMountRetry
+            fi
+            RetryVal=`cat /tmp/autoMountRetry`
+            RetryVal=`expr $RetryVal + 1`
+            if [ ${RetryVal} -lt 3 ]; then
+                echo "${RetryVal}" > /tmp/autoMountRetry
+                echo "${PPID} Retry with ${USBdev} $1 ${RetryVal}" >> /tmp/automount.log
+                sleep 5
+                echo "add" > /sys/block/${USBdev}/$1/uevent
+            else
+                rm -f /tmp/autoMountRetry
+            fi
+        fi
     fi
 }
 
@@ -415,32 +438,32 @@ add|"")
     isHdrType=`blkid /dev/$1 | grep "PTTYPE=" | wc -l`
     if [ ${isHdrType} -ne 0 ]; then
         isKnownType=`blkid /dev/$1 | grep " TYPE=" | wc -l`
-    	if [ ${isKnownType} -eq 0 ]; then
-        	 echo "$1 is Header Type!!"
-        	exit 1
-    	fi
+        if [ ${isKnownType} -eq 0 ]; then
+            echo "$1 is Header Type!!" >> /tmp/automount.log
+            exit 1
+        fi
     fi
 
     isKnownType=`blkid /dev/$1 | grep " TYPE=" | wc -l`
     if [ ${isKnownType} -eq 0 ]; then
-        echo "$1 Type Unknown!!"
+        echo "$1 Type Unknown!!" >> /tmp/automount.log
         exit 1
     fi
     USBdev=$dev
     isusbdrv=1
-    echo "/dev/${USBdev}" > /tmp/USBDevNodes
+    echo "/dev/${USBdev}" > /tmp/USBDevNode
     
     if [ -f /tmp/USBDevNode ]; then
         USBdev=`cat /tmp/USBDevNode | cut -c 6-8`
     fi
     if [ "$dev" == "$USBdev" ]; then
-          echo "USB ADD event of $1"
-          isGPT=`blkid /dev/$1 | grep EFI | wc -l`
-          if [ $isGPT -eq 1 ]; then
-                echo "***GPT found, ignore $1***"
-                exit 1
-	  fi
-          my_mount $1
+        echo "USB ADD event of $1"
+        isGPT=`blkid /dev/$1 | grep -i "efi system" | wc -l`
+        if [ $isGPT -eq 1 ]; then
+            echo "***GPT found, ignore $1***" >> /tmp/automount.log
+            exit 1
+        fi
+        my_mount $1
     fi
 
     if [ ${ishddrive} -eq 1 ]; then
@@ -449,7 +472,7 @@ add|"")
             echo "HDD already mounted"
         else
             echo "Try to Mounte HDD"
-            isGPT=`blkid /dev/$1 | grep EFI | wc -l`
+            isGPT=`blkid /dev/$1 | grep -i "efi system" | wc -l`
             if [ ${isGPT} -eq 1 ]; then
                 echo "***GPT found, ignore $1***"
                 exit 1
@@ -464,7 +487,7 @@ change)
     NoOfParations=`cat /proc/partitions | grep ${DEVNAME} | wc -l`
     NoOfMount=`mount | grep ${DEVNAME} | wc -l`
     echo "${PPID} ${NoOfParations}, ${NoOfMount}, ${BlockSize}" >> /tmp/automount.log
-    if [ ${NoOfParations} -eq 0 ] && [ ${NoOfMount} -eq 0 ]; then
+    if [ ${NoOfParations} -ne 0 ] && [ ${NoOfMount} -eq 0 ]; then
         sleep 1
         echo add > /sys/block/${DEVNAME}/uevent
         exit 0

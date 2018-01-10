@@ -13,7 +13,7 @@ check_DeviceNode()
     size=`cat /sys/block/$dev/size`
     #Temp for Korra and Korra Lite
     [ "$model" == "My Passport 25AF" ] && HDD_MODEL="My Passport 25AF"
-    [ "$model" == "My Passport 25BE" ] && HDD_MODEL="My Passport 25BE"
+    [ "$model" == "My Passport 2601" ] && HDD_MODEL="My Passport 2601"
     [ "$model" == "2115            " ] &&  HDD_MODEL="2115            " && echo "ASMedia ASMT 2115"
     if [ "$vendor" == "ASMT" ] && [ "$model" == "$HDD_MODEL" ]; then
         echo "USB SATA Bridge $dev maybe cortupted !!!"

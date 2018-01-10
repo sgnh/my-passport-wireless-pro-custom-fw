@@ -1363,7 +1363,9 @@ _func_enter_;
 						_rtw_memcpy(padapter->securitypriv.dot118021XGrpKey[param->u.crypt.idx].skey,  param->u.crypt.key,(param->u.crypt.key_len>16 ?16:param->u.crypt.key_len));
 						_rtw_memcpy(padapter->securitypriv.dot118021XGrptxmickey[param->u.crypt.idx].skey,&(param->u.crypt.key[16]),8);
 						_rtw_memcpy(padapter->securitypriv.dot118021XGrprxmickey[param->u.crypt.idx].skey,&(param->u.crypt.key[24]),8);
-	                                        padapter->securitypriv.binstallGrpkey = _TRUE;	
+	                                        padapter->securitypriv.binstallGrpkey = _TRUE;
+						if (param->u.crypt.idx < 4)
+							_rtw_memcpy(padapter->securitypriv.iv_seq[param->u.crypt.idx], param->u.crypt.seq, 8);
 						//DEBUG_ERR((" param->u.crypt.key_len=%d\n", param->u.crypt.key_len));
 						DBG_871X(" ~~~~set sta key:groupkey\n");
 	

@@ -32,7 +32,7 @@ version_api=`cat /etc/version.packages | grep RESTAPI_2.4`
 if [ "$version_api" == "" ]; then
 	storageType=$1
 	if [ "$storageType" != "sdcard" ] && [ "$storageType" != "usb" ]; then
-		echo "storage_transfer_set_config.sh <sdcard | usb> [--auto_transfer true | false --transfer_mode move | copy]"
+		echo "storage_transfer_set_config.sh <sdcard | usb> [--auto_transfer true | false --transfer_mode move | copy | copy_all]"
 		exit 1
 	fi
 	shift
@@ -52,7 +52,7 @@ if [ "$version_api" == "" ]; then
                             ;;
 			--transfer_mode )
 							shift
-                            if [ "$1" == "move" ] || [ "$1" == "copy" ]; then
+                            if [ "$1" == "move" ] || [ "$1" == "copy" ] || [ "$1" == "copy_all" ]; then
                             	if [ "$storageType" == "sdcard" ]; then
                             		sed -i 's/TransferMode=.*/TransferMode='${1}'/' $SlurpCONF
                             	elif [ "$storageType" == "usb" ]; then
@@ -80,7 +80,7 @@ else
 	                              fi                              
 	                              ;;
 	                        --transfer_mode )       shift
-	                              if [ "$1" == "move" ] || [ "$1" == "copy" ]; then
+	                              if [ "$1" == "move" ] || [ "$1" == "copy" ] || [ "$1" == "copy_all" ]; then
 	                                sed -i 's/TransferMode=.*/TransferMode='${1}'/' /etc/nas/config/sdcard-param.conf
 	                              else
 	                                exit 1

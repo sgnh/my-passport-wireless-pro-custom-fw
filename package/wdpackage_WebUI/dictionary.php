@@ -271,6 +271,8 @@
 
     $dictionary['copy_now'] = _('CONTENT_SETTINGS_STRING_COPY_NOW');
     $dictionary['move_now'] = _('CONTENT_SETTINGS_STRING_MOVE_NOW');
+    $dictionary['copy_all_now'] = _('CONTENT_SETTINGS_STRING_COPY_ALL_NOW');
+    $dictionary['copy_new_now'] = _('CONTENT_SETTINGS_STRING_COPY_NEW_NOW');
 
     $dictionary['trusted_network'] = _('CONTENT_SETTINGS_TITLE_HOME_NETWORK');
     $dictionary['untrusted_network'] = _('CONTENT_SETTINGS_TITLE_NETWORK_HOTSPOT');

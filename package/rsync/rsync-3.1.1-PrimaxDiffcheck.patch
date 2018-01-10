@@ -1,6 +1,36 @@
-diff -uNr rsync-3.1.1/delete.c new-rsync-3.1.1/delete.c
+diff -uNr rsync-3.1.1/backup.c rsync-3.1.1-new/backup.c
+--- rsync-3.1.1/backup.c	2014-01-27 01:29:15.000000000 +0800
++++ rsync-3.1.1-new/backup.c	2017-10-12 10:56:08.198665246 +0800
+@@ -210,14 +210,24 @@
+ 
+ /* Hard-link, rename, or copy an item to the backup name.  Returns 2 if item
+  * was duplicated into backup area, 1 if item was moved, or 0 for failure.*/
+-int make_backup(const char *fname, BOOL prefer_rename)
++int make_backup(const char *fname, BOOL prefer_rename, const char *Refname)
+ {
+ 	stat_x sx;
+ 	struct file_struct *file;
+ 	int save_preserve_xattrs;
+-	char *buf = get_backup_name(fname);
++	char *buf = NULL;
+ 	int ret = 0;
+ 
++	if(prefer_rename){
++		buf = get_backup_name(Refname);
++	}
++	else{
++		buf = get_backup_name(fname);
++	}
++
++	if (INFO_GTE(BACKUP, 1))
++		rprintf(FINFO, "!!!get_backup_name %s\n", buf);
++	
+ 	if (!buf)
+ 		return 0;
+ 
+diff -uNr rsync-3.1.1/delete.c rsync-3.1.1-new/delete.c
 --- rsync-3.1.1/delete.c	2014-01-27 01:29:15.000000000 +0800
-+++ new-rsync-3.1.1/delete.c	2015-09-10 11:54:14.442020106 +0800
++++ rsync-3.1.1-new/delete.c	2017-10-12 10:56:08.198665246 +0800
 @@ -137,6 +137,11 @@
  		rprintf(FINFO, "delete_item(%s) mode=%o flags=%d\n",
  			fbuf, (int)mode, (int)flags);
@@ -13,9 +43,18 @@ diff -uNr rsync-3.1.1/delete.c new-rsync-3.1.1/delete.c
  
  	if (flags & DEL_NO_UID_WRITE)
  		do_chmod(fbuf, mode | S_IWUSR);
-diff -uNr rsync-3.1.1/generator.c new-rsync-3.1.1/generator.c
+@@ -164,7 +169,7 @@
+ 	} else {
+ 		if (make_backups > 0 && !(flags & DEL_FOR_BACKUP) && (backup_dir || !is_backup_file(fbuf))) {
+ 			what = "make_backup";
+-			ok = make_backup(fbuf, True);
++			ok = make_backup(fbuf, True, fbuf);
+ 			if (ok == 2) {
+ 				what = "unlink";
+ 				ok = robust_unlink(fbuf) == 0;
+diff -uNr rsync-3.1.1/generator.c rsync-3.1.1-new/generator.c
 --- rsync-3.1.1/generator.c	2014-06-14 07:05:08.000000000 +0800
-+++ new-rsync-3.1.1/generator.c	2015-09-10 11:57:40.450216906 +0800
++++ rsync-3.1.1-new/generator.c	2017-10-17 15:36:32.798794204 +0800
 @@ -66,6 +66,7 @@
  extern int size_only;
  extern OFF_T max_size;
@@ -24,7 +63,18 @@ diff -uNr rsync-3.1.1/generator.c new-rsync-3.1.1/generator.c
  extern int io_error;
  extern int flist_eof;
  extern int allowed_lull;
-@@ -1197,6 +1198,7 @@
+@@ -930,8 +931,9 @@
+ 			if (itemizing)
+ 				itemize(cmpbuf, file, ndx, 0, sxp, 0, 0, NULL);
+ 		}
+-		if (INFO_GTE(NAME, 2) && maybe_ATTRS_REPORT)
++		if (INFO_GTE(NAME, 2) && maybe_ATTRS_REPORT){
+ 			rprintf(FCLIENT, "%s is uptodate\n", fname);
++		}
+ 		return -2;
+ 	}
+ 
+@@ -1197,6 +1199,7 @@
  	int is_dir = !S_ISDIR(file->mode) ? 0
  		   : inc_recurse && ndx != cur_flist->ndx_start - 1 ? -1
  		   : 1;
@@ -32,7 +82,7 @@ diff -uNr rsync-3.1.1/generator.c new-rsync-3.1.1/generator.c
  
  	if (DEBUG_GTE(GENR, 1))
  		rprintf(FINFO, "recv_generator(%s,%d)\n", fname, ndx);
-@@ -1660,16 +1662,39 @@
+@@ -1660,16 +1663,39 @@
  		goto cleanup;
  	}
  
@@ -51,7 +101,7 @@ diff -uNr rsync-3.1.1/generator.c new-rsync-3.1.1/generator.c
 +		fprintf(fp1,"%lld\n",exist_size);
 +		fclose(fp1);
 +		
-+		rprintf(FINFO, "filesize %lld, transferred_size_in_bytes %lld\n", lenfile, exist_size);
++		//rprintf(FINFO, "filesize %lld, transferred_size_in_bytes %lld\n", lenfile, exist_size);
 +	}
 +	
 +	if (update_only > 0 && statret == 0){
@@ -76,9 +126,18 @@ diff -uNr rsync-3.1.1/generator.c new-rsync-3.1.1/generator.c
  
  	fnamecmp_type = FNAMECMP_FNAME;
  
-diff -uNr rsync-3.1.1/log.c new-rsync-3.1.1/log.c
+@@ -1941,7 +1967,7 @@
+ 
+ 	if (del_for_flag) {
+ 		if (make_backups > 0 && !dir_in_the_way) {
+-			if (!make_backup(fname, skip_atomic))
++			if (!make_backup(fname, skip_atomic, NULL))
+ 				return 0;
+ 		} else if (skip_atomic) {
+ 			int del_opts = delete_mode || force_delete ? DEL_RECURSE : 0;
+diff -uNr rsync-3.1.1/log.c rsync-3.1.1-new/log.c
 --- rsync-3.1.1/log.c	2014-01-27 01:29:15.000000000 +0800
-+++ new-rsync-3.1.1/log.c	2015-09-10 11:59:14.790095492 +0800
++++ rsync-3.1.1-new/log.c	2017-10-13 14:05:03.146789303 +0800
 @@ -853,14 +853,14 @@
  	} else if (!INFO_GTE(DEL, 1) && !stdout_format)
  		;
@@ -96,29 +155,31 @@ diff -uNr rsync-3.1.1/log.c new-rsync-3.1.1/log.c
  	log_formatted(FLOG, fmt, "del.", &x.file, fname, ITEM_DELETED, NULL);
  }
  
-diff -uNr rsync-3.1.1/main.c new-rsync-3.1.1/main.c
+diff -uNr rsync-3.1.1/main.c rsync-3.1.1-new/main.c
 --- rsync-3.1.1/main.c	2014-01-27 01:29:15.000000000 +0800
-+++ new-rsync-3.1.1/main.c	2015-09-10 11:59:44.010406516 +0800
-@@ -104,6 +104,8 @@
++++ rsync-3.1.1-new/main.c	2017-10-17 15:43:54.122769244 +0800
+@@ -104,6 +104,9 @@
  int batch_gen_fd = -1;
  int sender_keeps_checksum = 0;
  
 +char *backup_path;
++char *From_path;
 +
  /* There's probably never more than at most 2 outstanding child processes,
   * but set it higher, just in case. */
  #define MAXCHILDPROCS 7
-@@ -1530,6 +1532,7 @@
+@@ -1530,6 +1533,8 @@
  	our_uid = MY_UID();
  	our_gid = MY_GID();
  	am_root = our_uid == 0;
 +	backup_path = orig_argv[orig_argc-1];
++	From_path = orig_argv[orig_argc-2];
  
  	memset(&stats, 0, sizeof(stats));
  
-diff -uNr rsync-3.1.1/options.c new-rsync-3.1.1/options.c
+diff -uNr rsync-3.1.1/options.c rsync-3.1.1-new/options.c
 --- rsync-3.1.1/options.c	2014-06-15 00:55:37.000000000 +0800
-+++ new-rsync-3.1.1/options.c	2015-09-10 12:01:13.390381193 +0800
++++ rsync-3.1.1-new/options.c	2017-10-12 10:56:08.198665246 +0800
 @@ -118,6 +118,7 @@
  int max_delete = INT_MIN;
  OFF_T max_size = -1;
@@ -127,9 +188,9 @@ diff -uNr rsync-3.1.1/options.c new-rsync-3.1.1/options.c
  int ignore_errors = 0;
  int modify_window = 0;
  int blocking_io = -1;
-diff -uNr rsync-3.1.1/progress.c new-rsync-3.1.1/progress.c
+diff -uNr rsync-3.1.1/progress.c rsync-3.1.1-new/progress.c
 --- rsync-3.1.1/progress.c	2014-02-25 02:07:18.000000000 +0800
-+++ new-rsync-3.1.1/progress.c	2015-09-10 13:26:26.319534758 +0800
++++ rsync-3.1.1-new/progress.c	2017-10-12 10:56:08.198665246 +0800
 @@ -70,7 +70,12 @@
  	unsigned long diff;
  	double rate, remain;
@@ -144,9 +205,113 @@ diff -uNr rsync-3.1.1/progress.c new-rsync-3.1.1/progress.c
  	if (is_last) {
  		int len = snprintf(eol, sizeof eol,
  			" (xfr#%d, %s-chk=%d/%d)\n",
-diff -uNr rsync-3.1.1/sender.c new-rsync-3.1.1/sender.c
+diff -uNr rsync-3.1.1/receiver.c rsync-3.1.1-new/receiver.c
+--- rsync-3.1.1/receiver.c	2014-06-09 01:42:14.000000000 +0800
++++ rsync-3.1.1-new/receiver.c	2017-10-19 16:21:40.876606453 +0800
+@@ -422,7 +422,7 @@
+ 		struct file_struct *file = cur_flist->files[ndx];
+ 		fname = local_name ? local_name : f_name(file, NULL);
+ 		if ((partialptr = partial_dir_fname(fname)) != NULL) {
+-			if (make_backups > 0 && !make_backup(fname, False))
++			if (make_backups > 0 && !make_backup(fname, False, NULL))
+ 				continue;
+ 			if (DEBUG_GTE(RECV, 1)) {
+ 				rprintf(FINFO, "renaming %s to %s\n",
+@@ -611,6 +611,9 @@
+ 				else
+ 					stats.created_specials++;
+ 			}
++			//rprintf(FINFO, "file mode: %d\n",S_ISDIR(file->mode));
++			if (!S_ISDIR(file->mode))
++				rprintf(FINFO, "NON_CONFLICT: %s\n",fname);
+ 			continue;
+ 		}
+ 		if (phase == 2) {
+diff -uNr rsync-3.1.1/rsync.c rsync-3.1.1-new/rsync.c
+--- rsync-3.1.1/rsync.c	2014-01-27 01:29:15.000000000 +0800
++++ rsync-3.1.1-new/rsync.c	2017-10-19 14:13:06.231323747 +0800
+@@ -54,6 +54,7 @@
+ #ifdef ICONV_OPTION
+ extern char *iconv_opt;
+ #endif
++extern char *From_path;
+ 
+ #ifdef ICONV_CONST
+ iconv_t ic_chck = (iconv_t)-1;
+@@ -591,8 +592,9 @@
+ 	if (INFO_GTE(NAME, 2) && flags & ATTRS_REPORT) {
+ 		if (updated)
+ 			rprintf(FCLIENT, "%s\n", fname);
+-		else
++		else{
+ 			rprintf(FCLIENT, "%s is uptodate\n", fname);
++		}
+ 	}
+   cleanup:
+ 	if (sxp == &sx2)
+@@ -642,7 +644,7 @@
+ 		    struct file_struct *file, int ok_to_set_time,
+ 		    int overwriting_basis)
+ {
+-	int ret;
++	int ret=0;
+ 	const char *temp_copy_name = partialptr && *partialptr != '/' ? partialptr : NULL;
+ 
+ 	if (inplace) {
+@@ -652,8 +654,12 @@
+ 		goto do_set_file_attrs;
+ 	}
+ 
++	set_file_attrs(fnametmp, file, NULL, fnamecmp,
++		       ok_to_set_time ? 0 : ATTRS_SKIP_MTIME);
++
+ 	if (make_backups > 0 && overwriting_basis) {
+-		int ok = make_backup(fname, False);
++		//int ok = make_backup(fname, False);
++		int ok = make_backup(fnametmp, True, fname);
+ 		if (!ok)
+ 			return 1;
+ 		if (ok == 1 && fnamecmp == fname)
+@@ -661,22 +667,22 @@
+ 	}
+ 
+ 	/* Change permissions before putting the file into place. */
+-	set_file_attrs(fnametmp, file, NULL, fnamecmp,
+-		       ok_to_set_time ? 0 : ATTRS_SKIP_MTIME);
++	//set_file_attrs(fnametmp, file, NULL, fnamecmp,
++	//	       ok_to_set_time ? 0 : ATTRS_SKIP_MTIME);
+ 
+ 	/* move tmp file over real file */
+-	if (DEBUG_GTE(RECV, 1))
+-		rprintf(FINFO, "renaming %s to %s\n", fnametmp, fname);
+-	ret = robust_rename(fnametmp, fname, temp_copy_name, file->mode);
+-	if (ret < 0) {
+-		rsyserr(FERROR_XFER, errno, "%s %s -> \"%s\"",
+-			ret == -2 ? "copy" : "rename",
+-			full_fname(fnametmp), fname);
+-		if (!partialptr || (ret == -2 && temp_copy_name)
+-		 || robust_rename(fnametmp, partialptr, NULL, file->mode) < 0)
+-			do_unlink(fnametmp);
+-		return 0;
+-	}
++	//if (DEBUG_GTE(RECV, 1))
++	//	rprintf(FINFO, "renaming %s to %s\n", fnametmp, fname);
++	//ret = robust_rename(fnametmp, fname, temp_copy_name, file->mode);
++	//if (ret < 0) {
++	//	rsyserr(FERROR_XFER, errno, "%s %s -> \"%s\"",
++	//		ret == -2 ? "copy" : "rename",
++	//		full_fname(fnametmp), fname);
++	//	if (!partialptr || (ret == -2 && temp_copy_name)
++	//	 || robust_rename(fnametmp, partialptr, NULL, file->mode) < 0)
++	//		do_unlink(fnametmp);
++	//	return 0;
++	//}
+ 	if (ret == 0) {
+ 		/* The file was moved into place (not copied), so it's done. */
+ 		return 1;
+diff -uNr rsync-3.1.1/sender.c rsync-3.1.1-new/sender.c
 --- rsync-3.1.1/sender.c	2014-06-09 01:42:14.000000000 +0800
-+++ new-rsync-3.1.1/sender.c	2015-09-10 13:26:01.406381431 +0800
++++ rsync-3.1.1-new/sender.c	2017-10-19 14:13:31.640178893 +0800
 @@ -21,6 +21,7 @@
  
  #include "rsync.h"
@@ -163,7 +328,15 @@ diff -uNr rsync-3.1.1/sender.c new-rsync-3.1.1/sender.c
  
  BOOL extra_flist_sending_enabled;
  
-@@ -201,6 +203,8 @@
+@@ -191,6 +193,7 @@
+ 	struct map_struct *mbuf = NULL;
+ 	STRUCT_STAT st;
+ 	char fname[MAXPATHLEN], xname[MAXPATHLEN];
++ 	char *fanme_A;
+ 	const char *path, *slash;
+ 	uchar fnamecmp_type;
+ 	int iflags, xlen;
+@@ -201,6 +204,8 @@
  	int f_xfer = write_batch < 0 ? batch_fd : f_out;
  	int save_io_error = io_error;
  	int ndx, j;
@@ -172,7 +345,7 @@ diff -uNr rsync-3.1.1/sender.c new-rsync-3.1.1/sender.c
  
  	if (DEBUG_GTE(SEND, 1))
  		rprintf(FINFO, "send_files starting\n");
-@@ -210,7 +214,11 @@
+@@ -210,7 +215,11 @@
  			send_extra_file_list(f_out, MIN_FILECNT_LOOKAHEAD);
  			extra_flist_sending_enabled = !flist_eof;
  		}
@@ -185,11 +358,16 @@ diff -uNr rsync-3.1.1/sender.c new-rsync-3.1.1/sender.c
  		/* This call also sets cur_flist. */
  		ndx = read_ndx_and_attrs(f_in, f_out, &iflags, &fnamecmp_type,
  					 xname, &xlen);
-@@ -258,7 +266,11 @@
- 
+@@ -255,10 +264,16 @@
+ 		if (!change_pathname(file, NULL, 0))
+ 			continue;
+ 		f_name(file, fname);
+-
++		
++	
  		if (DEBUG_GTE(SEND, 1))
  			rprintf(FINFO, "send_files(%d, %s%s%s)\n", ndx, path,slash,fname);
--
+ 
 +		/*Jeff.Yao, 20140721, add error handle for destination path {*/
 +		source_path = access(path, F_OK);
 +		if (source_path < 0)

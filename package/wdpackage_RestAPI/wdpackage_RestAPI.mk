@@ -1,5 +1,5 @@
-WDPACKAGE_RESTAPI_VERSION = 2.7.2-84
-WDPACKAGE_RESTAPI_RELEASE_DATE = 2016-11-03
+WDPACKAGE_RESTAPI_VERSION = 2.7.2-93
+WDPACKAGE_RESTAPI_RELEASE_DATE = 2017-12-15
 WDPACKAGE_RESTAPI_SOURCE = admin-rest-api-$(WDPACKAGE_RESTAPI_VERSION).deb
 
 define WDPACKAGE_RESTAPI_EXTRACT_CMDS
@@ -29,6 +29,7 @@ define WDPACKAGE_RESTAPI_INSTALL_TARGET_CMDS
 	cp -a package/wdpackage_RestAPI/SshConfiguration.php $(TARGET_DIR)/var/www/rest-api/api/System/includes/SshConfiguration.php
 	cp -a package/wdpackage_RestAPI/StorageActiveTransfer.php $(TARGET_DIR)/var/www/rest-api/api/Storage/src/Storage/Transfer/Controller/StorageActiveTransfer.php
 	cp -a package/wdpackage_RestAPI/JobManager.php $(TARGET_DIR)/var/www/rest-api/api/Jobs/src/Jobs/JobManager.php
+	cp -a package/wdpackage_RestAPI/globalconfig.ini $(TARGET_DIR)/var/www/rest-api/config/globalconfig.ini
 endef
 
 define WDPACKAGE_RESTAPI_INSTALL_INIT_SYSV

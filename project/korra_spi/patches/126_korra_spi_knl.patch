@@ -1,0 +1,238 @@
+--- linux-kernel.orig/fs/fat/dir.c
++++ linux-kernel.mod/fs/fat/dir.c
+@@ -1009,6 +1009,7 @@ static int __fat_remove_entries(struct inode *dir, loff_t pos, int nr_slots)
+ 			de++;
+ 			nr_slots--;
+ 		}
++		fat_check_set_state(sb, 1);
+ 		mark_buffer_dirty_inode(bh, dir);
+ 		if (IS_DIRSYNC(dir))
+ 			err = sync_dirty_buffer(bh);
+@@ -1044,6 +1045,7 @@ int fat_remove_entries(struct inode *dir, struct fat_slot_info *sinfo)
+ 		de--;
+ 		nr_slots--;
+ 	}
++	fat_check_set_state(sb, 1);
+ 	mark_buffer_dirty_inode(bh, dir);
+ 	if (IS_DIRSYNC(dir))
+ 		err = sync_dirty_buffer(bh);
+@@ -1093,6 +1095,7 @@ static int fat_zeroed_cluster(struct inode *dir, sector_t blknr, int nr_used,
+ 		}
+ 		memset(bhs[n]->b_data, 0, sb->s_blocksize);
+ 		set_buffer_uptodate(bhs[n]);
++		fat_check_set_state(sb, 1);
+ 		mark_buffer_dirty_inode(bhs[n], dir);
+ 
+ 		n++;
+@@ -1171,6 +1174,7 @@ int fat_alloc_new_dir(struct inode *dir, struct timespec *ts)
+ 	de[0].size = de[1].size = 0;
+ 	memset(de + 2, 0, sb->s_blocksize - 2 * sizeof(*de));
+ 	set_buffer_uptodate(bhs[0]);
++	fat_check_set_state(sb, 1);
+ 	mark_buffer_dirty_inode(bhs[0], dir);
+ 
+ 	err = fat_zeroed_cluster(dir, blknr, 1, bhs, MAX_BUF_PER_PAGE);
+@@ -1232,6 +1236,7 @@ static int fat_add_new_entries(struct inode *dir, void *slots, int nr_slots,
+ 			slots += copy;
+ 			size -= copy;
+ 			set_buffer_uptodate(bhs[n]);
++			fat_check_set_state(sb, 1);
+ 			mark_buffer_dirty_inode(bhs[n], dir);
+ 			if (!size)
+ 				break;
+@@ -1328,7 +1333,8 @@ found:
+ 		int offset = pos & (sb->s_blocksize - 1);
+ 		int long_bhs = nr_bhs - (nr_slots == 0);
+ 
+-		/* Fill the long name slots. */
++		/* Fill the long name slots. */	
++		fat_check_set_state(sb, 1);
+ 		for (i = 0; i < long_bhs; i++) {
+ 			int copy = min_t(int, sb->s_blocksize - offset, size);
+ 			memcpy(bhs[i]->b_data + offset, slots, copy);
+--- linux-kernel.orig/fs/fat/fat.h
++++ linux-kernel.mod/fs/fat/fat.h
+@@ -417,4 +417,7 @@ extern const struct export_operations fat_export_ops_nostale;
+ /* helper for printk */
+ typedef unsigned long long	llu;
+ 
++extern void fat_check_set_state(struct super_block *sb,
++                        unsigned int set);
++
+ #endif /* !_FAT_H */
+--- linux-kernel.orig/fs/fat/fatent.c
++++ linux-kernel.mod/fs/fat/fatent.c
+@@ -166,7 +166,7 @@ static void fat12_ent_put(struct fat_entry *fatent, int new)
+ 		*ent12_p[1] = (*ent12_p[1] & 0xf0) | (new >> 8);
+ 	}
+ 	spin_unlock(&fat12_entry_lock);
+-
++	fat_check_set_state(fatent->fat_inode->i_sb, 1);
+ 	mark_buffer_dirty_inode(fatent->bhs[0], fatent->fat_inode);
+ 	if (fatent->nr_bhs == 2)
+ 		mark_buffer_dirty_inode(fatent->bhs[1], fatent->fat_inode);
+@@ -178,6 +178,7 @@ static void fat16_ent_put(struct fat_entry *fatent, int new)
+ 		new = EOF_FAT16;
+ 
+ 	*fatent->u.ent16_p = cpu_to_le16(new);
++	fat_check_set_state(fatent->fat_inode->i_sb, 1);
+ 	mark_buffer_dirty_inode(fatent->bhs[0], fatent->fat_inode);
+ }
+ 
+@@ -186,6 +187,7 @@ static void fat32_ent_put(struct fat_entry *fatent, int new)
+ 	WARN_ON(new & 0xf0000000);
+ 	new |= le32_to_cpu(*fatent->u.ent32_p) & ~0x0fffffff;
+ 	*fatent->u.ent32_p = cpu_to_le32(new);
++	fat_check_set_state(fatent->fat_inode->i_sb, 1);
+ 	mark_buffer_dirty_inode(fatent->bhs[0], fatent->fat_inode);
+ }
+ 
+@@ -391,6 +393,7 @@ static int fat_mirror_bhs(struct super_block *sb, struct buffer_head **bhs,
+ 			}
+ 			memcpy(c_bh->b_data, bhs[n]->b_data, sb->s_blocksize);
+ 			set_buffer_uptodate(c_bh);
++			fat_check_set_state(sb, 1);
+ 			mark_buffer_dirty_inode(c_bh, sbi->fat_inode);
+ 			if (sb->s_flags & MS_SYNCHRONOUS)
+ 				err = sync_dirty_buffer(c_bh);
+--- linux-kernel.orig/fs/fat/inode.c
++++ linux-kernel.mod/fs/fat/inode.c
+@@ -566,6 +566,51 @@ static void fat_evict_inode(struct inode *inode)
+ 	fat_detach(inode);
+ }
+ 
++void fat_check_set_state(struct super_block *sb,
++			unsigned int set)
++{
++	struct buffer_head *bh;
++	struct fat_boot_sector *b;
++	struct msdos_sb_info *sbi = MSDOS_SB(sb);
++
++	//fat_msg(sb, KERN_DEBUG, "%s set=%d Caller is %pF\n", __func__, set, __builtin_return_address(0));	
++
++	if (sb->s_flags & MS_RDONLY)
++		return;
++
++	/* do not change state if fs was dirty */
++	if (sbi->dirty) 
++		return;
++	
++
++	bh = sb_bread(sb, 0);
++	if (bh == NULL) {
++		fat_msg(sb, KERN_ERR, "unable to read boot sector "
++			"to mark fs as dirty");
++		return;
++	}
++
++	b = (struct fat_boot_sector *) bh->b_data;
++
++	if (sbi->fat_bits == 32) {
++		if (set)
++			b->fat32.state |= FAT_STATE_DIRTY;
++		else
++			b->fat32.state &= ~FAT_STATE_DIRTY;
++	} else /* fat 16 and 12 */ {
++		if (set)
++			b->fat16.state |= FAT_STATE_DIRTY;
++		else
++			b->fat16.state &= ~FAT_STATE_DIRTY;
++	}
++
++	mark_buffer_dirty(bh);
++	sync_dirty_buffer(bh);
++	brelse(bh);
++
++}
++EXPORT_SYMBOL_GPL(fat_check_set_state);
++
+ static void fat_set_state(struct super_block *sb,
+ 			unsigned int set, unsigned int force)
+ {
+@@ -707,8 +752,8 @@ static int fat_remount(struct super_block *sb, int *flags, char *data)
+ 	if (new_rdonly != (sb->s_flags & MS_RDONLY)) {
+ 		if (new_rdonly)
+ 			fat_set_state(sb, 0, 0);
+-		else
+-			fat_set_state(sb, 1, 1);
++		//else
++		//	fat_set_state(sb, 1, 1);
+ 	}
+ 	return 0;
+ }
+@@ -787,12 +832,14 @@ retry:
+ 		fat_time_unix2fat(sbi, &inode->i_atime, &atime,
+ 				  &raw_entry->adate, NULL);
+ 	}
+-	spin_unlock(&sbi->inode_hash_lock);
++	spin_unlock(&sbi->inode_hash_lock);	
++	fat_check_set_state(sb ,1);
+ 	mark_buffer_dirty(bh);
+ 	err = 0;
+ 	if (wait)
+		err = sync_dirty_buffer(bh);
+	brelse(bh);
++	fat_check_set_state(sb ,0);
+	return err;
+ }
+
+@@ -1751,7 +1798,7 @@ int fat_fill_super(struct super_block *sb, void *data, int silent, int isvfat,
+ 					"the device does not support discard");
+ 	}
+ 
+-	fat_set_state(sb, 1, 0);
++	// fat_set_state(sb, 1, 0);
+ 	return 0;
+ 
+ out_invalid:
+--- linux-kernel.orig/fs/fat/misc.c
++++ linux-kernel.mod/fs/fat/misc.c
+@@ -85,10 +85,11 @@ int fat_clusters_flush(struct super_block *sb)
+ 			fsinfo->free_clusters = cpu_to_le32(sbi->free_clusters);
+ 		if (sbi->prev_free != -1)
+ 			fsinfo->next_cluster = cpu_to_le32(sbi->prev_free);
++		fat_check_set_state(sb, 1);	
+ 		mark_buffer_dirty(bh);
+ 	}
+ 	brelse(bh);
+-
++	fat_check_set_state(sb, 0);
+	return 0;
+ }
+
+--- linux-kernel.orig/fs/fat/namei_msdos.c
++++ linux-kernel.mod/fs/fat/namei_msdos.c
+@@ -525,6 +525,7 @@ static int do_msdos_rename(struct inode *old_dir, unsigned char *old_name,
+ 
+ 	if (update_dotdot) {
+ 		fat_set_start(dotdot_de, MSDOS_I(new_dir)->i_logstart);
++		fat_check_set_state(old_inode->i_sb, 1);	
+ 		mark_buffer_dirty_inode(dotdot_bh, old_inode);
+ 		if (IS_DIRSYNC(new_dir)) {
+ 			err = sync_dirty_buffer(dotdot_bh);
+@@ -565,6 +566,7 @@ error_dotdot:
+ 
+ 	if (update_dotdot) {
+ 		fat_set_start(dotdot_de, MSDOS_I(old_dir)->i_logstart);
++		fat_check_set_state(old_inode->i_sb, 1);
+ 		mark_buffer_dirty_inode(dotdot_bh, old_inode);
+ 		corrupt |= sync_dirty_buffer(dotdot_bh);
+ 	}
+--- linux-kernel.orig/fs/fat/namei_vfat.c
++++ linux-kernel.mod/fs/fat/namei_vfat.c
+@@ -960,6 +960,7 @@ static int vfat_rename(struct inode *old_dir, struct dentry *old_dentry,
+ 
+ 	if (update_dotdot) {
+ 		fat_set_start(dotdot_de, MSDOS_I(new_dir)->i_logstart);
++		fat_check_set_state(sb, 1);	
+ 		mark_buffer_dirty_inode(dotdot_bh, old_inode);
+ 		if (IS_DIRSYNC(new_dir)) {
+ 			err = sync_dirty_buffer(dotdot_bh);
+@@ -1002,6 +1003,7 @@ error_dotdot:
+ 
+ 	if (update_dotdot) {
+ 		fat_set_start(dotdot_de, MSDOS_I(old_dir)->i_logstart);
++		fat_check_set_state(sb, 1);
+ 		mark_buffer_dirty_inode(dotdot_bh, old_inode);
+ 		corrupt |= sync_dirty_buffer(dotdot_bh);
+ 	}

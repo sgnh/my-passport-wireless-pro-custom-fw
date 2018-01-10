@@ -42,20 +42,11 @@ if [ -f /tmp/SMARTDone ] && [ -f /tmp/SMARTGood ]; then
     /usr/local/sbin/stopFUSE.sh
     touch /tmp/ScandiskProcessing
     rm -f /tmp/StartScandisk
-    #if [ "$fstype" == "exfat" ]; then
-    #    chkexfat -f ${MountDevNode}
-    #fi
-    #if [ "$fstype" == "ntfs" ]; then
-    #    chkntfs -f ${MountDevNode}
-    #fi
-    #if [ "$fstype" == "hfsplus" ]; then
-    #    chkhfs -f ${MountDevNode}
-    #fi
     if [ "$fstype" == "exfat" ] || [ "$fstype" == "ntfs" ] || [ "$fstype" == "hfsplus" ]; then
-        chkufsd -f ${MountDevNode}
+        chkufsd -f ${MountDevNode} > /tmp/chkdisk.log
     fi
     if [ "$fstype" == "vfat" ]; then
-        fsck.fat -aw ${MountDevNode}
+        fsck.fat -aw ${MountDevNode} > /tmp/chkdisk.log
     fi
     touch /tmp/ScandiskProcessingDone
     rm -f /tmp/ScandiskProcessing

@@ -1,7 +1,7 @@
 [Unit]
 Description=Primax upnp RC Script (S77upnp)
 DefaultDependencies=no
-After=primax-dhcp-server.service
+After=primax-dhcp-server.service primax-mdev.service
 
 [Service]
 Type=oneshot

@@ -1,5 +1,5 @@
 #!/bin/bash
-/sbin/EnableDisableSwap.sh disable
+#/sbin/EnableDisableSwap.sh disable
 umount /media/sdb1_fuse
 umount /DataVolume
 umount /var/ftp/Storage

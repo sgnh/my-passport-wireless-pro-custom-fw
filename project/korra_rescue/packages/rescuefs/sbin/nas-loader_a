@@ -13,6 +13,12 @@ HiddenV3=none
 #RecoveryFWversion
 RecoveryFWversion=none
 
+exit_update()
+{
+    echo "$1"
+    exit
+}
+
 upgrade(){
     tar xvf $1 updatefw -C /tmp
     tar xvf $1 fw.version -C /tmp
@@ -37,14 +43,17 @@ check_recoveryFW_version()
 	mount -t ext4 /dev/${HiddenV1}1 /mnt
 	if [ ! -f "/etc/FactoryFwVer" ]; then
 		RecoveryFWversion=`ls /mnt/MyPassport* | awk -F\/ '{print $NF}'`
-		uplog "RecoveryFWversion: "$RecoveryFWversion" "
+		if [ "${RecoveryFWversion}" == "" ]; then
+			RecoveryFWversion="0.0.0"
+		fi
+		echo "RecoveryFWversion: "$RecoveryFWversion" "
 	else
 		tmpRFWV=`cat /etc/FactoryFwVer`
 		if [ "$tmpRFWV" == "none" ]; then
 			RecoveryFWversion=`ls /mnt/MyPassport* | awk -F\/ '{print $NF}'`
-			uplog "get RecoveryFWversion again: "$RecoveryFWversion" "
+			echo "get RecoveryFWversion again: "$RecoveryFWversion" "
 		else
-			uplog "Recovery fw version exist "$tmpRFWV" "
+			echo "Recovery fw version exist "$tmpRFWV" "
 			RecoveryFWversion="$tmpRFWV"
 		fi
 	fi
@@ -54,18 +63,12 @@ check_recoveryFW_version()
 probe_hdd()
 {
     vol=0
-    if [ -f /tmp/KLITE ]; then
-        #HDD_MODEL="My Passport 25BE" # Since we don't have Asmedia for Lite
-        HDD_MODEL="My Passport 25AF"
-    else
-        HDD_MODEL="My Passport 25AF"
-    fi
     for diskV in /sys/block/sd*; do
         vendor=`cat $diskV/device/vendor | awk '{print $1}'`
         model=`cat $diskV/device/model`
         #Temp for Korra and Korra Lite
         [ "$model" == "My Passport 25AF" ] && HDD_MODEL="My Passport 25AF"
-        [ "$model" == "My Passport 25BE" ] && HDD_MODEL="My Passport 25BE"
+        [ "$model" == "My Passport 2601" ] && HDD_MODEL="My Passport 2601"
         if [ "$vendor" == "WD" ] && [ "$model" == "$HDD_MODEL" ]; then
             size=`cat $diskV/size`
             if [ $size -gt 4194304 ]; then
@@ -83,10 +86,134 @@ probe_hdd()
     done
 }
 
+format_hdd()
+{
+    echo "Formating...$2 to $1"
+    [ $1 == "ext4" ] && mkfs.ext4 /dev/$2
+    [ $1 == "vfat" ] && mkfs.fat /dev/$2
+}
+
+check_def_HWcollect_part()
+{
+    if [ "$1" == "none" ]; then
+        exit_update "def_HwCollect part incorrect, fix it"
+    fi
+    partNo=`ls -l /dev/"$1"* | wc -l`
+    partSize=`cat /proc/partitions | grep "$1"1 | grep 524288 | wc -l`
+    if [ $partNo -eq 3 ] && [ $partSize -eq 1 ]; then
+        fsType_1=`blkid /dev/"$1"1 | grep ext4 | wc -l`
+        if [ $fsType_1 -eq 1 ] ; then
+            echo "Def Part: ${1}1, Type:EXT4 $1"
+        else
+            format_hdd ext4 ${1}1
+        fi
+        fsType_2=`blkid /dev/"$1"2 | grep ext4 | wc -l`
+        if [ $fsType_2 -eq 1 ] ; then
+            echo "def_HwCollect Part: ${1}2, Type:EXT4 $1"
+        else
+            format_hdd ext4 ${1}2
+        fi
+    else
+        dd if=/dev/zero of=/dev/$1 bs=1M
+        sync
+        (echo n;echo p;echo 1;echo;echo +512M;echo n;echo p;echo 2;echo;echo;echo w) | fdisk /dev/$1
+        sync
+        sync
+        sync
+        format_hdd ext4 ${1}1
+	format_hdd ext4 ${1}2
+    fi
+
+}
+
+check_knl_part()
+{
+    if [ "$1" == "none" ]; then
+        exit_update "knl part incorrect, fix it"
+    fi
+    partNo=`ls -l /dev/"$1"* | wc -l`
+    partSize=`cat /proc/partitions | grep "$1"1 | grep 524288 | wc -l`
+    if [ $partNo -eq 3 ] && [ $partSize -eq 1 ]; then
+        fsType=`blkid /dev/"$1"1 | grep vfat | wc -l`
+        if [ $fsType -eq 1 ] ; then
+            echo "Kernel Part: $1, Type:VFAT $1"
+        else
+            format_hdd vfat ${1}1
+        fi
+    else
+        dd if=/dev/zero of=/dev/$1 bs=1M
+        sync
+        (echo n;echo p;echo 1;echo;echo +512M;echo n;echo p;echo 2;echo;echo;echo w) | fdisk /dev/$1
+        sync
+        sync
+        sync
+        format_hdd vfat ${1}1
+    fi
+}
+
+check_sys_part()
+{
+    if [ "$1" == "none" ]; then
+        exit_update "sys part incorrect, fix it"
+    fi
+    partNo=`ls -l /dev/"$1"* | wc -l`
+    if [ $partNo -eq 3 ]; then
+        fsType1=`blkid /dev/"$1"1 | grep ext4 | wc -l`
+        if [ $fsType1 -eq 1 ] ; then
+            echo "System Part: ${1}1, Type: EXT4"
+        else
+            format_hdd ext4 ${1}1
+        fi
+        fsType2=`blkid /dev/"$1"2 | grep ext4 | wc -l`
+        if [ $fsType2 -eq 1 ] ; then
+            echo "System Part: ${1}2, Type:EXT4"
+        else
+            format_hdd ext4 ${1}2
+        fi
+
+    else
+        dd if=/dev/zero of=/dev/$1 bs=1M
+        sync
+        (echo n;echo p;echo 1;echo;echo +1024M;echo n;echo p;echo 2;echo;echo;echo w) | fdisk /dev/$1
+        sync
+        sync
+        sync
+        format_hdd ext4 ${1}1
+        format_hdd ext4 ${1}2
+    fi
+
+}
+
+init_newdrive()
+{
+    for KNAME in `ls $DIRP/`; do
+        if [ -d "$DIRP/$KNAME/update"  ]; then
+            echo "init_newdrive - Found update folder in $DIRP/$KNAME"
+            update_images=`find $DIRP/$KNAME/update -name "MyPassportWirelessGen2*.bin"`
+            for update_image in $update_images; do
+                if [ -f "$DIRP/$KNAME/update/MyNewDrive"  ]; then
+                    echo "init_newdrive - Found MyNewDrive flag in folder $DIRP/$KNAME/update"
+                    check_def_HWcollect_part $HiddenV1
+                    check_knl_part $HiddenV2
+                    check_sys_part $HiddenV3
+                    mount /dev/${HiddenV1}1 /opt
+                    cp $update_image /opt/
+                    sync
+                    sync
+                    sync
+                    umount /opt/
+                    return 0
+                fi
+            done
+        fi
+    done
+}
+
 [ ! -d "$DIRP" ] && mkdir "$DIRP"
 [ ! -d "$DIRH" ] && mkdir "$DIRH"
 
 probe_hdd
+init_newdrive
 check_recoveryFW_version
 mount /dev/${HiddenV2}1 /mnt
 mkdir -p /hwcollect
